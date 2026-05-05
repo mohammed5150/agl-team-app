@@ -628,6 +628,90 @@ const supa = (typeof window !== "undefined" && window.supabase)
   ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY)
   : null;
 
+// Public VAPID key for Web Push. Safe to ship to clients — it's the half
+// of the keypair browsers need to verify pushes are coming from us.
+// Private key lives only in the send-push Edge Function's secrets.
+const VAPID_PUBLIC_KEY = "BPm3EK4wpAcX8cRXK86j0XqPEFKGAqOYcSxyWwe0xmN1Rasfijum1ByBaigbUpWG8bVnLQLphV34HhCVt5vvBtE";
+
+function urlBase64ToUint8Array(base64) {
+  const padding = "=".repeat((4 - base64.length % 4) % 4);
+  const b64 = (base64 + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const raw = atob(b64);
+  const arr = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
+  return arr;
+}
+
+const pushSupported = typeof window !== "undefined"
+  && "serviceWorker" in navigator
+  && "PushManager"   in window
+  && "Notification"  in window;
+
+// Subscribe the current browser to Web Push for the given employee id.
+// Idempotent — calling repeatedly just refreshes last_seen_at.
+async function subscribePush(empId) {
+  if (!pushSupported || !supa) return { ok: false, reason: "unsupported" };
+  if (Notification.permission === "denied")
+    return { ok: false, reason: "permission denied" };
+
+  const reg = await navigator.serviceWorker.ready;
+  let sub = await reg.pushManager.getSubscription();
+
+  if (!sub) {
+    if (Notification.permission !== "granted") {
+      const perm = await Notification.requestPermission();
+      if (perm !== "granted") return { ok: false, reason: "permission denied" };
+    }
+    try {
+      sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+      });
+    } catch (e) {
+      console.error("[push] subscribe failed:", e);
+      return { ok: false, reason: e.message || "subscribe failed" };
+    }
+  }
+
+  const j = sub.toJSON();
+  const { error } = await supa.from("push_subscriptions").upsert({
+    user_id: empId,
+    endpoint: j.endpoint,
+    p256dh:   j.keys.p256dh,
+    auth:     j.keys.auth,
+    user_agent:   typeof navigator !== "undefined" ? navigator.userAgent : null,
+    last_seen_at: new Date().toISOString(),
+  }, { onConflict: "endpoint" });
+  if (error) {
+    console.error("[push] save subscription failed:", error);
+    return { ok: false, reason: error.message };
+  }
+  return { ok: true };
+}
+
+async function unsubscribePush() {
+  if (!pushSupported || !supa) return;
+  const reg = await navigator.serviceWorker.ready;
+  const sub = await reg.pushManager.getSubscription();
+  if (!sub) return;
+  const endpoint = sub.endpoint;
+  try { await sub.unsubscribe(); } catch {}
+  try { await supa.from("push_subscriptions").delete().eq("endpoint", endpoint); } catch {}
+}
+
+// Ask the Edge Function to send a push to a specific employee.
+async function sendPush(toEmpId, title, body, url = "/") {
+  if (!supa) return;
+  try {
+    const { error } = await supa.functions.invoke("send-push", {
+      body: { to: toEmpId, title, body, url },
+    });
+    if (error) console.warn("[push] send failed:", error);
+  } catch (e) {
+    console.warn("[push] send error:", e);
+  }
+}
+
 const empToDb = e => ({
   id: e.id, email: e.email,
   name: e.name, section: e.section,
@@ -803,6 +887,13 @@ function App() {
       setNotifications(nfs);
       prevNotificationsRef.current = nfs;
       setCurrentUser(me);
+
+      // If this device already granted notification permission, refresh the
+      // push subscription quietly. New devices will see the "Enable" button
+      // in the notifications panel and opt in there.
+      if (pushSupported && Notification.permission === "granted") {
+        subscribePush(me.id).catch(e => console.warn("[push] refresh:", e));
+      }
 
       // Realtime
       if (!window.__portalChannel) {
@@ -992,6 +1083,8 @@ function App() {
   }, [loginId, loginPassword]);
 
   const logout = useCallback(async () => {
+    // Unsubscribe push first so this device stops receiving for the previous user
+    try { await unsubscribePush(); } catch {}
     if (supa) { try { await supa.auth.signOut(); } catch {} }
     if (window.__portalChannel) { try { window.__portalChannel.unsubscribe(); } catch {} window.__portalChannel = null; }
     setLoginId(""); setLoginPassword(""); setLoginError("");
@@ -1129,10 +1222,11 @@ function App() {
       status:"pending", appliedOn: new Date().toISOString(),
       tlComment:"", mgrComment:"", tlActionDate:"", mgrActionDate:"", tlName:"", mgrName:""
     }, ...p]);
+    const lrMsg = `New leave: ${currentUser.name} - ${form.type} (${form.days}d)`;
     setNotifications(p => [{ id: nfId(), to:"TL-001", type:"new_request",
-      message:`New leave: ${currentUser.name} - ${form.type} (${form.days}d)`,
-      read:false, date:new Date().toISOString()
+      message: lrMsg, read:false, date:new Date().toISOString()
     }, ...p]);
+    sendPush("TL-001", "New Leave Request", lrMsg, "/");
   }, [currentUser, nextLrId]);
 
   const leaveAction = useCallback((rid, action, comment) => {
@@ -1141,23 +1235,31 @@ function App() {
       const now = new Date().toISOString();
       if (currentUser.role === "teamlead") {
         if (action === "approve") {
+          const m = `${r.empName}'s leave approved by TL`;
           setNotifications(p => [{ id: nfId(), to:"MGR-001", type:"new_request",
-            message:`${r.empName}'s leave approved by TL`, read:false, date:now }, ...p]);
+            message: m, read:false, date:now }, ...p]);
+          sendPush("MGR-001", "Leave needs your approval", m, "/");
           return { ...r, status:"tl_approved", tlComment:comment||"Approved", tlActionDate:now, tlName:currentUser.name };
         } else {
+          const m = `${r.type} rejected by TL: ${comment||"Rejected"}`;
           setNotifications(p => [{ id: nfId(), to:r.empId, type:"rejected",
-            message:`${r.type} rejected by TL: ${comment||"Rejected"}`, read:false, date:now }, ...p]);
+            message: m, read:false, date:now }, ...p]);
+          sendPush(r.empId, "Leave rejected", m, "/");
           return { ...r, status:"rejected", tlComment:comment||"Rejected", tlActionDate:now, tlName:currentUser.name };
         }
       }
       if (currentUser.role === "manager") {
         if (action === "approve") {
+          const m = `${r.type} APPROVED ✅`;
           setNotifications(p => [{ id: nfId(), to:r.empId, type:"approved",
-            message:`${r.type} APPROVED ✅`, read:false, date:now }, ...p]);
+            message: m, read:false, date:now }, ...p]);
+          sendPush(r.empId, "Leave approved", m, "/");
           return { ...r, status:"approved", mgrComment:comment||"Approved", mgrActionDate:now, mgrName:currentUser.name };
         } else {
+          const m = `${r.type} rejected by Manager`;
           setNotifications(p => [{ id: nfId(), to:r.empId, type:"rejected",
-            message:`${r.type} rejected by Manager`, read:false, date:now }, ...p]);
+            message: m, read:false, date:now }, ...p]);
+          sendPush(r.empId, "Leave rejected", m, "/");
           return { ...r, status:"rejected", mgrComment:comment||"Rejected", mgrActionDate:now, mgrName:currentUser.name };
         }
       }
@@ -1354,6 +1456,7 @@ function App() {
             {showNotif && (
               <NotifPanel
                 notifs={myNotifs}
+                currentUser={currentUser}
                 onClose={() => setShowNotif(false)}
                 onMarkRead={markNotifRead}
                 onMarkAll={markAllRead}
@@ -1559,7 +1662,7 @@ function ChPw({ user, onCh, forced, onOut }) {
    NOTIFICATIONS PANEL (bell dropdown)
    ============================================================ */
 
-function NotifPanel({ notifs, onClose, onMarkRead, onMarkAll, onGoTo }) {
+function NotifPanel({ notifs, onClose, onMarkRead, onMarkAll, onGoTo, currentUser }) {
   const unread = notifs.filter(n => !n.read);
   const [notifPerm, setNotifPerm] = useState(
     typeof window !== "undefined" && "Notification" in window ? Notification.permission : "unsupported"
@@ -1568,7 +1671,14 @@ function NotifPanel({ notifs, onClose, onMarkRead, onMarkAll, onGoTo }) {
     if (!("Notification" in window)) return;
     const r = await Notification.requestPermission();
     setNotifPerm(r);
-    if (r === "granted") new Notification("ADB Portal", { body: "Notifications enabled ✅", icon: "/icon-192.png" });
+    if (r === "granted") {
+      // Subscribe this browser/device to push and persist to Supabase.
+      if (currentUser?.id) {
+        const res = await subscribePush(currentUser.id);
+        if (!res.ok) console.warn("[push] subscribe:", res.reason);
+      }
+      new Notification("ADB Portal", { body: "Push notifications enabled ✅", icon: "/icon-192.png" });
+    }
   };
   const iconFor = (tp) => tp === "approved" ? "✅"
     : tp === "rejected" ? "❌"

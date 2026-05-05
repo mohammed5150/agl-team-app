@@ -6,7 +6,7 @@
 // Bump SW_VERSION whenever you change THIS FILE. App code (app.js / index.html)
 // updates automatically thanks to network-first — no bump needed for those.
 
-const SW_VERSION  = "v3";
+const SW_VERSION  = "v4";
 const STATIC_CACHE  = `adb-portal-static-${SW_VERSION}`;
 const RUNTIME_CACHE = `adb-portal-runtime-${SW_VERSION}`;
 
@@ -89,3 +89,44 @@ self.addEventListener("fetch", (ev) => {
 self.addEventListener("message", (ev) => {
   if (ev.data === "SKIP_WAITING") self.skipWaiting();
 });
+
+// ---------------------------------------------------------------
+// Web Push
+// ---------------------------------------------------------------
+self.addEventListener("push", (ev) => {
+  let data = {};
+  if (ev.data) {
+    try { data = ev.data.json(); }
+    catch { data = { title: "ADB Portal", body: ev.data.text() }; }
+  }
+  const title = data.title || "ADB Portal";
+  const opts = {
+    body:  data.body  || "",
+    icon:  data.icon  || "/icon-192.png",
+    badge: data.badge || "/icon-192.png",
+    tag:   data.tag   || "adb-portal",
+    data:  { url: data.url || "/" },
+    requireInteraction: false,
+    renotify: true,
+  };
+  ev.waitUntil(self.registration.showNotification(title, opts));
+});
+
+// When the user taps the notification, focus an existing tab or open one.
+self.addEventListener("notificationclick", (ev) => {
+  ev.notification.close();
+  const target = ev.notification.data?.url || "/";
+  ev.waitUntil((async () => {
+    const all = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+    for (const c of all) {
+      // Same-origin tab? focus it and navigate.
+      if (new URL(c.url).origin === self.location.origin && "focus" in c) {
+        await c.focus();
+        try { c.navigate(target); } catch {}
+        return;
+      }
+    }
+    if (self.clients.openWindow) await self.clients.openWindow(target);
+  })());
+});
+
