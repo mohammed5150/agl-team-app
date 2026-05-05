@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0">
+<title>ADB SAFEGATE - Maintenance Team Portal</title>
+
+<!-- SEO Meta Tags -->
+<meta name="description" content="ADB Safegate Maintenance Team Portal - Manage leave, rosters, documents, training certifications, and team communications for AGL operations.">
+<meta name="keywords" content="ADB Safegate, AGL, maintenance, team portal, leave management, training, certifications">
+<meta name="author" content="ADB Safegate AGL Team">
+<meta name="robots" content="index, nofollow">
+<meta name="theme-color" content="#15425f">
+
+<!-- Open Graph / Social -->
+<meta property="og:title" content="ADB Safegate - Maintenance Team Portal">
+<meta property="og:description" content="Single portal for AGL team leave, rosters, documents, training & communications">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
+
+<!-- PWA & Mobile -->
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" href="favicon.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="ADB Portal">
+<meta name="mobile-web-app-capable" content="yes">
+
+<!-- Performance: Preconnect to CDN domains -->
+<link rel="preconnect" href="https://cdnjs.cloudflare.com">
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+
+<!-- Performance: Preload critical scripts -->
+<link rel="preload" as="script" href="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js">
+<link rel="preload" as="script" href="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js">
+
+<!-- Security: Content Security Policy -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://*.supabase.co wss://*.supabase.co; frame-ancestors 'self'; object-src 'none'; base-uri 'self';">
+
+<!-- External Libraries -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js" defer></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" defer></script>
+
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0b1a2b;font-family:'Segoe UI',system-ui,-apple-system,sans-serif;-webkit-font-smoothing:antialiased}
+select option{background:#111f30;color:#e0e6ed}
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.12);border-radius:3px}
+input:focus,select:focus,textarea:focus{outline:none}
+button{transition:opacity 0.15s,transform 0.1s}
+button:hover{opacity:0.9}
+button:active{transform:scale(0.98)}
+.fade-in{animation:fi .2s ease-out}
+@keyframes fi{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+.modal-bg{animation:mb .2s ease-out}
+@keyframes mb{from{opacity:0}to{opacity:1}}
+.modal-panel{animation:mp .25s cubic-bezier(.2,.9,.3,1.2)}
+@keyframes mp{from{opacity:0;transform:scale(.95) translateY(10px)}to{opacity:1;transform:none}}
+@media(max-width:768px){.hide-md{display:none!important}}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script src="app.js" defer></script>
+</body>
+</html>
