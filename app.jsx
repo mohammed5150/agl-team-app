@@ -1,815 +1,41 @@
+import {
+  SECTIONS, LEAVE_TYPES, STATUS_COLORS, STATUS_LABELS, MONTHS, SHIFT_HOURS,
+  DOC_TYPES, ANN_PRIORITIES, theme,
+} from "./src/constants.js";
+import { NE, NM } from "./src/nav.js";
+import {
+  RATING_KEYS, gradeFromRating, TIERS, TIER_COLORS, TIERS_CAP, TIER_CAP_COLORS,
+} from "./src/rating.js";
+import {
+  ROLE_CODES, ROLE_ORDER, designationToRoleCode, TRAINING_CATALOG,
+} from "./src/trainingCatalog.js";
+import {
+  INITIAL_EMPLOYEES,
+  INITIAL_LEAVE_REQUESTS, INITIAL_ANNOUNCEMENTS, nfId, INITIAL_NOTIFICATIONS,
+} from "./src/seedData.js";
+import {
+  parseCSV, nextEmpId, cH, certSt, fmtDt, daysInRange,
+} from "./src/helpers.js";
+import {
+  supa, subscribePush, unsubscribePush, sendPush,
+  empToDb, empFromDb, lrToDb, lrFromDb, annToDb, annFromDb, nfToDb, nfFromDb,
+  diffById, pushSupported,
+} from "./src/supabasePortal.js";
+import {
+  Logo, ib, Bd, Bt, SC2, Sec, Fd, Modal, Empty,
+} from "./src/uiPrimitives.jsx";
+import { LoginPage } from "./src/LoginPage.jsx";
+import { ErrorBoundary } from "./src/ErrorBoundary.jsx";
 
-const { useState, useCallback, useMemo, useEffect, useRef } = React;
+const { useState, useCallback, useMemo, useEffect, useRef, useId } = React;
 
-/* ============================================================
-   CONSTANTS & THEME
-   ============================================================ */
-
-const SECTIONS = ["AGL 12hrs", "AGL 8hrs", "Helpdesk", "Systems", "High Masts"];
-const LEAVE_TYPES = ["Annual Leave", "Sick Leave", "Comp-Off", "Emergency Leave", "Unpaid Leave"];
-const STATUS_COLORS = { pending: "#f59e0b", tl_approved: "#38bdf8", approved: "#10b981", rejected: "#ef4444" };
-const STATUS_LABELS = { pending: "Pending TL", tl_approved: "Pending MGR", approved: "Approved", rejected: "Rejected" };
-const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-const SHIFT_HOURS = {
-  "AGL 12hrs": { M:12, N:12 },
-  "AGL 8hrs": { M:8 },
-  "Helpdesk": { M:12, N:12 },
-  "Systems": { M:12, N:12 },
-  "High Masts": { M:8 }
-};
-
-const DOC_TYPES = [
-  { key:"passport", label:"Passport", icon:"📘" },
-  { key:"visa", label:"UAE Visa", icon:"📝" },
-  { key:"eid", label:"Emirates ID", icon:"🆔" },
-  { key:"license", label:"Driving Licence", icon:"🚗" },
-  { key:"medical", label:"Medical Fitness", icon:"🏥" },
-  { key:"airport", label:"Airport Pass", icon:"🛫" },
-  { key:"other", label:"Other", icon:"📄" }
-];
-
-const ANN_PRIORITIES = [
-  { key:"info", label:"Info", color:"#38bdf8" },
-  { key:"important", label:"Important", color:"#f59e0b" },
-  { key:"urgent", label:"Urgent", color:"#ef4444" }
-];
-
-const theme = {
-  bg:"#0b1a2b", card:"rgba(255,255,255,0.04)", cs:"#111f30",
-  ch:"rgba(255,255,255,0.07)", bd:"rgba(255,255,255,0.08)", bl:"rgba(255,255,255,0.12)",
-  pet:"#15425f", pl:"#1a5a80", or:"#e8702a", ol:"#f5923e", yl:"#f5a623",
-  tx:"#f0f4f8", ts:"#94a3b8", td:"#64748b",
-  gn:"#10b981", rd:"#ef4444", bu:"#38bdf8", pu:"#a78bfa", cy:"#22d3ee",
-  gp:"linear-gradient(135deg,#15425f,#1a5a80)",
-  ga:"linear-gradient(135deg,#e8702a,#f5923e)"
-};
-
-/* ============================================================
-   ROSTER PATTERN HELPERS
-   ============================================================ */
-
-const P12 = [
-  ["O","O","M","M","O","O","N","N"],
-  ["M","M","O","O","M","M","O","O"],
-  ["N","N","O","O","N","N","O","O"],
-  ["O","O","N","N","O","O","M","M"]
-];
-const P8  = [["M","M","M","M","M","M","O"], ["M","M","M","M","M","O","M"]];
-const PHD = [
-  ["N","N","O","O","N","N","O","O"],
-  ["O","O","N","N","O","O","M","M"],
-  ["M","O","M","M","O","O","N","N"]
-];
-const PSY = [
-  ["M","M","M","O","O","M","M","N","N","O","O","M","M","N","N"],
-  ["N","O","O","M","M","N","N","O","O","M","M","N","N","O","O"]
-];
-
-const gR = (s, p, y, m) => {
-  const d = new Date(y, m+1, 0).getDate();
-  return Array.from({length:d}, (_,i) => ({
-    day: i+1,
-    code: p[i % p.length],
-    date: `${y}-${String(m+1).padStart(2,"0")}-${String(i+1).padStart(2,"0")}`
-  }));
-};
-
-/* ============================================================
-   EMPLOYEE FACTORY + SEED DATA
-   ============================================================ */
-
-const mE = (id, nm, sec, des, pi, em) => {
-  const ps = sec==="AGL 12hrs"?P12:sec==="AGL 8hrs"?P8:sec==="Helpdesk"?PHD:sec==="Systems"?PSY:P8;
-  const pa = ps[pi % ps.length];
-  const rr = {};
-  [0,1,2,3].forEach(m => {
-    const r = gR(sec, pa, 2026, m);
-    if (Math.random() > 0.5) {
-      let a = 0;
-      for (let i=5; i<r.length && a<2; i+=7) {
-        if (r[i].code !== "O") { r[i] = {...r[i], code:"L"}; a++; }
-      }
-    }
-    rr[`2026-${String(m+1).padStart(2,"0")}`] = r;
-  });
-  const idNum = id.split("-")[1];
-  return {
-    id,
-    email: em || (() => {
-      const parts = nm.toLowerCase().split(" ");
-      return (parts[0] + "." + parts[parts.length - 1]).replace(/[^a-z.]/g, "") + "@adbsafegate.ae";
-    })(),
-    name: nm, section: sec, designation: des,
-    shift: sec==="AGL 12hrs" ? "12hr" : (sec==="AGL 8hrs"||sec==="High Masts") ? "8hr" : "24hr",
-    nationality: "Indian",
-    mobile: "+971 50 " + String(Math.floor(Math.random()*9e6+1e6)),
-    empNo: "ADB-" + idNum,
-    dob: "1990-01-15", maritalStatus: "Single", address: "Abu Dhabi, UAE",
-    joinDate: "2019-01-01",
-    emergencyContact: "+971 50 000 0000", emergencyName: "N/A",
-    passportNo: "AB" + (1000000 + parseInt(idNum)*37).toString().slice(0,7),
-    passportExpiry: "2028-12-31",
-    visaExpiry: "2027-06-30",
-    eidNo: "784-" + (1985 + (parseInt(idNum) % 15)) + "-" + (1000000 + parseInt(idNum)*123).toString().slice(0,7) + "-" + (parseInt(idNum) % 10),
-    eidExpiry: "2027-06-30",
-    annualLeave: 30, usedAnnual: Math.floor(Math.random()*10),
-    sickLeave: 15, usedSick: Math.floor(Math.random()*5),
-    compOff: Math.floor(Math.random()*4),
-    role: "employee",
-    roster: rr,
-    achievements: [], warnings: [], actions: [],
-    training: [
-      { id:1, title:"AGL Basic Maintenance", provider:"ADB Safegate Academy", completedDate:"2024-06-15", certExpiry:"2026-06-15", certNo:"AGL-B-"+idNum },
-      { id:2, title:"Airfield Safety Awareness", provider:"GCAA", completedDate:"2025-01-20", certExpiry:"2027-01-20", certNo:"ASA-"+idNum },
-      { id:3, title:"First Aid & CPR", provider:"Red Crescent UAE", completedDate:"2024-03-10", certExpiry:"2026-03-10", certNo:"FA-"+idNum },
-      { id:4, title:"Working at Heights", provider:"ADNOC HSE", completedDate:"2025-08-05", certExpiry:"2026-08-05", certNo:"WAH-"+idNum },
-      { id:5, title:"Fire Safety & Emergency", provider:"Abu Dhabi Civil Defense", completedDate:"2025-04-12", certExpiry:"2027-04-12", certNo:"FSER-"+idNum }
-    ],
-    documents: [
-      { id:1, type:"passport", title:"Passport", docNo:"AB"+(1000000+parseInt(idNum)*37).toString().slice(0,7), issueDate:"2019-01-05", expiryDate:"2028-12-31", fileName:"passport_scan.pdf" },
-      { id:2, type:"visa", title:"Employment Visa", docNo:"UAE/"+idNum+"/2024", issueDate:"2024-06-30", expiryDate:"2027-06-30", fileName:"visa_stamp.pdf" },
-      { id:3, type:"eid", title:"Emirates ID", docNo:"784-"+(1985+(parseInt(idNum)%15))+"-"+(1000000+parseInt(idNum)*123).toString().slice(0,7)+"-"+(parseInt(idNum)%10), issueDate:"2024-07-15", expiryDate:"2027-06-30", fileName:"eid_front_back.jpg" },
-      { id:4, type:"airport", title:"ZIA Airport Pass", docNo:"ZIA-"+idNum, issueDate:"2025-01-01", expiryDate:(parseInt(idNum)%7===0 ? "2026-05-15" : "2027-01-01"), fileName:"airport_pass.jpg" }
-    ]
-  };
-};
-
-const INITIAL_EMPLOYEES = [
-  mE("EMP-001","Amarnath Munderi","AGL 12hrs","AGL Technician",0),
-  mE("EMP-002","Subash Chouhan","AGL 12hrs","AGL Technician",0),
-  mE("EMP-003","Thauseef Khan","AGL 12hrs","AGL Technician",0),
-  mE("EMP-004","Abubaker Irshad","AGL 12hrs","AGL Technician",1),
-  mE("EMP-005","Gopakumar Gopinathan","AGL 12hrs","Sr. AGL Technician",3),
-  mE("EMP-006","Babloo Sharma","AGL 12hrs","AGL Technician",3),
-  mE("EMP-007","Upendra","AGL 12hrs","AGL Technician",3),
-  mE("EMP-008","Gineesh Navaratna","AGL 12hrs","AGL Technician",3),
-  mE("EMP-009","Anurag Aikkal","AGL 12hrs","AGL Technician",2),
-  mE("EMP-010","Abhijith","AGL 12hrs","AGL Technician",2),
-  mE("EMP-011","Shaji Kolavayal","AGL 12hrs","AGL Technician",2),
-  mE("EMP-012","Dhaneesh Punnakkal","AGL 12hrs","AGL Technician",1),
-  mE("EMP-013","Badarul Muneer","AGL 12hrs","AGL Technician",1),
-  mE("EMP-014","Vikram Pal","AGL 12hrs","AGL Technician",1),
-  mE("EMP-015","Latheef Ummer","AGL 12hrs","AGL Technician",1),
-  mE("EMP-016","Thomas Padipurakkal","AGL 12hrs","AGL Technician",1),
-  mE("EMP-017","Faheem Muhammed","AGL 8hrs","AGL Technician",0),
-  mE("EMP-018","Sanoop Louis","AGL 8hrs","AGL Technician",0),
-  mE("EMP-019","Nisar Ahmed","AGL 8hrs","AGL Technician",1),
-  mE("EMP-020","Jiji Varghese","AGL 8hrs","AGL Technician",0),
-  mE("EMP-021","Inchody Dinesh Ram","AGL 8hrs","AGL Technician",0),
-  mE("EMP-022","Monish Menothparambil","AGL 8hrs","AGL Technician",0),
-  mE("EMP-023","Nikhil Koyoon","AGL 8hrs","AGL Technician",0),
-  mE("EMP-024","Sura Uthaman","AGL 8hrs","AGL Technician",1),
-  mE("EMP-025","Ganesan Subramanian","AGL 8hrs","Sr. AGL Technician",1),
-  mE("EMP-026","Gajendran Nagasundaram","AGL 8hrs","AGL Technician",0),
-  mE("EMP-027","Tahseen Khan","AGL 8hrs","AGL Technician",0),
-  mE("EMP-028","Abhishekh Pujari","AGL 8hrs","AGL Technician",0),
-  mE("EMP-029","Muthukumar Cinniah","AGL 8hrs","AGL Technician",0),
-  mE("EMP-030","Shigin Menothparambil","AGL 8hrs","AGL Technician",0),
-  mE("EMP-031","Musthafa Erchat","AGL 8hrs","AGL Technician",0),
-  mE("EMP-032","Vineeth Patteri","AGL 8hrs","AGL Technician",0),
-  mE("EMP-033","Shanmugadas Raju","AGL 8hrs","AGL Technician",0),
-  mE("EMP-034","Manish Yadav","AGL 8hrs","AGL Technician",0),
-  mE("EMP-035","Midhun Babu","AGL 8hrs","AGL Technician",0),
-  mE("EMP-036","Sandeep Selvan","AGL 8hrs","AGL Technician",1),
-  mE("EMP-037","Danish Khan","AGL 8hrs","AGL Technician",0),
-  mE("EMP-038","Rajesh Kanna Nagarajan","AGL 8hrs","AGL Technician",0),
-  mE("EMP-039","Mahthab Imdadullah","AGL 8hrs","AGL Technician",0),
-  mE("EMP-040","Raju Kolavayal","AGL 8hrs","AGL Technician",0),
-  mE("EMP-041","Prasath Maharajan","AGL 8hrs","AGL Technician",1),
-  mE("EMP-042","Adhul KP","AGL 8hrs","AGL Technician",0),
-  mE("EMP-043","Musthafa Neduvally","AGL 8hrs","AGL Technician",0),
-  mE("EMP-044","Mani Sanker","Helpdesk","Helpdesk Operator",0),
-  mE("EMP-045","Rishan Muhammed","Helpdesk","Helpdesk Operator",2),
-  mE("EMP-046","Yadhunath Kaitheri","Helpdesk","Helpdesk Operator",1),
-  mE("EMP-047","Sreevatsa Pushpalatha","Helpdesk","Helpdesk Operator",1),
-  mE("EMP-048","Farhan Muhammed","Helpdesk","Helpdesk Operator",1),
-  mE("EMP-049","Prajesh Kadavankandi","Systems","Systems Technician",0),
-  mE("EMP-050","Nithin Kumar","Systems","Systems Technician",1),
-  mE("EMP-051","Haris Muhammed","Systems","Systems Technician",0),
-  mE("EMP-052","Praveen Arunachalam","Systems","Systems Technician",1),
-  mE("EMP-053","Balamurugan Maharaja","Systems","Systems Technician",0),
-  mE("EMP-054","Syed Mussafir Shah","High Masts","High Mast Technician",0),
-  mE("EMP-055","Abhishek Aramban","High Masts","High Mast Technician",0),
-  mE("EMP-056","Divakar Gunasekaran","High Masts","High Mast Technician",1),
-  mE("EMP-057","Jijo Sebastian","High Masts","High Mast Technician",0),
-  mE("EMP-058","Mustafah Arshad","High Masts","High Mast Technician",0)
-];
-
-// Seed some performance records so demo has content
-INITIAL_EMPLOYEES[0].achievements = [
-  { id:1, title:"Best Performer - Q1 2026", date:"2026-03-31", by:"Ragesh Menon", desc:"Outstanding performance in AGL maintenance" },
-  { id:2, title:"Safety Champion Award", date:"2026-02-15", by:"Mohammed Faheem", desc:"Zero incidents for 12 consecutive months" }
-];
-INITIAL_EMPLOYEES[0].actions = [
-  { id:1, type:"commendation", title:"Letter of Appreciation", date:"2026-01-20", by:"Mohammed Faheem", desc:"Exceptional work during runway maintenance" }
-];
-INITIAL_EMPLOYEES[2].warnings = [
-  { id:1, title:"Late Attendance Warning", date:"2026-03-10", by:"Mohammed Faheem", desc:"3 instances of late reporting in March", severity:"minor" }
-];
-INITIAL_EMPLOYEES[6].achievements = [
-  { id:1, title:"Technical Excellence Award", date:"2026-02-28", by:"Ragesh Menon", desc:"Successfully led high mast retrofit project" }
-];
-INITIAL_EMPLOYEES[6].actions = [
-  { id:1, type:"warning", title:"Verbal Warning - PPE", date:"2026-03-15", by:"Mohammed Faheem", desc:"Not wearing safety harness at height" }
-];
-
-const TEAMLEAD_USER = {
-  id:"TL-001", email:"mohammed.faheem@adbsafegate.com",
-  name:"Mohammed Faheem", role:"teamlead", designation:"Team Leader", section:"All", shift:"General",
-  nationality:"Indian", mobile:"+971 50 222 0001", empNo:"ADB-2001",
-  dob:"1985-03-20", maritalStatus:"Married", address:"Abu Dhabi, UAE", joinDate:"2015-06-01",
-  emergencyContact:"+971 50 222 0002", emergencyName:"N/A",
-  passportNo:"", passportExpiry:"", visaExpiry:"",
-  eidNo:"784-XXXX-XXXXXXX-X", eidExpiry:"2028-12-31",
-  annualLeave:30, usedAnnual:5, sickLeave:15, usedSick:1, compOff:2,
-  documents:[], training:[]
-};
-
-const MANAGER_USER = {
-  id:"MGR-001", email:"ragesh.menon@adbsafegate.ae",
-  name:"Ragesh Menon", role:"manager", designation:"Maintenance Manager", section:"All", shift:"General",
-  nationality:"Indian", mobile:"+971 50 333 0001", empNo:"ADB-3001",
-  dob:"1980-07-10", maritalStatus:"Married", address:"Abu Dhabi, UAE", joinDate:"2012-01-15",
-  emergencyContact:"+971 50 333 0002", emergencyName:"N/A",
-  passportNo:"", passportExpiry:"", visaExpiry:"",
-  eidNo:"784-XXXX-XXXXXXX-X", eidExpiry:"2028-12-31",
-  annualLeave:30, usedAnnual:3, sickLeave:15, usedSick:0, compOff:0,
-  documents:[], training:[]
-};
-
-const INITIAL_LEAVE_REQUESTS = [
-  { id:"LR-001", empId:"EMP-001", empName:"Amarnath Munderi", section:"AGL 12hrs", type:"Annual Leave",
-    startDate:"2026-04-15", endDate:"2026-04-18", days:4, reason:"Family visit to India",
-    status:"pending", appliedOn:"2026-04-03T10:30:00", tlComment:"", mgrComment:"",
-    tlActionDate:"", mgrActionDate:"", tlName:"", mgrName:"" },
-  { id:"LR-002", empId:"EMP-017", empName:"Faheem Muhammed", section:"AGL 8hrs", type:"Sick Leave",
-    startDate:"2026-04-22", endDate:"2026-04-23", days:2, reason:"Medical appointment",
-    status:"tl_approved", appliedOn:"2026-04-15T08:15:00",
-    tlComment:"Approved.", tlActionDate:"2026-04-15T14:00:00", tlName:"Mohammed Faheem",
-    mgrComment:"", mgrActionDate:"", mgrName:"" },
-  { id:"LR-003", empId:"EMP-049", empName:"Prajesh Kadavankandi", section:"Systems", type:"Annual Leave",
-    startDate:"2026-04-20", endDate:"2026-04-25", days:6, reason:"Wedding ceremony",
-    status:"approved", appliedOn:"2026-04-10T09:00:00",
-    tlComment:"Approved", tlActionDate:"2026-04-10T16:00:00", tlName:"Mohammed Faheem",
-    mgrComment:"Congratulations!", mgrActionDate:"2026-04-11T09:30:00", mgrName:"Ragesh Menon" },
-  { id:"LR-004", empId:"EMP-005", empName:"Gopakumar Gopinathan", section:"AGL 12hrs", type:"Annual Leave",
-    startDate:"2026-04-28", endDate:"2026-05-05", days:8, reason:"Family function",
-    status:"approved", appliedOn:"2026-04-05T11:00:00",
-    tlComment:"Approved", tlActionDate:"2026-04-05T17:00:00", tlName:"Mohammed Faheem",
-    mgrComment:"Approved. Safe travels.", mgrActionDate:"2026-04-06T10:00:00", mgrName:"Ragesh Menon" }
-];
-
-const INITIAL_ANNOUNCEMENTS = [
-  { id:"ANN-001", title:"LVO Operations - April 22-24, 2026",
-    message:"Low Visibility Operations are expected between 22-24 April due to forecasted fog. All AGL and Systems teams must be on standby. Refer to MOC-OMAA-431 for procedures. Team leaders to brief shifts before handover.",
-    priority:"urgent", pinned:true, date:"2026-04-18T08:00:00", by:"Ragesh Menon", target:"all" },
-  { id:"ANN-002", title:"Ramadan Working Hours - Revised",
-    message:"Revised working hours during Ramadan remain in effect until end of month. 8-hour shift: 07:30-14:30. 12-hour shifts unchanged. Please plan meals accordingly and hydrate before shift start.",
-    priority:"important", pinned:true, date:"2026-04-12T09:00:00", by:"Ragesh Menon", target:"all" },
-  { id:"ANN-003", title:"PPE Compliance - Weekly Audit",
-    message:"Weekly PPE audit scheduled for Thursday 24 April. All technicians working on airside must carry full PPE including safety harness for height works. Non-compliance will be documented.",
-    priority:"important", pinned:false, date:"2026-04-14T10:30:00", by:"Mohammed Faheem", target:"all" },
-  { id:"ANN-004", title:"New Spares Stock Arrived",
-    message:"EPCOS film capacitors and Littelfuse MOV varistors have arrived in the central stores. Contact Sanoop for allocation. Please update the spares register after collection.",
-    priority:"info", pinned:false, date:"2026-04-10T14:00:00", by:"Mohammed Faheem", target:"AGL 8hrs" },
-  { id:"ANN-005", title:"Training Schedule - May 2026",
-    message:"Refresher training for Working at Heights will be conducted in the first week of May. Those with certificates expiring before June must attend. Dates to be confirmed.",
-    priority:"info", pinned:false, date:"2026-04-08T11:00:00", by:"Ragesh Menon", target:"all" }
-];
-
-const nfId = () => `NF-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-const INITIAL_NOTIFICATIONS = [
-  { id:"NF-SEED-001", to:"TL-001", type:"new_request", message:"New leave: Amarnath Munderi - Annual Leave (4d)", read:false, date:"2026-04-18T10:30:00" },
-  { id:"NF-SEED-002", to:"MGR-001", type:"new_request", message:"Faheem Muhammed's leave approved by TL", read:false, date:"2026-04-15T14:00:00" },
-  { id:"NF-SEED-003", to:"EMP-049", type:"approved", message:"Annual Leave APPROVED ✅", read:true, date:"2026-04-11T09:30:00" }
-];
-
-/* ============================================================
-   NAVIGATION
-   ============================================================ */
-
-const NE = [
-  { key:"dashboard", label:"Dashboard", icon:"📊" },
-  { key:"profile", label:"My Profile", icon:"👤" },
-  { key:"leave", label:"Leave", icon:"📅" },
-  { key:"attendance", label:"My Attendance", icon:"✅" },
-  { key:"training", label:"Training", icon:"🎓" },
-  { key:"documents", label:"My Documents", icon:"📁" },
-  { key:"announcements", label:"Announcements", icon:"📢" },
-  { key:"changepw", label:"Settings", icon:"⚙️" }
-];
-
-const NM = [
-  { key:"dashboard", label:"Dashboard", icon:"📊" },
-  { key:"team", label:"Employees", icon:"👥" },
-  { key:"performance", label:"Performance", icon:"🏆" },
-  { key:"approvals", label:"Approvals", icon:"🔔" },
-  { key:"attendance", label:"Working Hours", icon:"⏱️" },
-  { key:"leave", label:"Leave Requests", icon:"📅" },
-  { key:"calendar", label:"Leave Calendar", icon:"🗓️" },
-  { key:"training", label:"Training", icon:"🎓" },
-  { key:"documents", label:"Documents", icon:"📁" },
-  { key:"announcements", label:"Announcements", icon:"📢" },
-  { key:"changepw", label:"Settings", icon:"⚙️" }
-];
-
-// Rating helpers
-const RATING_KEYS = [
-  { k:"knowledge",  label:"Knowledge",  icon:"📘" },
-  { k:"experience", label:"Experience", icon:"🏅" },
-  { k:"loyalty",    label:"Loyalty",    icon:"🤝" },
-  { k:"capability", label:"Capability", icon:"🛠️" },
-];
-const gradeFromRating = r => {
-  if (!r) return null;
-  const vals = RATING_KEYS.map(x => Number(r[x.k]) || 0).filter(v => v > 0);
-  if (vals.length < 4) return null;
-  const avg = vals.reduce((a,b) => a+b, 0) / 4;
-  if (avg >= 4.5) return { label:"A+", color:"#10b981" };
-  if (avg >= 4.0) return { label:"A",  color:"#22c55e" };
-  if (avg >= 3.5) return { label:"B+", color:"#eab308" };
-  if (avg >= 3.0) return { label:"B",  color:"#f59e0b" };
-  return { label:"C", color:"#ef4444" };
-};
-const TIERS = ["A", "B", "C"];
-const TIER_COLORS = { A:"#10b981", B:"#f59e0b", C:"#94a3b8" };
-
-// Capability tier — top-level employees.tier column. Visible to TL + Manager,
-// editable by Manager only (server-side enforced by trigger in supabase_tier.sql).
-const TIERS_CAP = ["T1", "T2", "T3", "T4"];
-const TIER_CAP_COLORS = { T1:"#10b981", T2:"#38bdf8", T3:"#f59e0b", T4:"#94a3b8" };
-
-// Tiny CSV/TSV parser — handles quoted fields with embedded commas, tab or
-// comma separators (auto-detected), and an optional header row. Returns
-// { columns, rows } where columns is the inferred field order.
-function parseCSV(text) {
-  const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-  if (!lines.length) return { columns: [], rows: [] };
-  const sep = text.includes("\t") ? "\t" : ",";
-  const split = line => {
-    const out = []; let cur = ""; let q = false;
-    for (let i = 0; i < line.length; i++) {
-      const c = line[i];
-      if (c === '"') {
-        if (q && line[i+1] === '"') { cur += '"'; i++; }
-        else q = !q;
-      } else if (c === sep && !q) { out.push(cur); cur = ""; }
-      else cur += c;
-    }
-    out.push(cur);
-    return out.map(s => s.trim());
-  };
-  const parsed = lines.map(split);
-  const HEADER_FIELDS = ["email","name","section","designation","role","tier"];
-  const firstLower = parsed[0].map(s => s.toLowerCase());
-  const looksLikeHeader = firstLower.some(s => HEADER_FIELDS.includes(s));
-  if (looksLikeHeader) {
-    return { columns: firstLower, rows: parsed.slice(1) };
-  }
-  return { columns: HEADER_FIELDS, rows: parsed };
-}
-
-function nextEmpId(employees, role) {
-  const prefix = role === "manager" ? "MGR" : role === "teamlead" ? "TL" : "EMP";
-  const re = new RegExp(`^${prefix}-(\\d+)$`);
-  const max = employees.reduce((m, e) => {
-    const n = re.exec(e.id || "");
-    return n ? Math.max(m, parseInt(n[1], 10)) : m;
-  }, 0);
-  return `${prefix}-${String(max + 1).padStart(3, "0")}`;
-}
-
-// Training catalog extracted from AUH AFM Training Need Analysis Matrix 2026
-const ROLE_CODES = {
-  MM:"AGL Maintenance Manager", AM:"AGL Manager", SEM:"System Eng. Manager",
-  HDE:"HD Technical Engineer", OM:"Office Manager", QHS:"QHSE Engineer",
-  TL:"AGL Team Leader", SL:"AGL Shift Leader", EL:"Electricians",
-  GW:"General Workers", AT:"AGL Technician", MD:"MEWP driver",
-  CH:"Store / Chemical handlers", FD:"FMV/ADP Driver"
-};
-const ROLE_ORDER = ["MM","AM","SEM","HDE","OM","QHS","TL","SL","EL","GW","AT","MD","CH","FD"];
-// Map an employee's designation (free text) to role codes in the matrix
-const designationToRoleCode = des => {
-  if (!des) return null;
-  const d = des.toLowerCase();
-  if (d.includes("shift leader")) return "SL";
-  if (d.includes("team leader") || d.includes("team lead")) return "TL";
-  if (d.includes("maintenance manager")) return "MM";
-  if (d.includes("agl manager")) return "AM";
-  if (d.includes("system")) return "SEM";
-  if (d.includes("helpdesk") || d.includes("hd technical")) return "HDE";
-  if (d.includes("office")) return "OM";
-  if (d.includes("qhse") || d.includes("safety")) return "QHS";
-  if (d.includes("electrician")) return "EL";
-  if (d.includes("driver") || d.includes("mewp")) return "MD";
-  if (d.includes("store") || d.includes("chemical")) return "CH";
-  if (d.includes("agl technician") || d.includes("technician")) return "AT";
-  return "GW";
-};
-
-const TRAINING_CATALOG = [
-  {"title": "EAT (GCAS) - Airside Safety Induction Training", "dur": "01h", "mode": "eLearn", "freq": "Annual", "type": "HSE", "roles": ["AM", "SEM", "HDE", "OM", "QHS", "TL", "SL", "EL", "GW", "AT", "MD", "CH", "FD"]},
-  {"title": "GAA Induction Training", "dur": "01h", "mode": "eLearn", "freq": "Annual", "type": "HSE", "roles": ["AM", "SEM", "HDE", "OM", "QHS", "TL", "SL", "EL", "GW", "AT", "MD", "CH", "FD"]},
-  {"title": "SINYAR HSE Induction", "dur": "01h", "mode": "eLearn", "freq": "Annual", "type": "HSE", "roles": ["AM", "SEM", "HDE", "OM", "QHS", "TL", "SL", "EL", "GW", "AT", "MD", "CH", "FD"]},
-  {"title": "SINYAR AVSEC Awareness", "dur": "01h", "mode": "eLearn", "freq": "Annual", "type": "HSE", "roles": ["AM", "SEM", "HDE", "OM", "QHS", "TL", "SL", "EL", "GW", "AT", "MD", "CH", "FD"]},
-  {"title": "Duties and responsiblities within the abu dhabi airport", "dur": "01h", "mode": "Class", "freq": "Annual", "type": "HSE", "roles": ["AM", "SEM", "HDE", "OM", "QHS", "TL", "SL", "EL", "GW", "AT", "MD", "CH", "FD"]},
-  {"title": "SMS manual & standard operating procedures", "dur": "01h", "mode": "Class", "freq": "Annual", "type": "HSE", "roles": ["AM", "SEM", "HDE", "OM", "QHS", "TL", "SL", "EL", "GW", "AT", "MD", "CH", "FD"]},
-  {"title": "Movement AreaADAC ADP - Airside Driving Permit", "dur": "01h", "mode": "eLearn", "freq": "Annual", "type": "HSE", "roles": ["CH"]},
-  {"title": "ADB AGL HSE RE Induction", "dur": "01h", "mode": "eLearning·Int.", "freq": "Annual", "type": "HSE", "roles": ["AM", "SEM", "HDE", "OM", "QHS", "TL", "SL", "EL", "GW", "AT", "MD", "CH", "FD"]},
-  {"title": "Basic First -Aid", "dur": "01h", "mode": "eLearn", "freq": "Annual", "type": "HSE", "roles": ["QHS", "EL", "AT", "MD", "FD"]},
-  {"title": "Electrical Safety + LOTO", "dur": "01h", "mode": "eLearn", "freq": "Annual", "type": "HSE", "roles": ["SL", "EL", "GW", "AT", "MD", "FD"]},
-  {"title": "Fire warden", "dur": "01h", "mode": "eLearn", "freq": "Annual", "type": "HSE", "roles": ["EL", "GW", "AT", "MD", "FD"]},
-  {"title": "Work at Heights Training", "dur": "01h", "mode": "eLearn", "freq": "Annual", "type": "HSE", "roles": ["EL", "GW", "AT", "MD", "CH"]},
-  {"title": "Confined Space Awarness Training", "dur": "01h", "mode": "eLearn", "freq": "Annual", "type": "HSE", "roles": ["GW", "AT", "MD", "FD"]},
-  {"title": "Power tools safety", "dur": "01h", "mode": "eLearn", "freq": "Annual", "type": "HSE", "roles": ["GW", "AT", "MD", "FD"]},
-  {"title": "Crane rigging safety", "dur": "01h", "mode": "eLearn", "freq": "Annual", "type": "HSE", "roles": ["GW", "AT", "CH"]},
-  {"title": "banksman safety", "dur": "01h", "mode": "eLearn", "freq": "Annual", "type": "HSE", "roles": ["GW", "AT", "MD", "CH"]},
-  {"title": "Defensive Driving", "dur": "01h", "mode": "eLearn", "freq": "Annual", "type": "HSE", "roles": ["GW", "AT", "MD", "CH", "FD"]},
-  {"title": "Manual Handling", "dur": "01h", "mode": "eLearn", "freq": "Annual", "type": "HSE", "roles": ["GW", "AT", "MD", "FD"]},
-  {"title": "MEWP Driver certificate , IPAF", "dur": "01h", "mode": "eLearn", "freq": "Annual", "type": "HSE", "roles": ["CH"]},
-  {"title": "COSHH Assessment training", "dur": "01h", "mode": "eLearn", "freq": "Annual", "type": "HSE", "roles": ["AT", "MD", "FD"]},
-  {"title": "ISO Lead auditor courses", "dur": "", "mode": "eLearn", "freq": "Annual", "type": "HSE", "roles": ["SEM", "HDE"]},
-  {"title": "Near miss , accident  reporting & investigation", "dur": "01h", "mode": "eLearn", "freq": "Annual", "type": "HSE", "roles": ["SL", "EL", "GW", "AT", "FD"]},
-  {"title": "ADOSH SF", "dur": "", "mode": "eLearn", "freq": "Annual", "type": "HSE", "roles": ["TL"]},
-  {"title": "Hand tools safety", "dur": "01h", "mode": "eLearning·Int.", "freq": "Annual", "type": "HSE", "roles": ["EL", "GW", "AT", "MD", "FD"]},
-  {"title": "Wildlife threats", "dur": "01h", "mode": "eLearning·Int.", "freq": "Annual", "type": "HSE", "roles": ["EL", "GW", "AT", "MD", "CH", "FD"]},
-  {"title": "HSE Orientation", "dur": "01h", "mode": "eLearning·Int.", "freq": "Annual", "type": "HSE", "roles": ["SL", "EL", "GW", "AT", "MD", "CH", "FD"]},
-  {"title": "FOD Awareness / preventive procedure", "dur": "01h", "mode": "eLearning·Int.", "freq": "Annual", "type": "HSE", "roles": ["EL", "GW", "AT", "MD", "CH", "FD"]},
-  {"title": "Beat the Heat (Heat Stress)", "dur": "01h", "mode": "eLearn", "freq": "Annual", "type": "HSE", "roles": ["EL", "GW", "AT", "MD", "CH", "FD"]},
-  {"title": "Fire Emergency Drill", "dur": "00h", "mode": "Class", "freq": "Monthly ", "type": "HSE", "roles": ["EL", "GW", "AT", "MD", "CH", "FD"]},
-  {"title": "Speed Limits in Airside and TWYs & RWYs", "dur": "00h", "mode": "Class", "freq": "Monthly ", "type": "HSE", "roles": ["EL", "GW", "AT", "MD", "CH", "FD"]},
-  {"title": "Adverse weather condition & weather hazards", "dur": "00h", "mode": "Class", "freq": "Monthly ", "type": "HSE", "roles": ["EL", "GW", "AT", "MD", "CH", "FD"]},
-  {"title": "Airside Safety", "dur": "00h", "mode": "Class", "freq": "Monthly ", "type": "HSE", "roles": ["EL", "GW", "AT", "MD", "CH", "FD"]},
-  {"title": "Emergency reporting and evacuation procedures", "dur": "00h", "mode": "Class", "freq": "Monthly ", "type": "HSE", "roles": ["EL", "GW", "AT", "MD", "CH", "FD"]},
-  {"title": "Environmental Awareness", "dur": "00h", "mode": "Class", "freq": "Monthly ", "type": "HSE", "roles": ["EL", "GW", "AT", "MD", "CH", "FD"]},
-  {"title": "Fire safety Awareness", "dur": "00h", "mode": "Class", "freq": "Monthly ", "type": "HSE", "roles": ["EL", "GW", "AT", "MD", "CH", "FD"]},
-  {"title": "Permit To Work requirements", "dur": "00h", "mode": "Class", "freq": "Monthly ", "type": "HSE", "roles": ["GW", "AT", "MD"]},
-  {"title": "PPE", "dur": "00h", "mode": "Class", "freq": "Monthly ", "type": "HSE", "roles": ["EL", "GW", "AT", "MD", "CH", "FD"]},
-  {"title": "Safe driving tips", "dur": "00h", "mode": "Class", "freq": "Monthly ", "type": "HSE", "roles": ["EL", "GW", "AT", "MD", "CH", "FD"]},
-  {"title": "Zero Waste awareness (waste reduction and recycling )", "dur": "00h", "mode": "Class", "freq": "Monthly ", "type": "HSE", "roles": ["EL", "GW", "AT", "MD", "CH", "FD"]},
-  {"title": "Tower light safety", "dur": "00h", "mode": "Class", "freq": "Monthly ", "type": "HSE", "roles": ["EL", "GW", "AT", "MD", "CH", "FD"]},
-  {"title": "Energy and water conservation", "dur": "00h", "mode": "Class", "freq": "Monthly ", "type": "HSE", "roles": ["EL", "GW", "AT", "MD", "CH", "FD"]},
-  {"title": "chemcial and hazardous waste management", "dur": "00h", "mode": "Class", "freq": "Monthly ", "type": "HSE", "roles": ["EL", "GW", "AT", "MD", "CH", "FD"]},
-  {"title": "use of ppe", "dur": "00h", "mode": "Class", "freq": "Monthly ", "type": "HSE", "roles": ["EL", "GW", "AT", "MD", "CH", "FD"]},
-  {"title": "aircraft movement awareness", "dur": "00h", "mode": "Class", "freq": "Monthly ", "type": "HSE", "roles": ["EL", "GW", "AT", "MD", "CH", "FD"]},
-  {"title": "Trip & slip hazard", "dur": "00h", "mode": "Class", "freq": "Monthly ", "type": "HSE", "roles": ["EL", "GW", "AT", "MD", "CH", "FD"]},
-  {"title": "proper housekeeping", "dur": "00h", "mode": "Class", "freq": "Monthly ", "type": "HSE", "roles": ["EL", "GW", "AT", "MD", "CH", "FD"]},
-  {"title": "electrical hazard", "dur": "00h", "mode": "Class", "freq": "Monthly ", "type": "HSE", "roles": ["EL", "GW", "AT", "MD", "CH", "FD"]},
-  {"title": "Adverse weather condition & weather hazards", "dur": "00h", "mode": "Class", "freq": "Monthly ", "type": "HSE", "roles": ["EL", "GW", "AT", "MD", "CH", "FD"]},
-  {"title": "Emergency reporting and evacuation procedures", "dur": "00h", "mode": "Class", "freq": "Monthly ", "type": "HSE", "roles": ["EL", "GW", "AT", "MD", "CH", "FD"]},
-  {"title": "night operations safety", "dur": "00h", "mode": "Class", "freq": "Monthly ", "type": "HSE", "roles": ["EL", "GW", "AT", "MD", "CH", "FD"]},
-  {"title": "Manual Handling", "dur": "00h", "mode": "Class", "freq": "Monthly ", "type": "HSE", "roles": ["EL", "GW", "AT", "MD", "CH", "FD"]},
-  {"title": "Safe use of hand tools and power tools", "dur": "00h", "mode": "Class", "freq": "Monthly ", "type": "HSE", "roles": ["EL", "GW", "AT", "MD", "CH", "FD"]}
-];
-
-/* ============================================================
-   HELPERS
-   ============================================================ */
-
-const cH = (r, s) => {
-  const h = SHIFT_HOURS[s] || { M:8 };
-  let sc=0, w=0, mc=0, nc=0, oc=0, lc=0;
-  (r || []).forEach(d => {
-    if (d.code === "M") { sc += (h.M||8); w += (h.M||8); mc++; }
-    else if (d.code === "N") { sc += (h.N||12); w += (h.N||12); nc++; }
-    else if (d.code === "O") oc++;
-    else if (d.code === "L") lc++;
-  });
-  return { sc, w, mc, nc, oc, lc };
-};
-
-const certSt = exp => {
-  if (!exp) return { l:"—", c:theme.td, d:0 };
-  const d = (new Date(exp) - new Date()) / 864e5;
-  return d < 0 ? { l:"EXPIRED", c:theme.rd, d:Math.ceil(d) }
-       : d <= 90 ? { l:"EXPIRING", c:theme.yl, d:Math.ceil(d) }
-       : { l:"VALID", c:theme.gn, d:Math.ceil(d) };
-};
-
-const fmtDt = iso => {
-  if (!iso) return "";
-  const d = new Date(iso);
-  const now = new Date();
-  const diffH = (now - d) / 36e5;
-  if (diffH < 1) return Math.max(1, Math.round(diffH*60)) + "m ago";
-  if (diffH < 24) return Math.round(diffH) + "h ago";
-  if (diffH < 48) return "Yesterday";
-  return d.toLocaleDateString("en-GB", { day:"2-digit", month:"short" });
-};
-
-const daysInRange = (s, e) => {
-  const out = [];
-  const d = new Date(s);
-  const end = new Date(e);
-  while (d <= end) {
-    out.push(d.toISOString().split("T")[0]);
-    d.setDate(d.getDate() + 1);
-  }
-  return out;
-};
-
-/* ============================================================
-   LOGO
-   ============================================================ */
-
-const Logo = ({ size=120, w=true }) => (
-  <svg viewBox="0 0 280 210" width={size} height={size*210/280} xmlns="http://www.w3.org/2000/svg">
-    {/* Stylized aircraft mark in ADB SAFEGATE orange, centered above text */}
-    <g transform="translate(140, 8)" fill="#E8702A">
-      <path d="M0,0 L5,10 L5,28 L40,46 L40,52 L5,46 L5,64 L16,74 L16,78 L0,73 L-16,78 L-16,74 L-5,64 L-5,46 L-40,52 L-40,46 L-5,28 L-5,10 Z"/>
-    </g>
-    <text x="140" y="140" textAnchor="middle" fontFamily="'Arial Black',Impact,sans-serif" fontSize="42" fontWeight="900" fill={w?"#fff":"#1b4d62"} letterSpacing="3">ADB</text>
-    <text x="140" y="190" textAnchor="middle" fontFamily="'Arial Black',Impact,sans-serif" fontSize="42" fontWeight="900" fill={w?"#fff":"#1b4d62"} letterSpacing="3">SAFEGATE</text>
-  </svg>
-);
-
-/* ============================================================
-   SHARED UI
-   ============================================================ */
-
-const ib = {
-  width:"100%", padding:"10px 14px", borderRadius:10,
-  border:`1px solid ${theme.bl}`, background:"rgba(255,255,255,0.05)",
-  color:theme.tx, fontSize:13, outline:"none", boxSizing:"border-box"
-};
-
-const Bd = ({ text, color }) => (
-  <span style={{
-    padding:"4px 12px", borderRadius:20, fontSize:10, fontWeight:700,
-    background:`${color}18`, color, border:`1px solid ${color}30`, whiteSpace:"nowrap"
-  }}>{text}</span>
-);
-
-const Bt = ({ children, onClick, bg=theme.pl, color="#fff", outline=false, small=false, disabled=false }) => (
-  <button onClick={onClick} disabled={disabled} style={{
-    padding: small ? "6px 14px" : "10px 20px",
-    borderRadius:10,
-    border: outline ? `1px solid ${theme.bl}` : "none",
-    background: disabled ? "rgba(255,255,255,0.05)" : (outline ? "transparent" : bg),
-    color: disabled ? theme.td : (outline ? theme.ts : color),
-    fontSize: small ? 12 : 13,
-    fontWeight:600,
-    cursor: disabled ? "not-allowed" : "pointer"
-  }}>{children}</button>
-);
-
-const SC2 = ({ label, value, color, icon, sub }) => (
-  <div style={{
-    background:theme.card, borderRadius:14, padding:"18px 16px",
-    flex:"1 1 150px", border:`1px solid ${theme.bd}`, minWidth:140,
-    position:"relative", overflow:"hidden"
-  }}>
-    <div style={{ position:"absolute", top:-8, right:-8, fontSize:48, opacity:0.06 }}>{icon}</div>
-    <div style={{ fontSize:13, color:theme.td, marginBottom:6, fontWeight:500 }}>{label}</div>
-    <div style={{ fontSize:28, fontWeight:800, color }}>{value}</div>
-    {sub && <div style={{ fontSize:11, color:theme.td, marginTop:4 }}>{sub}</div>}
-  </div>
-);
-
-const Sec = ({ title, icon, children, action }) => (
-  <div style={{ background:theme.card, borderRadius:14, padding:22, marginBottom:18, border:`1px solid ${theme.bd}` }}>
-    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16, flexWrap:"wrap", gap:8 }}>
-      <h3 style={{ fontSize:15, fontWeight:700, color:theme.tx, display:"flex", alignItems:"center", gap:8, margin:0 }}>
-        {icon} {title}
-      </h3>
-      {action}
-    </div>
-    {children}
-  </div>
-);
-
-const Fd = ({ label, value, editing, onChange, type="text" }) => (
-  <div style={{ marginBottom:14 }}>
-    <label style={{ display:"block", fontSize:10, color:theme.td, fontWeight:700, marginBottom:5, letterSpacing:1, textTransform:"uppercase" }}>{label}</label>
-    {editing
-      ? <input type={type} value={value || ""} onChange={e=>onChange(e.target.value)}
-          style={{...ib, borderColor:theme.or, background:"rgba(255,255,255,0.08)"}} />
-      : <div style={{...ib, background:"transparent", borderColor:theme.bd}}>{value || "—"}</div>}
-  </div>
-);
-
-const Modal = ({ title, onClose, children, width=560 }) => (
-  <div onClick={onClose} className="modal-bg" style={{
-    position:"fixed", inset:0, background:"rgba(0,0,0,0.6)",
-    backdropFilter:"blur(4px)", zIndex:1000, display:"flex",
-    alignItems:"center", justifyContent:"center", padding:20
-  }}>
-    <div onClick={e=>e.stopPropagation()} className="modal-panel" style={{
-      background:theme.cs, borderRadius:16, padding:24, border:`1px solid ${theme.bl}`,
-      width:"100%", maxWidth:width, maxHeight:"90vh", overflowY:"auto",
-      boxShadow:"0 24px 80px rgba(0,0,0,0.5)"
-    }}>
-      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
-        <h3 style={{ fontSize:17, fontWeight:700, color:theme.tx, margin:0 }}>{title}</h3>
-        <button onClick={onClose} style={{
-          background:"none", border:"none", color:theme.td,
-          fontSize:22, cursor:"pointer", padding:4, lineHeight:1
-        }}>×</button>
-      </div>
-      {children}
-    </div>
-  </div>
-);
-
-const Empty = ({ icon="📭", text="No records yet" }) => (
-  <div style={{ textAlign:"center", padding:"30px 16px", color:theme.td }}>
-    <div style={{ fontSize:32, marginBottom:8, opacity:0.5 }}>{icon}</div>
-    <div style={{ fontSize:13 }}>{text}</div>
-  </div>
-);
-
-/* ============================================================
-   SUPABASE CLIENT + FIELD MAPPERS
-   ============================================================ */
-
-const SUPABASE_URL = "https://vzipsbecmirbkrbrpcdt.supabase.co";
-const SUPABASE_KEY = "sb_publishable_c6qyKoJaPEyTQ3-8nv7oFg_i3waClyQ";
-const supa = (typeof window !== "undefined" && window.supabase)
-  ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY)
-  : null;
-
-// Public VAPID key for Web Push. Safe to ship to clients — it's the half
-// of the keypair browsers need to verify pushes are coming from us.
-// Private key lives only in the send-push Edge Function's secrets.
-const VAPID_PUBLIC_KEY = "BPm3EK4wpAcX8cRXK86j0XqPEFKGAqOYcSxyWwe0xmN1Rasfijum1ByBaigbUpWG8bVnLQLphV34HhCVt5vvBtE";
-
-function urlBase64ToUint8Array(base64) {
-  const padding = "=".repeat((4 - base64.length % 4) % 4);
-  const b64 = (base64 + padding).replace(/-/g, "+").replace(/_/g, "/");
-  const raw = atob(b64);
-  const arr = new Uint8Array(raw.length);
-  for (let i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
-  return arr;
-}
-
-const pushSupported = typeof window !== "undefined"
-  && "serviceWorker" in navigator
-  && "PushManager"   in window
-  && "Notification"  in window;
-
-// Subscribe the current browser to Web Push for the given employee id.
-// Idempotent — calling repeatedly just refreshes last_seen_at.
-async function subscribePush(empId) {
-  if (!pushSupported || !supa) return { ok: false, reason: "unsupported" };
-  if (Notification.permission === "denied")
-    return { ok: false, reason: "permission denied" };
-
-  const reg = await navigator.serviceWorker.ready;
-  let sub = await reg.pushManager.getSubscription();
-
-  if (!sub) {
-    if (Notification.permission !== "granted") {
-      const perm = await Notification.requestPermission();
-      if (perm !== "granted") return { ok: false, reason: "permission denied" };
-    }
-    try {
-      sub = await reg.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
-      });
-    } catch (e) {
-      console.error("[push] subscribe failed:", e);
-      return { ok: false, reason: e.message || "subscribe failed" };
-    }
-  }
-
-  const j = sub.toJSON();
-  const { error } = await supa.from("push_subscriptions").upsert({
-    user_id: empId,
-    endpoint: j.endpoint,
-    p256dh:   j.keys.p256dh,
-    auth:     j.keys.auth,
-    user_agent:   typeof navigator !== "undefined" ? navigator.userAgent : null,
-    last_seen_at: new Date().toISOString(),
-  }, { onConflict: "endpoint" });
-  if (error) {
-    console.error("[push] save subscription failed:", error);
-    return { ok: false, reason: error.message };
-  }
-  return { ok: true };
-}
-
-async function unsubscribePush() {
-  if (!pushSupported || !supa) return;
-  const reg = await navigator.serviceWorker.ready;
-  const sub = await reg.pushManager.getSubscription();
-  if (!sub) return;
-  const endpoint = sub.endpoint;
-  try { await sub.unsubscribe(); } catch {}
-  try { await supa.from("push_subscriptions").delete().eq("endpoint", endpoint); } catch {}
-}
-
-// Ask the Edge Function to send a push to a specific employee.
-async function sendPush(toEmpId, title, body, url = "/") {
-  if (!supa) return;
-  try {
-    const { error } = await supa.functions.invoke("send-push", {
-      body: { to: toEmpId, title, body, url },
-    });
-    if (error) console.warn("[push] send failed:", error);
-  } catch (e) {
-    console.warn("[push] send error:", e);
-  }
-}
-
-const empToDb = e => ({
-  id: e.id, email: e.email,
-  name: e.name, section: e.section,
-  designation: e.designation, shift: e.shift, role: e.role || "employee",
-  nationality: e.nationality, mobile: e.mobile, emp_no: e.empNo,
-  dob: e.dob || null, marital_status: e.maritalStatus, address: e.address,
-  join_date: e.joinDate || null,
-  emergency_contact: e.emergencyContact, emergency_name: e.emergencyName,
-  passport_no: e.passportNo, passport_expiry: e.passportExpiry || null,
-  visa_expiry: e.visaExpiry || null, eid_no: e.eidNo, eid_expiry: e.eidExpiry || null,
-  annual_leave: e.annualLeave ?? 30, used_annual: e.usedAnnual ?? 0,
-  sick_leave: e.sickLeave ?? 15, used_sick: e.usedSick ?? 0, comp_off: e.compOff ?? 0,
-  roster: e.roster || {}, achievements: e.achievements || [],
-  warnings: e.warnings || [], actions: e.actions || [],
-  training: e.training || [], documents: e.documents || [],
-  rating: e.rating || {},
-  profile_finalized: !!e.profileFinalized,
-  tier: e.tier || null,
-});
-const empFromDb = r => ({
-  id: r.id, email: r.email,
-  name: r.name, section: r.section,
-  designation: r.designation, shift: r.shift, role: r.role,
-  nationality: r.nationality, mobile: r.mobile, empNo: r.emp_no,
-  dob: r.dob || "", maritalStatus: r.marital_status || "", address: r.address || "",
-  joinDate: r.join_date || "",
-  emergencyContact: r.emergency_contact || "", emergencyName: r.emergency_name || "",
-  passportNo: r.passport_no || "", passportExpiry: r.passport_expiry || "",
-  visaExpiry: r.visa_expiry || "", eidNo: r.eid_no || "", eidExpiry: r.eid_expiry || "",
-  annualLeave: r.annual_leave, usedAnnual: r.used_annual,
-  sickLeave: r.sick_leave, usedSick: r.used_sick, compOff: r.comp_off,
-  roster: r.roster || {}, achievements: r.achievements || [],
-  warnings: r.warnings || [], actions: r.actions || [],
-  training: r.training || [], documents: r.documents || [],
-  rating: r.rating || {},
-  profileFinalized: !!r.profile_finalized,
-  tier: r.tier || "",
-});
-
-const lrToDb = r => ({
-  id: r.id, emp_id: r.empId, emp_name: r.empName, section: r.section,
-  type: r.type, start_date: r.startDate || null, end_date: r.endDate || null,
-  days: r.days, reason: r.reason, status: r.status,
-  applied_on: r.appliedOn || new Date().toISOString(),
-  tl_comment: r.tlComment || "", mgr_comment: r.mgrComment || "",
-  tl_action_date: r.tlActionDate || null, mgr_action_date: r.mgrActionDate || null,
-  tl_name: r.tlName || "", mgr_name: r.mgrName || "",
-});
-const lrFromDb = r => ({
-  id: r.id, empId: r.emp_id, empName: r.emp_name, section: r.section,
-  type: r.type, startDate: r.start_date || "", endDate: r.end_date || "",
-  days: r.days, reason: r.reason || "", status: r.status,
-  appliedOn: r.applied_on || "",
-  tlComment: r.tl_comment || "", mgrComment: r.mgr_comment || "",
-  tlActionDate: r.tl_action_date || "", mgrActionDate: r.mgr_action_date || "",
-  tlName: r.tl_name || "", mgrName: r.mgr_name || "",
-});
-
-const annToDb = a => ({
-  id: a.id, title: a.title, message: a.message, priority: a.priority,
-  pinned: !!a.pinned, date: a.date || new Date().toISOString(),
-  by_user: a.by || "", target: a.target || "all",
-});
-const annFromDb = r => ({
-  id: r.id, title: r.title, message: r.message || "", priority: r.priority || "info",
-  pinned: !!r.pinned, date: r.date || "", by: r.by_user || "", target: r.target || "all",
-});
-
-const nfToDb = n => ({
-  id: n.id, to_user: n.to, type: n.type, message: n.message,
-  read: !!n.read, date: n.date || new Date().toISOString(),
-});
-const nfFromDb = r => ({
-  id: r.id, to: r.to_user, type: r.type, message: r.message || "",
-  read: !!r.read, date: r.date || "",
-});
-
-// Returns the rows in `next` whose serialized form differs from `prev`
-// (or that aren't in `prev` at all). Used so we only push rows that
-// actually changed, instead of upserting the whole table on every edit
-// (RLS would reject the bulk write since users can only modify their own rows).
-function diffById(prev, next) {
-  const prevMap = new Map(prev.map(r => [r.id, r]));
-  return next.filter(r => {
-    const p = prevMap.get(r.id);
-    return !p || JSON.stringify(p) !== JSON.stringify(r);
-  });
-}
-
-/* ============================================================
-   MAIN APP
-   ============================================================ */
 
 function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [loginId, setLoginId] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [loginError, setLoginError] = useState("");
+  const [loginSubmitting, setLoginSubmitting] = useState(false);
   const [nav, setNav] = useState("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [employees, setEmployees] = useState(INITIAL_EMPLOYEES);
@@ -863,7 +89,9 @@ function App() {
       const me = matches[0];
       if (!me) {
         console.warn("[portal] authenticated email has no employee record:", authEmail);
-        alert("Your email (" + authEmail + ") is not registered as an employee. Please contact your admin.");
+        setLoginError(
+          "Your email (" + authEmail + ") is not registered as an employee. Please contact your admin."
+        );
         await supa.auth.signOut();
         return;
       }
@@ -954,7 +182,7 @@ function App() {
     } catch (e) {
       console.error("[portal] loadPortalData error:", e);
     }
-  }, []);
+  }, [setLoginError]);
 
   // Session management: restore existing session on mount, react to sign-in/out
   useEffect(() => {
@@ -1055,31 +283,36 @@ function App() {
     if (!email.includes("@")) { setLoginError("Please enter your email"); return; }
     if (!loginPassword) { setLoginError("Enter your password"); return; }
 
-    setLoginError("Signing in…");
-    const r = await supa.auth.signInWithPassword({ email, password: loginPassword });
-    if (r.error) {
-      const msg = (r.error.message || "").toLowerCase();
-      // "Email not confirmed" — auth user exists but hasn't clicked the email link yet
-      if (msg.includes("not confirmed") || msg.includes("email not confirmed")) {
-        setLoginError("Please check your inbox and click the confirmation link, then sign in again.");
-        return;
-      }
-      // "Invalid login credentials" — could be wrong password OR first-time login.
-      // Try first-time signup with these credentials.
-      const s = await supa.auth.signUp({ email, password: loginPassword });
-      if (s.error) {
-        setLoginError(s.error.message || "Invalid email or password");
-        return;
-      }
-      // If a session came back, email-confirmation is OFF → onAuthStateChange handles it.
-      // Otherwise, Supabase sent a confirmation email; tell the user to check it.
-      if (!s.data?.session) {
-        setLoginError("We sent a confirmation email to " + email + ". Click the link, then sign in.");
-        return;
-      }
-    }
+    setLoginSubmitting(true);
     setLoginError("");
-    // onAuthStateChange will load data and set currentUser
+    try {
+      const r = await supa.auth.signInWithPassword({ email, password: loginPassword });
+      if (r.error) {
+        const msg = (r.error.message || "").toLowerCase();
+        // "Email not confirmed" — auth user exists but hasn't clicked the email link yet
+        if (msg.includes("not confirmed") || msg.includes("email not confirmed")) {
+          setLoginError("Please check your inbox and click the confirmation link, then sign in again.");
+          return;
+        }
+        // "Invalid login credentials" — could be wrong password OR first-time login.
+        // Try first-time signup with these credentials.
+        const s = await supa.auth.signUp({ email, password: loginPassword });
+        if (s.error) {
+          setLoginError(s.error.message || "Invalid email or password");
+          return;
+        }
+        // If a session came back, email-confirmation is OFF → onAuthStateChange handles it.
+        // Otherwise, Supabase sent a confirmation email; tell the user to check it.
+        if (!s.data?.session) {
+          setLoginError("We sent a confirmation email to " + email + ". Click the link, then sign in.");
+          return;
+        }
+      }
+      setLoginError("");
+      // onAuthStateChange will load data and set currentUser
+    } finally {
+      setLoginSubmitting(false);
+    }
   }, [loginId, loginPassword]);
 
   const logout = useCallback(async () => {
@@ -1087,7 +320,7 @@ function App() {
     try { await unsubscribePush(); } catch {}
     if (supa) { try { await supa.auth.signOut(); } catch {} }
     if (window.__portalChannel) { try { window.__portalChannel.unsubscribe(); } catch {} window.__portalChannel = null; }
-    setLoginId(""); setLoginPassword(""); setLoginError("");
+    setLoginId(""); setLoginPassword(""); setLoginError(""); setLoginSubmitting(false);
     setNav("dashboard"); setViewEmployee(null);
   }, []);
 
@@ -1330,7 +563,17 @@ function App() {
     : 0;
 
   // LOGIN PAGE
-  if (!currentUser) return <LoginPage loginId={loginId} loginPassword={loginPassword} loginError={loginError} setLoginId={setLoginId} setLoginPassword={setLoginPassword} login={login} />;
+  if (!currentUser) return (
+    <LoginPage
+      loginId={loginId}
+      loginPassword={loginPassword}
+      loginError={loginError}
+      loginSubmitting={loginSubmitting}
+      setLoginId={setLoginId}
+      setLoginPassword={setLoginPassword}
+      login={login}
+    />
+  );
 
   const iM = currentUser.role !== "employee";
   const iMgr = currentUser.role === "manager";
@@ -1506,86 +749,6 @@ function App() {
     </div>
   );
 }
-
-/* ============================================================
-   LOGIN
-   ============================================================ */
-
-function LoginPage({ loginId, loginPassword, loginError, setLoginId, setLoginPassword, login }) {
-  const dm = [
-    { id:"amarnath.munderi@adbsafegate.ae", pw:"Adb@2026", l:"Employee (Amarnath)", i:"👷" },
-    { id:"mohammed.faheem@adbsafegate.ae", pw:"Adb@2026", l:"Team Leader (Faheem)", i:"👨‍💼" },
-    { id:"ragesh.menon@adbsafegate.ae", pw:"Adb@2026", l:"Manager (Ragesh)", i:"👔" }
-  ];
-  return (
-    <div style={{ minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center", background:theme.bg }}>
-      <div style={{
-        position:"absolute", inset:0,
-        background:"radial-gradient(ellipse at 20% 50%,rgba(21,66,95,0.3) 0%,transparent 60%),radial-gradient(ellipse at 80% 20%,rgba(232,112,42,0.1) 0%,transparent 50%)"
-      }}/>
-      <div style={{ width:"100%", maxWidth:400, padding:20, position:"relative", zIndex:1 }}>
-        <div style={{ textAlign:"center", marginBottom:32 }}>
-          <div style={{ margin:"0 auto 16px", display:"flex", justifyContent:"center" }}>
-            <Logo size={180} w={true} />
-          </div>
-          <p style={{ color:theme.or, fontSize:12, fontWeight:700, letterSpacing:2 }}>ABU DHABI MAINTENANCE TEAM</p>
-        </div>
-        <div style={{
-          background:"rgba(17,31,48,0.8)", backdropFilter:"blur(20px)",
-          borderRadius:18, padding:28, border:`1px solid ${theme.bl}`,
-          boxShadow:"0 24px 80px rgba(0,0,0,0.5)"
-        }}>
-          <h2 style={{ color:theme.tx, fontSize:17, fontWeight:700, marginBottom:20, textAlign:"center" }}>Sign In to Portal</h2>
-          {loginError && (
-            <div style={{
-              background:"rgba(239,68,68,0.1)", border:"1px solid rgba(239,68,68,0.3)",
-              borderRadius:10, padding:"8px 12px", marginBottom:14, color:theme.rd, fontSize:12
-            }}>⚠️ {loginError}</div>
-          )}
-          <div style={{ marginBottom:16 }}>
-            <label style={{ display:"block", color:theme.td, fontSize:10, fontWeight:700, marginBottom:5, letterSpacing:1 }}>EMAIL ADDRESS</label>
-            <input type="email" value={loginId} onChange={e => setLoginId(e.target.value)}
-              placeholder="your.email@adbsafegate.ae"
-              onKeyDown={e => e.key === "Enter" && login()} style={ib} />
-          </div>
-          <div style={{ marginBottom:22 }}>
-            <label style={{ display:"block", color:theme.td, fontSize:10, fontWeight:700, marginBottom:5, letterSpacing:1 }}>PASSWORD</label>
-            <input type="password" value={loginPassword} onChange={e => setLoginPassword(e.target.value)}
-              placeholder="Enter password"
-              onKeyDown={e => e.key === "Enter" && login()} style={ib} />
-          </div>
-          <button onClick={login} style={{
-            width:"100%", padding:"12px", borderRadius:10, border:"none",
-            background:theme.ga, color:"#fff", fontSize:14, fontWeight:700, cursor:"pointer",
-            boxShadow:"0 4px 20px rgba(232,112,42,0.3)"
-          }}>Sign In</button>
-          <div style={{ textAlign:"center", marginTop:12, fontSize:11, color:theme.td }}>
-            Default password: <strong style={{ color:theme.or }}>Adb@2026</strong>
-          </div>
-        </div>
-        <div style={{
-          marginTop:18, background:"rgba(17,31,48,0.6)", borderRadius:12,
-          padding:14, border:`1px solid ${theme.bd}`
-        }}>
-          <p style={{ color:theme.td, fontSize:10, fontWeight:700, letterSpacing:1, marginBottom:8 }}>🔑 DEMO ACCOUNTS</p>
-          {dm.map(a => (
-            <div key={a.id} onClick={() => { setLoginId(a.id); setLoginPassword(a.pw); }} style={{
-              display:"flex", justifyContent:"space-between", padding:"7px 8px",
-              borderRadius:8, cursor:"pointer", fontSize:12
-            }}>
-              <span style={{ color:theme.ts }}>{a.i} {a.l}</span>
-              <span style={{ color:theme.or, fontFamily:"monospace", fontSize:9 }}>{a.id}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ============================================================
-   CHANGE PASSWORD
-   ============================================================ */
 
 function ChPw({ user, onCh, forced, onOut }) {
   const [o, setO] = useState("");
@@ -3321,7 +2484,7 @@ function RosterEditor({ emp, mk, onEdit }) {
       </div>
       <div style={{ display:"flex", gap:5, flexWrap:"wrap" }}>
         {ro.map(d => {
-          const dn = ["SU","MONTHS","TEAMLEAD_USER","WE","TH","FR","SA"][new Date(d.date).getDay()];
+          const dn = ["SU","MO","TU","WE","TH","FR","SA"][new Date(d.date).getDay()];
           return (
             <div key={d.day} onClick={() => onEdit(emp.id, mk, d.day, cycle[d.code] || "M")} style={{
               width:50, height:64, borderRadius:10,
@@ -3390,7 +2553,7 @@ function MyAtt({ emp, selectedMonth, setSelectedMonth }) {
       <Sec title={`${MONTHS[selectedMonth]} 2026 Roster`} icon="📋">
         <div style={{ display:"flex", gap:5, flexWrap:"wrap" }}>
           {ro.map(d => {
-            const dn = ["SU","MONTHS","TEAMLEAD_USER","WE","TH","FR","SA"][new Date(d.date).getDay()];
+            const dn = ["SU","MO","TU","WE","TH","FR","SA"][new Date(d.date).getDay()];
             return (
               <div key={d.day} style={{
                 width:44, height:56, borderRadius:10, background:theme.ch,
@@ -4074,7 +3237,7 @@ function AnnCard({ a, canDel, onDel }) {
           </div>
         </div>
         {canDel && (
-          <button onClick={() => onDel(a.id)} style={{
+          <button type="button" aria-label={`Delete announcement: ${a.title}`} onClick={() => onDel(a.id)} style={{
             background:"none", border:"none", color:theme.td, cursor:"pointer", fontSize:14, padding:4
           }}>🗑️</button>
         )}
@@ -4084,11 +3247,20 @@ function AnnCard({ a, canDel, onDel }) {
   );
 }
 
+
 /* ============================================================
    RENDER
    ============================================================ */
 
-ReactDOM.render(<App />, document.getElementById("root"));
+const reactRootEl = document.getElementById("root");
+if (reactRootEl) {
+  const root = ReactDOM.createRoot(reactRootEl);
+  root.render(
+    <ErrorBoundary>
+      <App />
+    </ErrorBoundary>
+  );
+}
 
 // Register service worker for PWA install capability
 if ("serviceWorker" in navigator) {
@@ -4096,3 +3268,4 @@ if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("sw.js").catch(() => {});
   });
 }
+

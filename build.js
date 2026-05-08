@@ -19,6 +19,10 @@ const STATIC_ASSETS = [
   "favicon.png",
 ];
 
+const showDemoLogin =
+  process.env.SHOW_DEMO_LOGIN !== "0" &&
+  process.env.SHOW_DEMO_LOGIN !== "false";
+
 // 1. Wipe dist
 fs.rmSync(DIST, { recursive: true, force: true });
 fs.mkdirSync(DIST, { recursive: true });
@@ -33,7 +37,7 @@ for (const a of STATIC_ASSETS) {
   fs.copyFileSync(sp, path.join(DIST, a));
 }
 
-// 3. Bundle the React app
+// 3. Bundle the React app (React + ReactDOM are globals from index.html CDN)
 esb.buildSync({
   entryPoints: [path.join(ROOT, "app.jsx")],
   bundle:      true,
@@ -41,6 +45,10 @@ esb.buildSync({
   outfile:     path.join(DIST, "app.js"),
   loader:      { ".jsx": "jsx" },
   logLevel:    "info",
+  jsx:         "transform",
+  jsxFactory:  "React.createElement",
+  jsxFragment: "React.Fragment",
+  define:      { __SHOW_DEMO__: JSON.stringify(!!showDemoLogin) },
 });
 
 // 4. Done

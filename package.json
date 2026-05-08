@@ -3,14 +3,16 @@
   "private": true,
   "scripts": {
     "build": "node build.js",
-    "dev": "esbuild app.jsx --bundle --outfile=app.js --loader:.jsx=jsx --watch",
-    "start": "http-server dist -p 8080 -c-1 -o"
+    "verify-dist": "node scripts/verify-dist.js",
+    "ci": "node build.js && node scripts/verify-dist.js",
+    "dev": "esbuild app.jsx --bundle --outfile=app.js --loader:.jsx=jsx --watch --jsx-factory=React.createElement --jsx-fragment=React.Fragment --define:__SHOW_DEMO__=true",
+    "start": "serve dist -l 8080"
   },
   "dependencies": {
     "esbuild": "^0.28.0",
     "web-push": "^3.6.7"
   },
   "devDependencies": {
-    "http-server": "^14.1.1"
+    "serve": "^14.2.6"
   }
 }

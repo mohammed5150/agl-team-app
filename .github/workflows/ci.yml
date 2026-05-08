@@ -1,0 +1,22 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master, develop]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+      - name: Install
+        run: npm ci
+      - name: Production bundle (demo UI off)
+        run: SHOW_DEMO_LOGIN=false npm run build
+      - name: Verify dist
+        run: npm run verify-dist
