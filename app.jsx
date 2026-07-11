@@ -346,6 +346,9 @@ function App() {
     if (window.__portalChannel) { try { window.__portalChannel.unsubscribe(); } catch {} window.__portalChannel = null; }
     setLoginId(""); setLoginPassword(""); setLoginError(""); setLoginSubmitting(false);
     setNav("dashboard"); setViewEmployee(null);
+    // Clear the route hash so the next user on this device starts on the
+    // dashboard instead of inheriting the previous user’s view.
+    window.history.replaceState(null, "", window.location.pathname + window.location.search);
   }, []);
 
   const changePassword = useCallback(async (oldPw, newPw) => {
@@ -597,7 +600,7 @@ function App() {
       : { l:"Manager", c:theme.pu };
 
   if (nav === "changepw") {
-    return <ChPw user={currentUser} onCh={changePassword} forced={currentUser.initialPassword} onOut={logout} />;
+    return <ChPw onCh={changePassword} forced={currentUser.initialPassword} onOut={logout} />;
   }
 
   return (
@@ -698,7 +701,6 @@ function App() {
               <NotifPanel
                 notifs={myNotifs}
                 currentUser={currentUser}
-                onClose={() => setShowNotif(false)}
                 onMarkRead={markNotifRead}
                 onMarkAll={markAllRead}
                 onGoTo={(key) => { setNav(key); setViewEmployee(null); setShowNotif(false); }}
@@ -726,20 +728,20 @@ function App() {
           ) : (
             <div className="fade-in" key={nav}>
               {nav === "dashboard" && (iM
-                ? <MDash user={currentUser} employees={employees} leaveRequests={leaveRequests} notifications={notifications} announcements={announcements} pc={pc} onGoTo={setNav} />
-                : <EDash user={currentUser} notifications={notifications} announcements={announcements} onGoTo={setNav} />)}
+                ? <MDash user={currentUser} employees={employees} leaveRequests={leaveRequests} announcements={announcements} pc={pc} onGoTo={setNav} />
+                : <EDash user={currentUser} announcements={announcements} onGoTo={setNav} />)}
               {nav === "profile" && <Prof emp={currentUser} canEdit={iM || !currentUser.profileFinalized} isStaff={iM} isMgr={iMgr} onSave={saveProfile} onAdd={addEmployeeAction} onAddDoc={addDoc} onDelDoc={delDoc} />}
               {nav === "team" && <Team employees={employees} onSel={setViewEmployee} isMgr={iMgr} isTL={isTL} onInvite={addInviteEmployee} onBulkInvite={addInviteEmployeesBulk} />}
               {nav === "performance" && iM && <Perf employees={employees} onSel={setViewEmployee} isMgr={iMgr} onSave={saveRating} />}
               {nav === "leave" && <LvPg user={currentUser} leaveRequests={leaveRequests} onSub={submitLeave} onAct={leaveAction} />}
               {nav === "approvals" && <ApPg user={currentUser} leaveRequests={leaveRequests} onAct={leaveAction} />}
-              {nav === "calendar" && <LeaveCalendar leaveRequests={leaveRequests} employees={employees} />}
+              {nav === "calendar" && <LeaveCalendar leaveRequests={leaveRequests} />}
               {nav === "attendance" && !iMgr && (iM
                 ? <AttPg employees={employees} selectedMonth={selectedMonth} setSelectedMonth={setSelectedMonth} onEditRoster={editRoster} canEdit={iM} />
                 : <MyAtt emp={currentUser} selectedMonth={selectedMonth} setSelectedMonth={setSelectedMonth} />)}
               {nav === "training" && (iM ? <TrMgmt employees={employees} /> : <MyTr emp={currentUser} />)}
               {nav === "documents" && (iM ? <DocsMgmt employees={employees} onSel={setViewEmployee} /> : <MyDocs emp={currentUser} onAdd={addDoc} onDel={delDoc} />)}
-              {nav === "announcements" && <AnnPg user={currentUser} announcements={announcements} employees={employees} onAdd={addAnn} onDel={delAnn} />}
+              {nav === "announcements" && <AnnPg user={currentUser} announcements={announcements} onAdd={addAnn} onDel={delAnn} />}
             </div>
           )}
         </div>

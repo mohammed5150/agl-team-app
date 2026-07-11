@@ -345,7 +345,7 @@ export function Team({ employees, onSel, isMgr, isTL, onInvite, onBulkInvite }) 
         </div>
       </div>
       {showInvite && isMgr && onInvite && (
-        <InviteForm employees={employees} onInvite={onInvite}
+        <InviteForm onInvite={onInvite}
           onClose={() => setShowInvite(false)} />
       )}
       {showBulk && isMgr && onBulkInvite && (
