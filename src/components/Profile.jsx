@@ -17,6 +17,9 @@ export function Prof({ emp, canEdit, onSave, onAdd, isStaff, isMgr }) {
   const [af, setAf] = useState({ type:"achievement", title:"", desc:"" });
   const finalized = !!emp.profileFinalized;
 
+  // Reset the form only when switching to a different employee — depending on
+  // the whole `emp` object would clobber in-progress edits on every save.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { setFm({ ...emp }); }, [emp.id]);
 
   return (

@@ -8,7 +8,7 @@ const { useState } = React;
    NOTIFICATIONS PANEL (bell dropdown)
    ============================================================ */
 
-export function NotifPanel({ notifs, onClose, onMarkRead, onMarkAll, onGoTo, currentUser }) {
+export function NotifPanel({ notifs, onMarkRead, onMarkAll, onGoTo, currentUser }) {
   const unread = notifs.filter(n => !n.read);
   const [notifPerm, setNotifPerm] = useState(
     typeof window !== "undefined" && "Notification" in window ? Notification.permission : "unsupported"

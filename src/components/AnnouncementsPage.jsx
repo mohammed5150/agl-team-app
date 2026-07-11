@@ -8,7 +8,7 @@ const { useState } = React;
    ANNOUNCEMENTS (NEW)
    ============================================================ */
 
-export function AnnPg({ user, announcements, employees, onAdd, onDel }) {
+export function AnnPg({ user, announcements, onAdd, onDel }) {
   const canCompose = user.role === "manager" || user.role === "teamlead";
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ title:"", message:"", priority:"info", pinned:false, target:"all" });

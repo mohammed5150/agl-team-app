@@ -3,7 +3,7 @@ import { ib, Bt } from "../uiPrimitives.jsx";
 
 const { useState } = React;
 
-export function ChPw({ user, onCh, forced, onOut }) {
+export function ChPw({ onCh, forced, onOut }) {
   const [o, setO] = useState("");
   const [n, setN] = useState("");
   const [c2, setC2] = useState("");

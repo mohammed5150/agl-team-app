@@ -5,15 +5,24 @@
     "build": "node build.js",
     "verify-dist": "node scripts/verify-dist.js",
     "test": "vitest run",
-    "ci": "vitest run && node build.js && node scripts/verify-dist.js",
+    "lint": "eslint .",
+    "ci": "eslint . && vitest run && node build.js && node scripts/verify-dist.js",
     "dev": "esbuild app.jsx --bundle --outfile=app.js --loader:.jsx=jsx --watch --jsx-factory=React.createElement --jsx-fragment=React.Fragment --define:__SHOW_DEMO__=true",
     "start": "serve dist -l 8080"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.110.2",
     "esbuild": "^0.28.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
     "web-push": "^3.6.7"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "eslint": "^9.39.5",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.7.0",
     "serve": "^14.2.6",
     "vitest": "^4.1.10"
   }

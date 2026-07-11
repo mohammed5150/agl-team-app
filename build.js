@@ -19,9 +19,11 @@ const STATIC_ASSETS = [
   "favicon.png",
 ];
 
+// Demo mode ships the demo login accounts AND the seeded team roster in the
+// bundle, so production builds must opt IN explicitly (SHOW_DEMO_LOGIN=1).
 const showDemoLogin =
-  process.env.SHOW_DEMO_LOGIN !== "0" &&
-  process.env.SHOW_DEMO_LOGIN !== "false";
+  process.env.SHOW_DEMO_LOGIN === "1" ||
+  process.env.SHOW_DEMO_LOGIN === "true";
 
 // 1. Wipe dist
 fs.rmSync(DIST, { recursive: true, force: true });
@@ -35,6 +37,14 @@ for (const a of STATIC_ASSETS) {
     continue;
   }
   fs.copyFileSync(sp, path.join(DIST, a));
+}
+
+// 2b. Copy self-hosted vendor scripts (React, ReactDOM, supabase-js UMD
+// builds pinned via package-lock — no CDN dependency in production).
+const VENDOR = path.join(ROOT, "vendor");
+fs.mkdirSync(path.join(DIST, "vendor"), { recursive: true });
+for (const f of fs.readdirSync(VENDOR)) {
+  fs.copyFileSync(path.join(VENDOR, f), path.join(DIST, "vendor", f));
 }
 
 // 3. Bundle the React app (React + ReactDOM are globals from index.html CDN)

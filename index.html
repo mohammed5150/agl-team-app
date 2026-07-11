@@ -27,21 +27,17 @@
 <meta name="apple-mobile-web-app-title" content="ADB Portal">
 <meta name="mobile-web-app-capable" content="yes">
 
-<!-- Performance: Preconnect to CDN domains -->
-<link rel="preconnect" href="https://cdnjs.cloudflare.com">
-<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<!-- Performance: Preload critical scripts (self-hosted, versions pinned via package-lock) -->
+<link rel="preload" as="script" href="vendor/react.production.min.js">
+<link rel="preload" as="script" href="vendor/react-dom.production.min.js">
 
-<!-- Performance: Preload critical scripts -->
-<link rel="preload" as="script" href="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js">
-<link rel="preload" as="script" href="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js">
+<!-- Security: Content Security Policy — all scripts are same-origin -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://*.supabase.co wss://*.supabase.co; frame-ancestors 'self'; object-src 'none'; base-uri 'self';">
 
-<!-- Security: Content Security Policy -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://*.supabase.co wss://*.supabase.co; frame-ancestors 'self'; object-src 'none'; base-uri 'self';">
-
-<!-- External Libraries -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js" defer></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js" defer></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" defer></script>
+<!-- Vendor libraries (self-hosted — no third-party CDN dependency) -->
+<script src="vendor/react.production.min.js" defer></script>
+<script src="vendor/react-dom.production.min.js" defer></script>
+<script src="vendor/supabase.min.js" defer></script>
 
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
@@ -51,6 +47,7 @@ select option{background:#111f30;color:#e0e6ed}
 ::-webkit-scrollbar-track{background:transparent}
 ::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.12);border-radius:3px}
 input:focus,select:focus,textarea:focus{outline:none}
+input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-visible,[role=button]:focus-visible{outline:2px solid #f5923e;outline-offset:2px}
 button{transition:opacity 0.15s,transform 0.1s}
 button:hover{opacity:0.9}
 button:active{transform:scale(0.98)}

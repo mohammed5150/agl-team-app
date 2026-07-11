@@ -6,7 +6,7 @@ import { SECTIONS, STATUS_COLORS, STATUS_LABELS, ANN_PRIORITIES, theme } from ".
 import { Bd, Bt, Sec, Empty } from "../uiPrimitives.jsx";
 import { PASTEL, INK, Ring, Tile } from "./charts.jsx";
 
-export function MDash({ user, employees, leaveRequests, notifications, announcements, pc, onGoTo }) {
+export function MDash({ user, employees, leaveRequests, announcements, pc, onGoTo }) {
   const h = new Date().getHours();
   const g = h < 12 ? "Good Morning" : h < 17 ? "Good Afternoon" : "Good Evening";
   const today = new Date();

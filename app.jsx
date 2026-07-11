@@ -22,7 +22,7 @@ import { Prof } from "./src/components/Profile.jsx";
 import { Team } from "./src/components/TeamPage.jsx";
 import { MyTr, TrMgmt } from "./src/components/TrainingPage.jsx";
 
-const { useState, useCallback, useMemo, useEffect, useRef } = React;
+const { useState, useCallback, useEffect, useRef } = React;
 
 function App() {
   const [currentUser, setCurrentUser] = useState(null);
@@ -41,6 +41,7 @@ function App() {
   const [nextAnnId, setNextAnnId] = useState(6);
   const [selectedMonth, setSelectedMonth] = useState(3); // April
   const [showNotif, setShowNotif] = useState(false);
+  const [syncError, setSyncError] = useState("");
 
   // --- Persistence: Supabase Auth + Supabase DB (tables RLS-protected)
   //   Data is only loaded once the user has an authenticated session.
@@ -221,7 +222,7 @@ function App() {
       prevEmployeesRef.current = employees;
       if (!changed.length) return;
       supa.from("employees").upsert(changed.map(empToDb))
-        .then(r => r.error && console.error("employees upsert:", r.error));
+        .then(r => { if (r.error) { console.error("employees upsert:", r.error); setSyncError("Couldn't save employee changes"); } });
     }, 400);
     return () => clearTimeout(t);
   }, [employees]);
@@ -233,7 +234,7 @@ function App() {
       prevLeaveRequestsRef.current = leaveRequests;
       if (!changed.length) return;
       supa.from("leave_requests").upsert(changed.map(lrToDb))
-        .then(r => r.error && console.error("leave_requests upsert:", r.error));
+        .then(r => { if (r.error) { console.error("leave_requests upsert:", r.error); setSyncError("Couldn't save leave request changes"); } });
     }, 400);
     return () => clearTimeout(t);
   }, [leaveRequests]);
@@ -245,7 +246,7 @@ function App() {
       prevAnnouncementsRef.current = announcements;
       if (!changed.length) return;
       supa.from("announcements").upsert(changed.map(annToDb))
-        .then(r => r.error && console.error("announcements upsert:", r.error));
+        .then(r => { if (r.error) { console.error("announcements upsert:", r.error); setSyncError("Couldn't save announcement changes"); } });
     }, 400);
     return () => clearTimeout(t);
   }, [announcements]);
@@ -257,7 +258,7 @@ function App() {
       prevNotificationsRef.current = notifications;
       if (!changed.length) return;
       supa.from("notifications").upsert(changed.map(nfToDb))
-        .then(r => r.error && console.error("notifications upsert:", r.error));
+        .then(r => { if (r.error) { console.error("notifications upsert:", r.error); setSyncError("Couldn't save notification changes"); } });
     }, 400);
     return () => clearTimeout(t);
   }, [notifications]);
@@ -267,7 +268,36 @@ function App() {
     if (typeof window !== "undefined") window.__currentUserId = currentUser?.id || null;
   }, [currentUser]);
 
-  const all = useMemo(() => employees, [employees]);
+  // Sync-failure toast auto-dismisses after a few seconds
+  useEffect(() => {
+    if (!syncError) return;
+    const t = setTimeout(() => setSyncError(""), 6000);
+    return () => clearTimeout(t);
+  }, [syncError]);
+
+  // Hash routing: keep the active view in the URL (#/leave) so refreshes and
+  // shared links land on the right page. Only keys valid for the user's role
+  // are accepted; unknown hashes are ignored.
+  useEffect(() => {
+    if (!currentUser) return;
+    const items = currentUser.role === "manager" ? NM.filter(n => n.key !== "attendance")
+      : currentUser.role === "teamlead" ? NM : NE;
+    const valid = new Set(items.map(i => i.key));
+    const applyHash = () => {
+      const k = window.location.hash.replace(/^#\/?/, "");
+      if (valid.has(k)) { setNav(k); setViewEmployee(null); setShowNotif(false); }
+    };
+    applyHash();
+    window.addEventListener("hashchange", applyHash);
+    return () => window.removeEventListener("hashchange", applyHash);
+  }, [currentUser]);
+
+  useEffect(() => {
+    if (!currentUser) return;
+    const want = "#/" + nav;
+    if (window.location.hash !== want) window.history.replaceState(null, "", want);
+  }, [nav, currentUser]);
+
 
   // Log in via Supabase Auth. If the auth user doesn't exist yet (first-ever
   // login for this employee), auto-sign them up with the given password.
@@ -503,7 +533,7 @@ function App() {
       ? employees.map(e => e.id)
       : employees.filter(e => e.section === a.target).map(e => e.id);
     setNotifications(p => [
-      ...targets.map((eid, i) => ({ id: nfId(), to:eid, type:"announcement",
+      ...targets.map((eid) => ({ id: nfId(), to:eid, type:"announcement",
         message:`📢 ${a.title}`, read:false, date:new Date().toISOString(), annId:id
       })),
       ...p
@@ -714,6 +744,20 @@ function App() {
           )}
         </div>
       </div>
+
+      {syncError && (
+        <div role="alert" style={{
+          position:"fixed", bottom:20, left:"50%", transform:"translateX(-50%)", zIndex:100,
+          background:"rgba(30,10,10,0.95)", border:"1px solid rgba(239,68,68,0.5)",
+          color:"#fecaca", padding:"10px 16px", borderRadius:12, fontSize:12,
+          display:"flex", gap:10, alignItems:"center", boxShadow:"0 8px 30px rgba(0,0,0,0.5)"
+        }}>
+          ⚠️ {syncError} — your last change may not be saved. Check your connection.
+          <button onClick={() => setSyncError("")} aria-label="Dismiss" style={{
+            background:"none", border:"none", color:"#fecaca", cursor:"pointer", fontSize:14, fontWeight:700
+          }}>✕</button>
+        </div>
+      )}
     </div>
   );
 }

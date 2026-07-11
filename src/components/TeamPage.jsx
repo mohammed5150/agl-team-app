@@ -9,7 +9,7 @@ const { useState } = React;
    TEAM LIST
    ============================================================ */
 
-export function InviteForm({ employees, onInvite, onClose }) {
+export function InviteForm({ onInvite, onClose }) {
   const [fm, setFm] = useState({
     email: "", name: "", section: SECTIONS[0] || "",
     designation: "", role: "employee", tier: ""

@@ -7,7 +7,7 @@ const { useState } = React;
    LEAVE CALENDAR (NEW)
    ============================================================ */
 
-export function LeaveCalendar({ leaveRequests, employees }) {
+export function LeaveCalendar({ leaveRequests }) {
   const [selectedMonth, setSelectedMonth] = useState(3); // April default
   const [selDay, setSelDay] = useState(null);
   const year = 2026;

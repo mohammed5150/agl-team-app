@@ -7,7 +7,7 @@ import { PASTEL, INK, Ring, Spark, Tile } from "./charts.jsx";
    EMPLOYEE DASHBOARD
    ============================================================ */
 
-export function EDash({ user, notifications, announcements, onGoTo }) {
+export function EDash({ user, announcements, onGoTo }) {
   const h = new Date().getHours();
   const g = h < 12 ? "Good Morning" : h < 17 ? "Good Afternoon" : "Good Evening";
   const myAnn = announcements.filter(a => a.target === "all" || a.target === user.section);
