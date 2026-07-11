@@ -1,40 +1,59 @@
 // Pure leave-approval state machine, extracted from App.leaveAction so the
-// business rules are unit-testable. Returns null when the actor's role has
-// no authority over the request; otherwise returns the updated request plus
-// the notification and push message to emit.
+// business rules are unit-testable.
+//
+//   applyLeaveAction(request, actor, action, comment, now, managerIds)
+//     actor      — { id, role, name } of the person acting
+//     managerIds — employee ids of all managers (recipients of TL approvals)
+//
+// Returns null when the actor has no authority over the request; otherwise
+// { updated, notifs, pushes } where notifs/pushes are arrays (one entry per
+// recipient) for the caller to emit.
 
-export function applyLeaveAction(r, role, actorName, action, comment, now) {
-  if (role === "teamlead") {
+export function applyLeaveAction(r, actor, action, comment, now, managerIds = []) {
+  // Requester withdraws their own request while it is still pending
+  if (action === "withdraw") {
+    if (actor.id !== r.empId || r.status !== "pending") return null;
+    return { updated: { ...r, status: "withdrawn" }, notifs: [], pushes: [] };
+  }
+
+  if (actor.role === "teamlead") {
     if (action === "approve") {
       const m = `${r.empName}'s leave approved by TL`;
       return {
-        updated: { ...r, status: "tl_approved", tlComment: comment || "Approved", tlActionDate: now, tlName: actorName },
-        notif: { to: "MGR-001", type: "new_request", message: m },
-        push: { to: "MGR-001", title: "Leave needs your approval", body: m },
+        updated: { ...r, status: "tl_approved", tlComment: comment || "Approved", tlActionDate: now, tlName: actor.name },
+        notifs: managerIds.map(id => ({ to: id, type: "new_request", message: m })),
+        pushes: managerIds.map(id => ({ to: id, title: "Leave needs your approval", body: m })),
       };
     }
     const m = `${r.type} rejected by TL: ${comment || "Rejected"}`;
     return {
-      updated: { ...r, status: "rejected", tlComment: comment || "Rejected", tlActionDate: now, tlName: actorName },
-      notif: { to: r.empId, type: "rejected", message: m },
-      push: { to: r.empId, title: "Leave rejected", body: m },
+      updated: { ...r, status: "rejected", tlComment: comment || "Rejected", tlActionDate: now, tlName: actor.name },
+      notifs: [{ to: r.empId, type: "rejected", message: m }],
+      pushes: [{ to: r.empId, title: "Leave rejected", body: m }],
     };
   }
-  if (role === "manager") {
+  if (actor.role === "manager") {
     if (action === "approve") {
       const m = `${r.type} APPROVED ✅`;
       return {
-        updated: { ...r, status: "approved", mgrComment: comment || "Approved", mgrActionDate: now, mgrName: actorName },
-        notif: { to: r.empId, type: "approved", message: m },
-        push: { to: r.empId, title: "Leave approved", body: m },
+        updated: { ...r, status: "approved", mgrComment: comment || "Approved", mgrActionDate: now, mgrName: actor.name },
+        notifs: [{ to: r.empId, type: "approved", message: m }],
+        pushes: [{ to: r.empId, title: "Leave approved", body: m }],
       };
     }
     const m = `${r.type} rejected by Manager`;
     return {
-      updated: { ...r, status: "rejected", mgrComment: comment || "Rejected", mgrActionDate: now, mgrName: actorName },
-      notif: { to: r.empId, type: "rejected", message: m },
-      push: { to: r.empId, title: "Leave rejected", body: m },
+      updated: { ...r, status: "rejected", mgrComment: comment || "Rejected", mgrActionDate: now, mgrName: actor.name },
+      notifs: [{ to: r.empId, type: "rejected", message: m }],
+      pushes: [{ to: r.empId, title: "Leave rejected", body: m }],
     };
   }
   return null;
+}
+
+// Who should be notified about a NEW leave request: team leads normally,
+// managers when the requester is themselves a team lead.
+export function newRequestRecipients(requesterRole, employees) {
+  const wantRole = requesterRole === "teamlead" ? "manager" : "teamlead";
+  return employees.filter(e => e.role === wantRole).map(e => e.id);
 }

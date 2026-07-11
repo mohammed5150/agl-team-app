@@ -99,6 +99,7 @@ export const empToDb = e => ({
   training: e.training || [], documents: e.documents || [],
   rating: e.rating || {},
   profile_finalized: !!e.profileFinalized,
+  initial_password: !!e.initialPassword,
   tier: e.tier || null,
 });
 export const empFromDb = r => ({
@@ -118,6 +119,7 @@ export const empFromDb = r => ({
   training: r.training || [], documents: r.documents || [],
   rating: r.rating || {},
   profileFinalized: !!r.profile_finalized,
+  initialPassword: !!r.initial_password,
   tier: r.tier || "",
 });
 

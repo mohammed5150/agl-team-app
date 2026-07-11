@@ -1,7 +1,7 @@
 export const SECTIONS = ["AGL 12hrs", "AGL 8hrs", "Helpdesk", "Systems", "High Masts"];
 export const LEAVE_TYPES = ["Annual Leave", "Sick Leave", "Comp-Off", "Emergency Leave", "Unpaid Leave"];
-export const STATUS_COLORS = { pending: "#f59e0b", tl_approved: "#38bdf8", approved: "#10b981", rejected: "#ef4444" };
-export const STATUS_LABELS = { pending: "Pending TL", tl_approved: "Pending MGR", approved: "Approved", rejected: "Rejected" };
+export const STATUS_COLORS = { pending: "#f59e0b", tl_approved: "#38bdf8", approved: "#10b981", rejected: "#ef4444", withdrawn: "#94a3b8" };
+export const STATUS_LABELS = { pending: "Pending TL", tl_approved: "Pending MGR", approved: "Approved", rejected: "Rejected", withdrawn: "Withdrawn" };
 export const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 export const SHIFT_HOURS = {
   "AGL 12hrs": { M:12, N:12 },

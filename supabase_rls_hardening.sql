@@ -15,10 +15,11 @@
 
 -- ---------------------------------------------------------------
 -- 1. Drop legacy plaintext password column
+--    (initial_password stays — it is a boolean flag the app uses to
+--    force a password change on first login, not a secret)
 -- ---------------------------------------------------------------
 
 alter table employees drop column if exists password;
-alter table employees drop column if exists initial_password;
 
 -- ---------------------------------------------------------------
 -- 2. Directory visible to actual employees only
@@ -69,13 +70,17 @@ create trigger trg_guard_employee_privileges
 -- 4. Pin allowed status transitions on leave/overtime updates
 -- ---------------------------------------------------------------
 
--- Employee editing their own request: must stay 'pending'
+-- Employee editing their own request: may keep it 'pending' or
+-- withdraw it — never approve it
 drop policy if exists lr_update_self_pending on leave_requests;
 create policy lr_update_self_pending
   on leave_requests for update
   to authenticated
   using (emp_id = public.current_emp_id() and status = 'pending')
-  with check (emp_id = public.current_emp_id() and status = 'pending');
+  with check (
+    emp_id = public.current_emp_id()
+    and status in ('pending', 'withdrawn')
+  );
 
 -- Team lead: may only move a pending request to tl_approved/rejected
 drop policy if exists lr_update_tl on leave_requests;

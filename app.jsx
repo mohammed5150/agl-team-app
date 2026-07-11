@@ -3,7 +3,7 @@ import { NE, NM } from "./src/nav.js";
 import { TIERS_CAP } from "./src/rating.js";
 import { INITIAL_EMPLOYEES, INITIAL_LEAVE_REQUESTS, INITIAL_ANNOUNCEMENTS, nfId, INITIAL_NOTIFICATIONS } from "./src/seedData.js";
 import { nextEmpId } from "./src/helpers.js";
-import { applyLeaveAction } from "./src/leaveWorkflow.js";
+import { applyLeaveAction, newRequestRecipients } from "./src/leaveWorkflow.js";
 import { supa, subscribePush, unsubscribePush, sendPush, empToDb, empFromDb, lrToDb, lrFromDb, annToDb, annFromDb, nfToDb, nfFromDb, diffById, pushSupported } from "./src/supabasePortal.js";
 import { Logo, Bd, Bt } from "./src/uiPrimitives.jsx";
 import { LoginPage } from "./src/LoginPage.jsx";
@@ -39,7 +39,7 @@ function App() {
   const [announcements, setAnnouncements] = useState(INITIAL_ANNOUNCEMENTS);
   const [nextLrId, setNextLrId] = useState(5);
   const [nextAnnId, setNextAnnId] = useState(6);
-  const [selectedMonth, setSelectedMonth] = useState(3); // April
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
   const [showNotif, setShowNotif] = useState(false);
   const [syncError, setSyncError] = useState("");
 
@@ -358,6 +358,8 @@ function App() {
     if (error) return false;
     const upd = await supa.auth.updateUser({ password: newPw });
     if (upd.error) { console.error(upd.error); return false; }
+    setEmployees(p => p.map(e => e.id === currentUser.id ? { ...e, initialPassword: false } : e));
+    setCurrentUser(p => ({ ...p, initialPassword: false }));
     setNav("dashboard");
     return true;
   }, [currentUser]);
@@ -387,6 +389,7 @@ function App() {
       designation: designation || "",
       shift: "",
       role: role || "employee",
+      initialPassword: true,
       profileFinalized: false,
       annualLeave: 30, usedAnnual: 0,
       sickLeave: 15,  usedSick: 0,
@@ -435,6 +438,7 @@ function App() {
         designation: row.designation || "",
         shift: "",
         role,
+        initialPassword: true,
         profileFinalized: false,
         annualLeave: 30, usedAnnual: 0,
         sickLeave: 15,  usedSick: 0,
@@ -483,23 +487,36 @@ function App() {
       tlComment:"", mgrComment:"", tlActionDate:"", mgrActionDate:"", tlName:"", mgrName:""
     }, ...p]);
     const lrMsg = `New leave: ${currentUser.name} - ${form.type} (${form.days}d)`;
-    setNotifications(p => [{ id: nfId(), to:"TL-001", type:"new_request",
-      message: lrMsg, read:false, date:new Date().toISOString()
-    }, ...p]);
-    sendPush("TL-001", "New Leave Request", lrMsg, "/");
-  }, [currentUser, nextLrId]);
+    // Team leads review employee requests; a team lead's own request goes
+    // straight to the managers.
+    const recipients = newRequestRecipients(currentUser.role, employees);
+    if (recipients.length) {
+      const date = new Date().toISOString();
+      setNotifications(p => [
+        ...recipients.map(rid => ({ id: nfId(), to:rid, type:"new_request", message: lrMsg, read:false, date })),
+        ...p,
+      ]);
+      recipients.forEach(rid => sendPush(rid, "New Leave Request", lrMsg, "/"));
+    }
+  }, [currentUser, nextLrId, employees]);
 
   const leaveAction = useCallback((rid, action, comment) => {
+    const managerIds = employees.filter(e => e.role === "manager").map(e => e.id);
     setLeaveRequests(prev => prev.map(r => {
       if (r.id !== rid) return r;
       const now = new Date().toISOString();
-      const res = applyLeaveAction(r, currentUser.role, currentUser.name, action, comment, now);
+      const res = applyLeaveAction(r, currentUser, action, comment, now, managerIds);
       if (!res) return r;
-      setNotifications(p => [{ id: nfId(), ...res.notif, read:false, date:now }, ...p]);
-      sendPush(res.push.to, res.push.title, res.push.body, "/");
+      if (res.notifs.length) {
+        setNotifications(p => [
+          ...res.notifs.map(n => ({ id: nfId(), ...n, read:false, date:now })),
+          ...p,
+        ]);
+      }
+      res.pushes.forEach(pu => sendPush(pu.to, pu.title, pu.body, "/"));
       return res.updated;
     }));
-  }, [currentUser]);
+  }, [currentUser, employees]);
 
   const editRoster = useCallback((eid, mk, day, newCode) => {
     setEmployees(prev => prev.map(e => {

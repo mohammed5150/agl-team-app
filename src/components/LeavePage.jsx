@@ -61,10 +61,11 @@ export function LvFm({ onSub, onCan }) {
   );
 }
 
-export function LvCd({ req, role, onAct }) {
+export function LvCd({ req, role, viewerId, onAct }) {
   const [cm, setCm] = useState("");
   const [sa, setSa] = useState(false);
   const ca = (role === "teamlead" && req.status === "pending") || (role === "manager" && req.status === "tl_approved");
+  const canWithdraw = viewerId === req.empId && req.status === "pending";
   return (
     <div style={{
       background:theme.card, borderRadius:14, padding:16,
@@ -95,6 +96,7 @@ export function LvCd({ req, role, onAct }) {
         </div>
       )}
       {ca && !sa && <Bt onClick={() => setSa(true)} small={true}>Take Action</Bt>}
+      {canWithdraw && <Bt onClick={() => onAct(req.id, "withdraw")} small={true} outline={true}>↩ Withdraw</Bt>}
       {ca && sa && (
         <div style={{ marginTop:8, background:theme.ch, borderRadius:10, padding:12 }}>
           <textarea value={cm} onChange={e => setCm(e.target.value)}
@@ -169,7 +171,7 @@ export function LvPg({ user, leaveRequests, onSub, onAct }) {
       </div>
       {!sh.length
         ? <Empty text="No requests" />
-        : sh.map(r => <LvCd key={r.id} req={r} role={user.role} onAct={onAct} />)}
+        : sh.map(r => <LvCd key={r.id} req={r} role={user.role} viewerId={user.id} onAct={onAct} />)}
     </div>
   );
 }
@@ -186,7 +188,7 @@ export function ApPg({ user, leaveRequests, onAct }) {
       </div>
       {!pn.length
         ? <div style={{ textAlign:"center", padding:40, color:theme.td }}>✅ All clear</div>
-        : pn.map(r => <LvCd key={r.id} req={r} role={user.role} onAct={onAct} />)}
+        : pn.map(r => <LvCd key={r.id} req={r} role={user.role} viewerId={user.id} onAct={onAct} />)}
     </div>
   );
 }
