@@ -3,6 +3,7 @@ import { NE, NM } from "./src/nav.js";
 import { TIERS_CAP } from "./src/rating.js";
 import { INITIAL_EMPLOYEES, INITIAL_LEAVE_REQUESTS, INITIAL_ANNOUNCEMENTS, nfId, INITIAL_NOTIFICATIONS } from "./src/seedData.js";
 import { nextEmpId } from "./src/helpers.js";
+import { applyLeaveAction } from "./src/leaveWorkflow.js";
 import { supa, subscribePush, unsubscribePush, sendPush, empToDb, empFromDb, lrToDb, lrFromDb, annToDb, annFromDb, nfToDb, nfFromDb, diffById, pushSupported } from "./src/supabasePortal.js";
 import { Logo, Bd, Bt } from "./src/uiPrimitives.jsx";
 import { LoginPage } from "./src/LoginPage.jsx";
@@ -459,37 +460,11 @@ function App() {
     setLeaveRequests(prev => prev.map(r => {
       if (r.id !== rid) return r;
       const now = new Date().toISOString();
-      if (currentUser.role === "teamlead") {
-        if (action === "approve") {
-          const m = `${r.empName}'s leave approved by TL`;
-          setNotifications(p => [{ id: nfId(), to:"MGR-001", type:"new_request",
-            message: m, read:false, date:now }, ...p]);
-          sendPush("MGR-001", "Leave needs your approval", m, "/");
-          return { ...r, status:"tl_approved", tlComment:comment||"Approved", tlActionDate:now, tlName:currentUser.name };
-        } else {
-          const m = `${r.type} rejected by TL: ${comment||"Rejected"}`;
-          setNotifications(p => [{ id: nfId(), to:r.empId, type:"rejected",
-            message: m, read:false, date:now }, ...p]);
-          sendPush(r.empId, "Leave rejected", m, "/");
-          return { ...r, status:"rejected", tlComment:comment||"Rejected", tlActionDate:now, tlName:currentUser.name };
-        }
-      }
-      if (currentUser.role === "manager") {
-        if (action === "approve") {
-          const m = `${r.type} APPROVED ✅`;
-          setNotifications(p => [{ id: nfId(), to:r.empId, type:"approved",
-            message: m, read:false, date:now }, ...p]);
-          sendPush(r.empId, "Leave approved", m, "/");
-          return { ...r, status:"approved", mgrComment:comment||"Approved", mgrActionDate:now, mgrName:currentUser.name };
-        } else {
-          const m = `${r.type} rejected by Manager`;
-          setNotifications(p => [{ id: nfId(), to:r.empId, type:"rejected",
-            message: m, read:false, date:now }, ...p]);
-          sendPush(r.empId, "Leave rejected", m, "/");
-          return { ...r, status:"rejected", mgrComment:comment||"Rejected", mgrActionDate:now, mgrName:currentUser.name };
-        }
-      }
-      return r;
+      const res = applyLeaveAction(r, currentUser.role, currentUser.name, action, comment, now);
+      if (!res) return r;
+      setNotifications(p => [{ id: nfId(), ...res.notif, read:false, date:now }, ...p]);
+      sendPush(res.push.to, res.push.title, res.push.body, "/");
+      return res.updated;
     }));
   }, [currentUser]);
 

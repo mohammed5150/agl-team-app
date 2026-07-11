@@ -16,6 +16,8 @@ jobs:
           cache: "npm"
       - name: Install
         run: npm ci
+      - name: Unit tests
+        run: npm test
       - name: Production bundle (demo UI off)
         run: SHOW_DEMO_LOGIN=false npm run build
       - name: Verify dist
