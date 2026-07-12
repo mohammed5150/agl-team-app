@@ -1,5 +1,5 @@
 import { describe, test, expect } from "vitest";
-import { applyLeaveAction, newRequestRecipients } from "../src/leaveWorkflow.js";
+import { applyLeaveAction, newRequestRecipients, countsAsOnLeave, TERMINAL_LEAVE_STATUSES } from "../src/leaveWorkflow.js";
 
 const NOW = "2026-07-11T08:00:00.000Z";
 const TL = { id: "TL-001", role: "teamlead", name: "Faheem" };
@@ -14,6 +14,22 @@ const request = (over = {}) => ({
   type: "Annual Leave",
   status: "pending",
   ...over,
+});
+
+describe("countsAsOnLeave — calendar/overlap predicate", () => {
+  test("active statuses count as on leave", () => {
+    for (const s of ["pending", "tl_approved", "approved"]) {
+      expect(countsAsOnLeave(s)).toBe(true);
+    }
+  });
+  test("terminal statuses do NOT count as on leave", () => {
+    for (const s of TERMINAL_LEAVE_STATUSES) {
+      expect(countsAsOnLeave(s)).toBe(false);
+    }
+    // regression: a withdrawn request must not show on the calendar
+    expect(countsAsOnLeave("withdrawn")).toBe(false);
+    expect(countsAsOnLeave("rejected")).toBe(false);
+  });
 });
 
 describe("applyLeaveAction — team lead", () => {

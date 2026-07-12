@@ -9,6 +9,15 @@ export const NE = [
   { key:"changepw", label:"Settings", icon:"⚙️" }
 ];
 
+// Single source of truth for which nav items a role sees. Managers don't see
+// the raw Working Hours roster (a TL concern). Used by both the sidebar and the
+// hash-routing validator so deep-link keys and visible pages never drift.
+export function navItemsForRole(role) {
+  if (role === "manager") return NM.filter(n => n.key !== "attendance");
+  if (role === "teamlead") return NM;
+  return NE;
+}
+
 export const NM = [
   { key:"dashboard", label:"Dashboard", icon:"📊" },
   { key:"team", label:"Employees", icon:"👥" },

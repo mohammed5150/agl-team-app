@@ -9,6 +9,15 @@
 // { updated, notifs, pushes } where notifs/pushes are arrays (one entry per
 // recipient) for the caller to emit.
 
+// Terminal statuses — a request in one of these is no longer active and must
+// not count as the person being on leave (calendars, overlap counts, etc.).
+export const TERMINAL_LEAVE_STATUSES = ["rejected", "withdrawn"];
+
+// True when a request should be treated as an active/planned absence.
+export function countsAsOnLeave(status) {
+  return !TERMINAL_LEAVE_STATUSES.includes(status);
+}
+
 export function applyLeaveAction(r, actor, action, comment, now, managerIds = []) {
   // Requester withdraws their own request while it is still pending
   if (action === "withdraw") {

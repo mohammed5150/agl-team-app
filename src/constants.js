@@ -3,6 +3,15 @@ export const LEAVE_TYPES = ["Annual Leave", "Sick Leave", "Comp-Off", "Emergency
 export const STATUS_COLORS = { pending: "#f59e0b", tl_approved: "#38bdf8", approved: "#10b981", rejected: "#ef4444", withdrawn: "#94a3b8" };
 export const STATUS_LABELS = { pending: "Pending TL", tl_approved: "Pending MGR", approved: "Approved", rejected: "Rejected", withdrawn: "Withdrawn" };
 export const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+// Months (0-based) for which roster/attendance data exists and pills are shown.
+// Keep the selectable month within this range so the page never opens on a
+// month with no pill and no data.
+export const ATT_MONTHS = [0,1,2,3,4,5];
+export const ATT_YEAR = 2026;
+export function defaultAttMonth() {
+  const m = new Date().getMonth();
+  return ATT_MONTHS.includes(m) ? m : ATT_MONTHS[ATT_MONTHS.length - 1];
+}
 export const SHIFT_HOURS = {
   "AGL 12hrs": { M:12, N:12 },
   "AGL 8hrs": { M:8 },

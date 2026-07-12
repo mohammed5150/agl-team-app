@@ -1,4 +1,4 @@
-import { SECTIONS, MONTHS, theme } from "../constants.js";
+import { SECTIONS, MONTHS, ATT_MONTHS, theme } from "../constants.js";
 import { cH } from "../helpers.js";
 import { ib, Bd, Bt, SC2, Sec, Modal } from "../uiPrimitives.jsx";
 
@@ -19,7 +19,7 @@ export function AttPg({ employees, selectedMonth, setSelectedMonth, onEditRoster
     <div>
       <h2 style={{ fontSize:22, fontWeight:700, color:theme.tx, marginBottom:16 }}>Attendance & Working Hours</h2>
       <div style={{ display:"flex", gap:6, marginBottom:18, flexWrap:"wrap" }}>
-        {[0,1,2,3,4,5].map(m => (
+        {ATT_MONTHS.map(m => (
           <div key={m} onClick={() => setSelectedMonth(m)} style={{
             padding:"8px 18px", borderRadius:10, cursor:"pointer",
             fontSize:13, fontWeight:600,
@@ -143,7 +143,7 @@ export function MyAtt({ emp, selectedMonth, setSelectedMonth }) {
   const mk = `2026-${String(selectedMonth+1).padStart(2,"0")}`;
   const ro = emp.roster?.[mk] || [];
   const h = cH(ro, emp.section);
-  const ms = [0,1,2,3,4,5].map(m => {
+  const ms = ATT_MONTHS.map(m => {
     const k = `2026-${String(m+1).padStart(2,"0")}`;
     const hr = cH(emp.roster?.[k], emp.section);
     return { m:MONTHS[m], sc:hr.sc, w:hr.w, idx:m };
