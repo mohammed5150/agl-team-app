@@ -10,12 +10,14 @@ export function LoginPage({
 }) {
   const emailId = useId();
   const passwordId = useId();
-  const demoAccounts = [
+  // __SHOW_DEMO__ is a compile-time define (build.js / npm run dev). Using it
+  // directly (not via a variable) lets esbuild fold the condition and strip
+  // every demo credential string out of production bundles entirely.
+  const demoAccounts = (typeof __SHOW_DEMO__ !== "undefined" ? __SHOW_DEMO__ : true) ? [
     { id:"amarnath.munderi@adbsafegate.ae", pw:"Adb@2026", l:"Employee (Amarnath)", i:"👷" },
     { id:"mohammed.faheem@adbsafegate.ae", pw:"Adb@2026", l:"Team Leader (Faheem)", i:"👨‍💼" },
     { id:"ragesh.menon@adbsafegate.ae", pw:"Adb@2026", l:"Manager (Ragesh)", i:"👔" }
-  ];
-  const showDemo = typeof __SHOW_DEMO__ !== "undefined" ? __SHOW_DEMO__ : true;
+  ] : [];
 
   return (
     <div style={{ minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center", background:theme.bg }}>
@@ -87,13 +89,13 @@ export function LoginPage({
               }}
             >{loginSubmitting ? "Signing in…" : "Sign In"}</button>
           </form>
-          {showDemo && (
+          {(typeof __SHOW_DEMO__ !== "undefined" ? __SHOW_DEMO__ : true) && (
             <div style={{ textAlign:"center", marginTop:12, fontSize:11, color:theme.td }}>
               Default password: <strong style={{ color:theme.or }}>Adb@2026</strong>
             </div>
           )}
         </div>
-        {showDemo && (
+        {(typeof __SHOW_DEMO__ !== "undefined" ? __SHOW_DEMO__ : true) && (
         <div style={{
           marginTop:18, background:"rgba(17,31,48,0.6)", borderRadius:12,
           padding:14, border:`1px solid ${theme.bd}`

@@ -23,7 +23,11 @@ triggers `npm run build` and publishes the `dist/` folder.
 ## Project structure
 
 ```
-app.jsx               main app (single file, ~3700 lines)
+app.jsx               app shell (state, routing, Supabase sync)
+src/components/       feature modules (dashboards, leave, training, ...)
+src/                  constants, helpers, seed data, Supabase layer
+vendor/               self-hosted React / ReactDOM / supabase-js (pinned)
+tests/                vitest unit tests (npm test)
 index.html            shell + CSP + initial styles
 manifest.json         PWA manifest
 sw.js                 service worker (network-first for HTML/JS, cache-first for icons)
@@ -41,6 +45,10 @@ supabase_*.sql        database migrations (apply in numerical / dependency order
 5. `supabase_notifications.sql` — notifications rebuild
 6. `supabase_rls_policies.sql` — proper RLS (replaces permissive policies)
 7. `supabase_tier.sql` — capability tier (T1-T4) + manager-only triggers
+8. `supabase_push.sql` — web-push subscriptions table
+9. `supabase_rls_hardening.sql` — **required before go-live**: drops the legacy
+   plaintext password column, hides the directory from non-employees, blocks
+   role/tier self-escalation, and pins leave status transitions per role
 
 ## Roles
 
@@ -55,3 +63,27 @@ supabase_*.sql        database migrations (apply in numerical / dependency order
 3. Employee opens the portal URL → enters their email + chosen password
 4. Supabase signs them up, sends a confirmation email via Resend
 5. They click the link, log in, fill out their profile, click **Finalize**
+
+## Publishing checklist (production go-live)
+
+1. **Database** — unpause the Supabase project and apply all migrations above,
+   including `supabase_rls_hardening.sql` (items 1-9 in order on a fresh
+   project; just item 9 if the rest are already applied).
+2. **Auth** — in Supabase Auth settings, restrict sign-ups to the company
+   email domain (the login flow auto-registers first-time employees, so open
+   sign-up would let anyone create an authenticated session).
+3. **Build** — `npm run build` produces a production bundle. Demo mode
+   (demo accounts + seeded roster) is compiled out by default; only
+   `SHOW_DEMO_LOGIN=1 npm run build` re-enables it. Never deploy a demo
+   build publicly — it embeds the real team roster in the bundle.
+4. **Deploy** — publish `dist/` (Netlify). No CDN dependencies: React,
+   ReactDOM and supabase-js are self-hosted under `vendor/` with versions
+   pinned by `package-lock.json`.
+5. **Passwords** — ensure every employee has set a personal password; the
+   shared onboarding password must not remain valid on real accounts.
+6. **Verify** — CI (`npm run ci`) runs lint + unit tests + build + dist
+   verification. Smoke-test login, leave approval, and push notifications
+   on the deployed URL before announcing.
+
+Optional hardening: serve `frame-ancestors` / HSTS via Netlify response
+headers (the CSP `<meta>` tag cannot express frame-ancestors).

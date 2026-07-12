@@ -6,7 +6,7 @@
 // Bump SW_VERSION whenever you change THIS FILE. App code (app.js / index.html)
 // updates automatically thanks to network-first — no bump needed for those.
 
-const SW_VERSION  = "v4";
+const SW_VERSION  = "v5";
 const STATIC_CACHE  = `adb-portal-static-${SW_VERSION}`;
 const RUNTIME_CACHE = `adb-portal-runtime-${SW_VERSION}`;
 
@@ -15,6 +15,9 @@ const PRECACHE_ASSETS = [
   "./",
   "./index.html",
   "./app.js",
+  "./vendor/react.production.min.js",
+  "./vendor/react-dom.production.min.js",
+  "./vendor/supabase.min.js",
   "./manifest.json",
   "./icon-192.png",
   "./icon-512.png",

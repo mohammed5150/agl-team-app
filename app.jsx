@@ -1,34 +1,28 @@
-import {
-  SECTIONS, LEAVE_TYPES, STATUS_COLORS, STATUS_LABELS, MONTHS, SHIFT_HOURS,
-  DOC_TYPES, ANN_PRIORITIES, theme,
-} from "./src/constants.js";
-import { NE, NM } from "./src/nav.js";
-import {
-  RATING_KEYS, gradeFromRating, TIERS, TIER_COLORS, TIERS_CAP, TIER_CAP_COLORS,
-} from "./src/rating.js";
-import {
-  ROLE_CODES, ROLE_ORDER, designationToRoleCode, TRAINING_CATALOG,
-} from "./src/trainingCatalog.js";
-import {
-  INITIAL_EMPLOYEES,
-  INITIAL_LEAVE_REQUESTS, INITIAL_ANNOUNCEMENTS, nfId, INITIAL_NOTIFICATIONS,
-} from "./src/seedData.js";
-import {
-  parseCSV, nextEmpId, cH, certSt, fmtDt, daysInRange,
-} from "./src/helpers.js";
-import {
-  supa, subscribePush, unsubscribePush, sendPush,
-  empToDb, empFromDb, lrToDb, lrFromDb, annToDb, annFromDb, nfToDb, nfFromDb,
-  diffById, pushSupported,
-} from "./src/supabasePortal.js";
-import {
-  Logo, ib, Bd, Bt, SC2, Sec, Fd, Modal, Empty,
-} from "./src/uiPrimitives.jsx";
+import { theme, defaultAttMonth } from "./src/constants.js";
+import { navItemsForRole } from "./src/nav.js";
+import { TIERS_CAP } from "./src/rating.js";
+import { INITIAL_EMPLOYEES, INITIAL_LEAVE_REQUESTS, INITIAL_ANNOUNCEMENTS, nfId, INITIAL_NOTIFICATIONS } from "./src/seedData.js";
+import { nextEmpId } from "./src/helpers.js";
+import { applyLeaveAction, newRequestRecipients } from "./src/leaveWorkflow.js";
+import { supa, subscribePush, unsubscribePush, sendPush, empToDb, empFromDb, lrToDb, lrFromDb, annToDb, annFromDb, nfToDb, nfFromDb, diffById, pushSupported } from "./src/supabasePortal.js";
+import { Logo, Bd, Bt } from "./src/uiPrimitives.jsx";
 import { LoginPage } from "./src/LoginPage.jsx";
 import { ErrorBoundary } from "./src/ErrorBoundary.jsx";
+import { AnnPg } from "./src/components/AnnouncementsPage.jsx";
+import { AttPg, MyAtt } from "./src/components/AttendancePage.jsx";
+import { ChPw } from "./src/components/ChangePassword.jsx";
+import { EDash } from "./src/components/DashboardEmployee.jsx";
+import { MDash } from "./src/components/DashboardManager.jsx";
+import { MyDocs, DocsMgmt } from "./src/components/DocumentsPage.jsx";
+import { LeaveCalendar } from "./src/components/LeaveCalendar.jsx";
+import { LvPg, ApPg } from "./src/components/LeavePage.jsx";
+import { NotifPanel } from "./src/components/NotifPanel.jsx";
+import { Perf } from "./src/components/PerformancePage.jsx";
+import { Prof } from "./src/components/Profile.jsx";
+import { Team } from "./src/components/TeamPage.jsx";
+import { MyTr, TrMgmt } from "./src/components/TrainingPage.jsx";
 
-const { useState, useCallback, useMemo, useEffect, useRef, useId } = React;
-
+const { useState, useCallback, useEffect, useRef } = React;
 
 function App() {
   const [currentUser, setCurrentUser] = useState(null);
@@ -45,8 +39,9 @@ function App() {
   const [announcements, setAnnouncements] = useState(INITIAL_ANNOUNCEMENTS);
   const [nextLrId, setNextLrId] = useState(5);
   const [nextAnnId, setNextAnnId] = useState(6);
-  const [selectedMonth, setSelectedMonth] = useState(3); // April
+  const [selectedMonth, setSelectedMonth] = useState(defaultAttMonth());
   const [showNotif, setShowNotif] = useState(false);
+  const [syncError, setSyncError] = useState("");
 
   // --- Persistence: Supabase Auth + Supabase DB (tables RLS-protected)
   //   Data is only loaded once the user has an authenticated session.
@@ -56,6 +51,12 @@ function App() {
   const prevLeaveRequestsRef = useRef([]);
   const prevAnnouncementsRef = useRef([]);
   const prevNotificationsRef = useRef([]);
+  // Set once the user clears their initial password, so a concurrent data
+  // refetch (triggered by the change-password re-auth) can't re-flag them.
+  const pwClearedRef = useRef(false);
+  // Ensures the URL hash is applied to nav only once per login (deep-link
+  // support) and not on every currentUser identity change.
+  const hashAppliedRef = useRef(false);
 
   // Load UI-only state from localStorage immediately
   useEffect(() => {
@@ -87,6 +88,13 @@ function App() {
       const emps = (empsR.data || []).map(empFromDb);
       const matches = emps.filter(e => e.email?.toLowerCase() === authEmail?.toLowerCase());
       const me = matches[0];
+      // If this session just cleared its initial password, don't let a stale
+      // DB read (this refetch can race the change) re-flag the user.
+      if (me && pwClearedRef.current) {
+        me.initialPassword = false;
+        const mi = emps.findIndex(e => e.id === me.id);
+        if (mi >= 0) emps[mi] = me;
+      }
       if (!me) {
         console.warn("[portal] authenticated email has no employee record:", authEmail);
         setLoginError(
@@ -227,7 +235,7 @@ function App() {
       prevEmployeesRef.current = employees;
       if (!changed.length) return;
       supa.from("employees").upsert(changed.map(empToDb))
-        .then(r => r.error && console.error("employees upsert:", r.error));
+        .then(r => { if (r.error) { console.error("employees upsert:", r.error); setSyncError("Couldn't save employee changes"); } });
     }, 400);
     return () => clearTimeout(t);
   }, [employees]);
@@ -239,7 +247,7 @@ function App() {
       prevLeaveRequestsRef.current = leaveRequests;
       if (!changed.length) return;
       supa.from("leave_requests").upsert(changed.map(lrToDb))
-        .then(r => r.error && console.error("leave_requests upsert:", r.error));
+        .then(r => { if (r.error) { console.error("leave_requests upsert:", r.error); setSyncError("Couldn't save leave request changes"); } });
     }, 400);
     return () => clearTimeout(t);
   }, [leaveRequests]);
@@ -251,7 +259,7 @@ function App() {
       prevAnnouncementsRef.current = announcements;
       if (!changed.length) return;
       supa.from("announcements").upsert(changed.map(annToDb))
-        .then(r => r.error && console.error("announcements upsert:", r.error));
+        .then(r => { if (r.error) { console.error("announcements upsert:", r.error); setSyncError("Couldn't save announcement changes"); } });
     }, 400);
     return () => clearTimeout(t);
   }, [announcements]);
@@ -263,7 +271,7 @@ function App() {
       prevNotificationsRef.current = notifications;
       if (!changed.length) return;
       supa.from("notifications").upsert(changed.map(nfToDb))
-        .then(r => r.error && console.error("notifications upsert:", r.error));
+        .then(r => { if (r.error) { console.error("notifications upsert:", r.error); setSyncError("Couldn't save notification changes"); } });
     }, 400);
     return () => clearTimeout(t);
   }, [notifications]);
@@ -273,7 +281,53 @@ function App() {
     if (typeof window !== "undefined") window.__currentUserId = currentUser?.id || null;
   }, [currentUser]);
 
-  const all = useMemo(() => employees, [employees]);
+  // Sync-failure toast auto-dismisses after a few seconds
+  useEffect(() => {
+    if (!syncError) return;
+    const t = setTimeout(() => setSyncError(""), 6000);
+    return () => clearTimeout(t);
+  }, [syncError]);
+
+  // Hash routing: keep the active view in the URL (#/leave) so refreshes and
+  // shared links land on the right page. Only keys valid for the user's role
+  // are accepted; unknown hashes are ignored.
+  //
+  // Apply the incoming hash to nav exactly ONCE per login (deep-link / refresh
+  // support). Keyed on the user id, and guarded so it never re-fires when the
+  // currentUser object is merely replaced (profile save, initial-password flip)
+  // — which previously bounced the user back to a stale hash and closed panels.
+  useEffect(() => {
+    if (!currentUser || hashAppliedRef.current) return;
+    hashAppliedRef.current = true;
+    const valid = new Set(navItemsForRole(currentUser.role).map(i => i.key));
+    const k = window.location.hash.replace(/^#\/?/, "");
+    if (valid.has(k)) setNav(k);
+  }, [currentUser]);
+
+  // Reset the once-per-login guard when the user signs out.
+  useEffect(() => { if (!currentUser) hashAppliedRef.current = false; }, [currentUser]);
+
+  // Respond to real hashchange events (browser back/forward, manual edits).
+  // Keyed on role (a string), so replacing the currentUser object does not
+  // re-attach the listener or trigger navigation side effects.
+  useEffect(() => {
+    const role = currentUser?.role;
+    if (!role) return;
+    const valid = new Set(navItemsForRole(role).map(i => i.key));
+    const onHashChange = () => {
+      const k = window.location.hash.replace(/^#\/?/, "");
+      if (valid.has(k)) { setNav(k); setViewEmployee(null); setShowNotif(false); }
+    };
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
+  }, [currentUser?.role]);
+
+  useEffect(() => {
+    if (!currentUser) return;
+    const want = "#/" + nav;
+    if (window.location.hash !== want) window.history.replaceState(null, "", want);
+  }, [nav, currentUser]);
+
 
   // Log in via Supabase Auth. If the auth user doesn't exist yet (first-ever
   // login for this employee), auto-sign them up with the given password.
@@ -322,6 +376,9 @@ function App() {
     if (window.__portalChannel) { try { window.__portalChannel.unsubscribe(); } catch {} window.__portalChannel = null; }
     setLoginId(""); setLoginPassword(""); setLoginError(""); setLoginSubmitting(false);
     setNav("dashboard"); setViewEmployee(null);
+    // Clear the route hash so the next user on this device starts on the
+    // dashboard instead of inheriting the previous user’s view.
+    window.history.replaceState(null, "", window.location.pathname + window.location.search);
   }, []);
 
   const changePassword = useCallback(async (oldPw, newPw) => {
@@ -331,6 +388,15 @@ function App() {
     if (error) return false;
     const upd = await supa.auth.updateUser({ password: newPw });
     if (upd.error) { console.error(upd.error); return false; }
+    // Persist the cleared flag directly. The re-auth above fires an auth event
+    // that refetches employees; relying on the debounced upsert would lose the
+    // race (the refetch resets the diff baseline before it runs). The ref makes
+    // the concurrent refetch preserve the cleared value too.
+    pwClearedRef.current = true;
+    const dbw = await supa.from("employees").update({ initial_password: false }).eq("id", currentUser.id);
+    if (dbw.error) console.error("[pw] clear initial flag:", dbw.error);
+    setEmployees(p => p.map(e => e.id === currentUser.id ? { ...e, initialPassword: false } : e));
+    setCurrentUser(p => ({ ...p, initialPassword: false }));
     setNav("dashboard");
     return true;
   }, [currentUser]);
@@ -360,6 +426,7 @@ function App() {
       designation: designation || "",
       shift: "",
       role: role || "employee",
+      initialPassword: true,
       profileFinalized: false,
       annualLeave: 30, usedAnnual: 0,
       sickLeave: 15,  usedSick: 0,
@@ -408,6 +475,7 @@ function App() {
         designation: row.designation || "",
         shift: "",
         role,
+        initialPassword: true,
         profileFinalized: false,
         annualLeave: 30, usedAnnual: 0,
         sickLeave: 15,  usedSick: 0,
@@ -456,49 +524,45 @@ function App() {
       tlComment:"", mgrComment:"", tlActionDate:"", mgrActionDate:"", tlName:"", mgrName:""
     }, ...p]);
     const lrMsg = `New leave: ${currentUser.name} - ${form.type} (${form.days}d)`;
-    setNotifications(p => [{ id: nfId(), to:"TL-001", type:"new_request",
-      message: lrMsg, read:false, date:new Date().toISOString()
-    }, ...p]);
-    sendPush("TL-001", "New Leave Request", lrMsg, "/");
-  }, [currentUser, nextLrId]);
+    // Team leads review employee requests; a team lead's own request goes
+    // straight to the managers.
+    let recipients = newRequestRecipients(currentUser.role, employees);
+    // Fallback: if the intended approver role has no members, notify any staff
+    // so a request is never silently lost.
+    if (!recipients.length) {
+      recipients = employees.filter(e => e.role === "teamlead" || e.role === "manager").map(e => e.id);
+    }
+    if (recipients.length) {
+      const date = new Date().toISOString();
+      setNotifications(p => [
+        ...recipients.map(rid => ({ id: nfId(), to:rid, type:"new_request", message: lrMsg, read:false, date })),
+        ...p,
+      ]);
+      recipients.forEach(rid => sendPush(rid, "New Leave Request", lrMsg, "/"));
+    } else {
+      console.warn("[leave] no teamlead/manager to notify for request", id);
+      setSyncError("Leave submitted, but no approver is configured to be notified.");
+    }
+  }, [currentUser, nextLrId, employees]);
 
   const leaveAction = useCallback((rid, action, comment) => {
-    setLeaveRequests(prev => prev.map(r => {
-      if (r.id !== rid) return r;
-      const now = new Date().toISOString();
-      if (currentUser.role === "teamlead") {
-        if (action === "approve") {
-          const m = `${r.empName}'s leave approved by TL`;
-          setNotifications(p => [{ id: nfId(), to:"MGR-001", type:"new_request",
-            message: m, read:false, date:now }, ...p]);
-          sendPush("MGR-001", "Leave needs your approval", m, "/");
-          return { ...r, status:"tl_approved", tlComment:comment||"Approved", tlActionDate:now, tlName:currentUser.name };
-        } else {
-          const m = `${r.type} rejected by TL: ${comment||"Rejected"}`;
-          setNotifications(p => [{ id: nfId(), to:r.empId, type:"rejected",
-            message: m, read:false, date:now }, ...p]);
-          sendPush(r.empId, "Leave rejected", m, "/");
-          return { ...r, status:"rejected", tlComment:comment||"Rejected", tlActionDate:now, tlName:currentUser.name };
-        }
-      }
-      if (currentUser.role === "manager") {
-        if (action === "approve") {
-          const m = `${r.type} APPROVED ✅`;
-          setNotifications(p => [{ id: nfId(), to:r.empId, type:"approved",
-            message: m, read:false, date:now }, ...p]);
-          sendPush(r.empId, "Leave approved", m, "/");
-          return { ...r, status:"approved", mgrComment:comment||"Approved", mgrActionDate:now, mgrName:currentUser.name };
-        } else {
-          const m = `${r.type} rejected by Manager`;
-          setNotifications(p => [{ id: nfId(), to:r.empId, type:"rejected",
-            message: m, read:false, date:now }, ...p]);
-          sendPush(r.empId, "Leave rejected", m, "/");
-          return { ...r, status:"rejected", mgrComment:comment||"Rejected", mgrActionDate:now, mgrName:currentUser.name };
-        }
-      }
-      return r;
-    }));
-  }, [currentUser]);
+    const managerIds = employees.filter(e => e.role === "manager").map(e => e.id);
+    const req = leaveRequests.find(r => r.id === rid);
+    if (!req) return;
+    const now = new Date().toISOString();
+    const res = applyLeaveAction(req, currentUser, action, comment, now, managerIds);
+    if (!res) return;
+    // Pure state update — side effects (notifs/pushes) run once, outside the
+    // updater, so a replayed render can't duplicate them.
+    setLeaveRequests(prev => prev.map(r => r.id === rid ? res.updated : r));
+    if (res.notifs.length) {
+      setNotifications(p => [
+        ...res.notifs.map(n => ({ id: nfId(), ...n, read:false, date:now })),
+        ...p,
+      ]);
+    }
+    res.pushes.forEach(pu => sendPush(pu.to, pu.title, pu.body, "/"));
+  }, [currentUser, employees, leaveRequests]);
 
   const editRoster = useCallback((eid, mk, day, newCode) => {
     setEmployees(prev => prev.map(e => {
@@ -535,7 +599,7 @@ function App() {
       ? employees.map(e => e.id)
       : employees.filter(e => e.section === a.target).map(e => e.id);
     setNotifications(p => [
-      ...targets.map((eid, i) => ({ id: nfId(), to:eid, type:"announcement",
+      ...targets.map((eid) => ({ id: nfId(), to:eid, type:"announcement",
         message:`📢 ${a.title}`, read:false, date:new Date().toISOString(), annId:id
       })),
       ...p
@@ -579,7 +643,7 @@ function App() {
   const iMgr = currentUser.role === "manager";
   const isTL = currentUser.role === "teamlead";
   // Manager doesn't see the raw Working Hours roster — that's a TL concern.
-  const ni = iMgr ? NM.filter(n => n.key !== "attendance") : iM ? NM : NE;
+  const ni = navItemsForRole(currentUser.role);
 
   // Save an employee's rating (TL or MGR); salary tier editable by MGR only
   const saveRating = (empId, patch) => {
@@ -598,8 +662,14 @@ function App() {
       ? { l:"Team Leader", c:theme.yl }
       : { l:"Manager", c:theme.pu };
 
+  // Force a password change on first login before anything else is reachable.
+  // Enforced at render (not by scattered nav checks) so no route bypasses it.
+  if (currentUser.initialPassword) {
+    return <ChPw onCh={changePassword} forced={true} onOut={logout} />;
+  }
+
   if (nav === "changepw") {
-    return <ChPw user={currentUser} onCh={changePassword} forced={currentUser.initialPassword} onOut={logout} />;
+    return <ChPw onCh={changePassword} forced={currentUser.initialPassword} onOut={logout} />;
   }
 
   return (
@@ -700,7 +770,6 @@ function App() {
               <NotifPanel
                 notifs={myNotifs}
                 currentUser={currentUser}
-                onClose={() => setShowNotif(false)}
                 onMarkRead={markNotifRead}
                 onMarkAll={markAllRead}
                 onGoTo={(key) => { setNav(key); setViewEmployee(null); setShowNotif(false); }}
@@ -728,2521 +797,38 @@ function App() {
           ) : (
             <div className="fade-in" key={nav}>
               {nav === "dashboard" && (iM
-                ? <MDash user={currentUser} employees={employees} leaveRequests={leaveRequests} notifications={notifications} announcements={announcements} pc={pc} onGoTo={setNav} />
-                : <EDash user={currentUser} notifications={notifications} announcements={announcements} onGoTo={setNav} />)}
+                ? <MDash user={currentUser} employees={employees} leaveRequests={leaveRequests} announcements={announcements} pc={pc} onGoTo={setNav} />
+                : <EDash user={currentUser} announcements={announcements} onGoTo={setNav} />)}
               {nav === "profile" && <Prof emp={currentUser} canEdit={iM || !currentUser.profileFinalized} isStaff={iM} isMgr={iMgr} onSave={saveProfile} onAdd={addEmployeeAction} onAddDoc={addDoc} onDelDoc={delDoc} />}
               {nav === "team" && <Team employees={employees} onSel={setViewEmployee} isMgr={iMgr} isTL={isTL} onInvite={addInviteEmployee} onBulkInvite={addInviteEmployeesBulk} />}
               {nav === "performance" && iM && <Perf employees={employees} onSel={setViewEmployee} isMgr={iMgr} onSave={saveRating} />}
               {nav === "leave" && <LvPg user={currentUser} leaveRequests={leaveRequests} onSub={submitLeave} onAct={leaveAction} />}
               {nav === "approvals" && <ApPg user={currentUser} leaveRequests={leaveRequests} onAct={leaveAction} />}
-              {nav === "calendar" && <LeaveCalendar leaveRequests={leaveRequests} employees={employees} />}
+              {nav === "calendar" && <LeaveCalendar leaveRequests={leaveRequests} />}
               {nav === "attendance" && !iMgr && (iM
                 ? <AttPg employees={employees} selectedMonth={selectedMonth} setSelectedMonth={setSelectedMonth} onEditRoster={editRoster} canEdit={iM} />
                 : <MyAtt emp={currentUser} selectedMonth={selectedMonth} setSelectedMonth={setSelectedMonth} />)}
               {nav === "training" && (iM ? <TrMgmt employees={employees} /> : <MyTr emp={currentUser} />)}
               {nav === "documents" && (iM ? <DocsMgmt employees={employees} onSel={setViewEmployee} /> : <MyDocs emp={currentUser} onAdd={addDoc} onDel={delDoc} />)}
-              {nav === "announcements" && <AnnPg user={currentUser} announcements={announcements} employees={employees} onAdd={addAnn} onDel={delAnn} />}
+              {nav === "announcements" && <AnnPg user={currentUser} announcements={announcements} onAdd={addAnn} onDel={delAnn} />}
             </div>
           )}
         </div>
       </div>
-    </div>
-  );
-}
 
-function ChPw({ user, onCh, forced, onOut }) {
-  const [o, setO] = useState("");
-  const [n, setN] = useState("");
-  const [c2, setC2] = useState("");
-  const [er, setEr] = useState("");
-  const [ok, setOk] = useState(false);
-
-  const submit = async () => {
-    setEr("");
-    if (!o || !n || !c2) return setEr("Fill all fields");
-    if (n.length < 6) return setEr("Min 6 characters");
-    if (n === o) return setEr("Must differ from current");
-    if (n !== c2) return setEr("New passwords don't match");
-    if (!/[A-Z]/.test(n) || !/[0-9]/.test(n)) return setEr("Need 1 uppercase + 1 number");
-    const ok2 = await onCh(o, n);
-    if (!ok2) return setEr("Wrong current password");
-    setOk(true);
-  };
-
-  if (ok) return (
-    <div style={{
-      display:"flex", flexDirection:"column", alignItems:"center",
-      justifyContent:"center", height:"100vh", background:theme.bg
-    }}>
-      <div style={{ fontSize:56, marginBottom:12 }}>✅</div>
-      <h2 style={{ color:theme.gn, fontSize:20 }}>Password Changed!</h2>
-      <p style={{ color:theme.ts, fontSize:13, marginTop:8 }}>Redirecting...</p>
-    </div>
-  );
-
-  return (
-    <div style={{ display:"flex", alignItems:"center", justifyContent:"center", minHeight:"100vh", background:theme.bg }}>
-      <div style={{ maxWidth:420, width:"100%", padding:20 }}>
-        <div style={{ background:theme.cs, borderRadius:16, padding:28, border:`1px solid ${theme.bd}` }}>
-          <h2 style={{ fontSize:20, fontWeight:700, color:theme.tx, marginBottom:6 }}>🔐 Change Password</h2>
-          {forced && (
-            <div style={{
-              background:`${theme.or}15`, border:`1px solid ${theme.or}40`,
-              borderRadius:10, padding:12, margin:"12px 0 16px", fontSize:13, color:theme.or
-            }}>⚠️ Please change your initial password</div>
-          )}
-          <p style={{ color:theme.td, fontSize:12, marginBottom:20 }}>Min 6 chars, 1 uppercase, 1 number</p>
-          {er && (
-            <div style={{
-              background:"rgba(239,68,68,0.1)", borderRadius:10, padding:"8px 12px",
-              marginBottom:14, color:theme.rd, fontSize:12
-            }}>{er}</div>
-          )}
-          <div style={{ marginBottom:14 }}>
-            <label style={{ display:"block", fontSize:10, color:theme.td, fontWeight:700, marginBottom:5 }}>CURRENT</label>
-            <input type="password" value={o} onChange={e => setO(e.target.value)} style={ib} />
-          </div>
-          <div style={{ marginBottom:14 }}>
-            <label style={{ display:"block", fontSize:10, color:theme.td, fontWeight:700, marginBottom:5 }}>NEW</label>
-            <input type="password" value={n} onChange={e => setN(e.target.value)} style={ib} />
-          </div>
-          <div style={{ marginBottom:20 }}>
-            <label style={{ display:"block", fontSize:10, color:theme.td, fontWeight:700, marginBottom:5 }}>CONFIRM</label>
-            <input type="password" value={c2} onChange={e => setC2(e.target.value)}
-              onKeyDown={e => e.key === "Enter" && submit()} style={ib} />
-          </div>
-          <div style={{ display:"flex", gap:8 }}>
-            <Bt onClick={submit} bg={theme.or}>Update</Bt>
-            <Bt onClick={onOut} outline={true}>Logout</Bt>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ============================================================
-   NOTIFICATIONS PANEL (bell dropdown)
-   ============================================================ */
-
-function NotifPanel({ notifs, onClose, onMarkRead, onMarkAll, onGoTo, currentUser }) {
-  const unread = notifs.filter(n => !n.read);
-  const [notifPerm, setNotifPerm] = useState(
-    typeof window !== "undefined" && "Notification" in window ? Notification.permission : "unsupported"
-  );
-  const askPerm = async () => {
-    if (!("Notification" in window)) return;
-    const r = await Notification.requestPermission();
-    setNotifPerm(r);
-    if (r === "granted") {
-      // Subscribe this browser/device to push and persist to Supabase.
-      if (currentUser?.id) {
-        const res = await subscribePush(currentUser.id);
-        if (!res.ok) console.warn("[push] subscribe:", res.reason);
-      }
-      new Notification("ADB Portal", { body: "Push notifications enabled ✅", icon: "/icon-192.png" });
-    }
-  };
-  const iconFor = (tp) => tp === "approved" ? "✅"
-    : tp === "rejected" ? "❌"
-    : tp === "announcement" ? "📢"
-    : "🔔";
-  const go = (n) => {
-    onMarkRead(n.id);
-    if (n.type === "announcement") onGoTo("announcements");
-    else if (n.type === "new_request") onGoTo("approvals");
-    else if (n.type === "approved" || n.type === "rejected") onGoTo("leave");
-  };
-
-  return (
-    <div onClick={e => e.stopPropagation()} style={{
-      position:"absolute", top:32, right:0, width:340, maxHeight:420, overflowY:"auto",
-      background:theme.cs, border:`1px solid ${theme.bl}`, borderRadius:12,
-      boxShadow:"0 12px 40px rgba(0,0,0,0.5)", zIndex:100
-    }}>
-      {notifPerm === "default" && (
-        <div style={{ padding:"10px 14px", background:"rgba(56,189,248,0.08)", borderBottom:`1px solid ${theme.bd}` }}>
-          <div style={{ fontSize:12, color:theme.tx, marginBottom:6 }}>Get browser alerts for new items</div>
-          <button onClick={askPerm} style={{
-            background:theme.bu, color:"#fff", border:"none", padding:"6px 12px",
-            borderRadius:8, fontSize:11, fontWeight:700, cursor:"pointer"
-          }}>🔔 Enable notifications</button>
+      {syncError && (
+        <div role="alert" style={{
+          position:"fixed", bottom:20, left:"50%", transform:"translateX(-50%)", zIndex:100,
+          background:"rgba(30,10,10,0.95)", border:"1px solid rgba(239,68,68,0.5)",
+          color:"#fecaca", padding:"10px 16px", borderRadius:12, fontSize:12,
+          display:"flex", gap:10, alignItems:"center", boxShadow:"0 8px 30px rgba(0,0,0,0.5)"
+        }}>
+          ⚠️ {syncError} — your last change may not be saved. Check your connection.
+          <button onClick={() => setSyncError("")} aria-label="Dismiss" style={{
+            background:"none", border:"none", color:"#fecaca", cursor:"pointer", fontSize:14, fontWeight:700
+          }}>✕</button>
         </div>
       )}
-      {notifPerm === "granted" && (
-        <div style={{ padding:"6px 14px", fontSize:10, color:theme.gn, background:"rgba(16,185,129,0.08)", borderBottom:`1px solid ${theme.bd}` }}>
-          ✅ Browser notifications enabled
-        </div>
-      )}
-      {notifPerm === "denied" && (
-        <div style={{ padding:"6px 14px", fontSize:10, color:theme.rd, background:"rgba(239,68,68,0.08)", borderBottom:`1px solid ${theme.bd}` }}>
-          🚫 Blocked — enable via browser settings
-        </div>
-      )}
-      <div style={{
-        display:"flex", justifyContent:"space-between", alignItems:"center",
-        padding:"12px 14px", borderBottom:`1px solid ${theme.bd}`,
-        position:"sticky", top:0, background:theme.cs, zIndex:1
-      }}>
-        <div style={{ fontSize:13, fontWeight:700, color:theme.tx }}>
-          Notifications {unread.length > 0 && <span style={{ color:theme.or }}>({unread.length})</span>}
-        </div>
-        {unread.length > 0 && (
-          <button onClick={onMarkAll} style={{
-            background:"none", border:"none", color:theme.bu, fontSize:11, cursor:"pointer", fontWeight:600
-          }}>Mark all read</button>
-        )}
-      </div>
-      {notifs.length === 0 ? (
-        <div style={{ padding:"30px 16px", textAlign:"center", color:theme.td, fontSize:13 }}>
-          <div style={{ fontSize:28, opacity:0.4, marginBottom:6 }}>📭</div>
-          No notifications
-        </div>
-      ) : (
-        notifs.slice(0, 20).map(n => (
-          <div key={n.id} onClick={() => go(n)} style={{
-            padding:"10px 14px", borderBottom:`1px solid ${theme.bd}`, cursor:"pointer",
-            background: n.read ? "transparent" : "rgba(232,112,42,0.06)",
-            display:"flex", gap:10
-          }}>
-            <div style={{ fontSize:16 }}>{iconFor(n.type)}</div>
-            <div style={{ flex:1, minWidth:0 }}>
-              <div style={{ fontSize:12, color: n.read ? theme.ts : theme.tx, fontWeight: n.read ? 400 : 600 }}>{n.message}</div>
-              <div style={{ fontSize:10, color:theme.td, marginTop:2 }}>{fmtDt(n.date)}</div>
-            </div>
-            {!n.read && <div style={{ width:6, height:6, borderRadius:"50%", background:theme.or, marginTop:6 }} />}
-          </div>
-        ))
-      )}
-    </div>
-  );
-}
-
-/* ============================================================
-   MANAGER DASHBOARD
-   ============================================================ */
-
-// Pastel palette for the new dashboard cards
-const PASTEL = { coral:"#f5a99a", mint:"#a8e5c5", lilac:"#b9a8f2", butter:"#f5e892", sky:"#a8d4f5" };
-const INK = "#0b1a2b";
-
-// Circular progress ring — value is 0..1
-const Ring = ({ value, size=120, stroke=10, color="#0b1a2b", track="rgba(0,0,0,0.12)", label, sub }) => {
-  const r = (size - stroke) / 2;
-  const C = 2 * Math.PI * r;
-  const pct = Math.max(0, Math.min(1, value));
-  return (
-    <div style={{ position:"relative", width:size, height:size }}>
-      <svg width={size} height={size} style={{ transform:"rotate(-90deg)" }}>
-        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={track} strokeWidth={stroke} />
-        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth={stroke}
-          strokeLinecap="round" strokeDasharray={C} strokeDashoffset={C * (1 - pct)}
-          style={{ transition:"stroke-dashoffset .6s ease" }} />
-      </svg>
-      <div style={{ position:"absolute", inset:0, display:"flex", flexDirection:"column",
-        alignItems:"center", justifyContent:"center" }}>
-        <div style={{ fontSize:28, fontWeight:800, color:INK, lineHeight:1 }}>{label}</div>
-        {sub && <div style={{ fontSize:10, fontWeight:700, color:INK, opacity:0.7, marginTop:2, letterSpacing:0.4 }}>{sub}</div>}
-      </div>
-    </div>
-  );
-};
-
-// Simple bar sparkline (for tiny trend charts)
-const Spark = ({ values, color=INK, height=50, active=-1 }) => {
-  const max = Math.max(1, ...values);
-  return (
-    <div style={{ display:"flex", alignItems:"flex-end", gap:4, height, width:"100%" }}>
-      {values.map((v, i) => (
-        <div key={i} style={{
-          flex:1, height:`${Math.max(8, (v/max)*height)}px`,
-          background: i === active ? color : `${color}55`,
-          borderRadius:6,
-        }} />
-      ))}
-    </div>
-  );
-};
-
-// Small square tile in the new aesthetic
-const Tile = ({ bg, label, value, sub, dark=false, children, onClick }) => {
-  const fg = dark ? "#f0f4f8" : INK;
-  return (
-    <div onClick={onClick} style={{
-      background: bg, borderRadius:22, padding:18,
-      minHeight:150, cursor: onClick ? "pointer" : "default",
-      display:"flex", flexDirection:"column", justifyContent:"space-between",
-      color: fg, boxShadow: dark ? "none" : "0 2px 20px rgba(0,0,0,0.12)"
-    }}>
-      <div style={{ fontSize:11, fontWeight:700, letterSpacing:1, opacity:0.75, textTransform:"uppercase" }}>{label}</div>
-      {children ? children : (
-        <div>
-          <div style={{ fontSize:34, fontWeight:800, lineHeight:1 }}>{value}</div>
-          {sub && <div style={{ fontSize:11, opacity:0.7, marginTop:4 }}>{sub}</div>}
-        </div>
-      )}
-    </div>
-  );
-};
-
-function MDash({ user, employees, leaveRequests, notifications, announcements, pc, onGoTo }) {
-  const h = new Date().getHours();
-  const g = h < 12 ? "Good Morning" : h < 17 ? "Good Afternoon" : "Good Evening";
-  const today = new Date();
-  const onLeaveToday = leaveRequests.filter(r => {
-    if (r.status !== "approved") return false;
-    const s = new Date(r.startDate), e = new Date(r.endDate);
-    return today >= s && today <= e;
-  });
-  const onDutyToday = employees.length - onLeaveToday.length;
-  const dutyPct = employees.length ? onDutyToday / employees.length : 1;
-  const expiringCerts = employees.reduce((a, e) => a + (e.training || []).filter(x => {
-    const d = (new Date(x.certExpiry) - new Date()) / 864e5;
-    return d >= 0 && d <= 90;
-  }).length, 0);
-  const expiringDocs = employees.reduce((a, e) => a + (e.documents || []).filter(x => {
-    const d = (new Date(x.expiryDate) - new Date()) / 864e5;
-    return d >= 0 && d <= 90;
-  }).length, 0);
-  const pinnedAnn = announcements.filter(a => a.pinned).slice(0, 1);
-  const sectionCounts = SECTIONS.map(s => ({
-    name: s, count: employees.filter(e => e.section === s).length
-  }));
-  const maxSectionCount = Math.max(1, ...sectionCounts.map(s => s.count));
-  const dateStr = today.toLocaleDateString("en-GB", { weekday:"short", day:"2-digit", month:"short" }).toUpperCase();
-
-  return (
-    <div>
-      {/* Header */}
-      <div style={{ display:"flex", alignItems:"center", gap:14, marginBottom:14 }}>
-        <div style={{ flex:1 }}>
-          <div style={{ fontSize:11, color:theme.ts, letterSpacing:1, textTransform:"uppercase", fontWeight:700 }}>{g}</div>
-          <h2 style={{ fontSize:26, fontWeight:800, color:theme.tx, margin:0, letterSpacing:-0.3 }}>{user.name.toUpperCase()}</h2>
-        </div>
-        <div style={{ width:48, height:48, borderRadius:"50%", background:theme.ga,
-          display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, fontWeight:800, color:"#fff" }}>
-          {user.name.split(" ").map(n => n[0]).join("").slice(0,2)}
-        </div>
-      </div>
-      <div style={{ display:"inline-flex", alignItems:"center", gap:8, padding:"6px 12px",
-        background:theme.ch, borderRadius:20, marginBottom:18, fontSize:11, fontWeight:700, letterSpacing:0.5, color:theme.ts }}>
-        <span style={{ width:6, height:6, borderRadius:"50%", background:"#10b981" }} />
-        {dateStr} · {pc} PENDING
-      </div>
-
-      {/* Pinned banner */}
-      {pinnedAnn.length > 0 && pinnedAnn.map(a => {
-        const pr = ANN_PRIORITIES.find(p => p.key === a.priority);
-        return (
-          <div key={a.id} onClick={() => onGoTo("announcements")} style={{
-            background:`linear-gradient(135deg, ${pr.color}22, ${pr.color}08)`,
-            border:`1px solid ${pr.color}40`, borderRadius:18,
-            padding:"14px 16px", marginBottom:16, cursor:"pointer"
-          }}>
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:8, marginBottom:4 }}>
-              <div style={{ fontSize:13, fontWeight:800, color:theme.tx }}>📌 {a.title}</div>
-              <Bd text={pr.label.toUpperCase()} color={pr.color} />
-            </div>
-            <div style={{ fontSize:12, color:theme.ts }}>
-              {a.message.length > 120 ? a.message.slice(0, 120) + "…" : a.message}
-            </div>
-          </div>
-        );
-      })}
-
-      {/* Hero: Team on duty ring */}
-      <div style={{ background:PASTEL.coral, borderRadius:24, padding:20, marginBottom:14,
-        display:"flex", alignItems:"center", gap:20, flexWrap:"wrap" }}>
-        <div style={{ flex:1, minWidth:160 }}>
-          <div style={{ fontSize:11, fontWeight:700, color:INK, opacity:0.75, letterSpacing:1 }}>TEAM TODAY</div>
-          <div style={{ fontSize:30, fontWeight:900, color:INK, letterSpacing:-0.5, margin:"4px 0 10px" }}>ON DUTY</div>
-          <div style={{ display:"flex", flexDirection:"column", gap:6, fontSize:12, color:INK }}>
-            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-              <span style={{ display:"flex", alignItems:"center", gap:6 }}><span style={{ width:8, height:8, borderRadius:"50%", background:INK }} />Active</span>
-              <b>{onDutyToday}/{employees.length}</b>
-            </div>
-            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-              <span style={{ display:"flex", alignItems:"center", gap:6 }}><span style={{ width:8, height:8, borderRadius:"50%", background:"#fff" }} />On Leave</span>
-              <b>{onLeaveToday.length}</b>
-            </div>
-            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-              <span style={{ display:"flex", alignItems:"center", gap:6 }}><span style={{ width:8, height:8, borderRadius:"50%", background:"rgba(0,0,0,0.35)" }} />Pending</span>
-              <b>{pc}</b>
-            </div>
-          </div>
-        </div>
-        <Ring value={dutyPct} size={130} stroke={12} color={INK} track="rgba(255,255,255,0.5)"
-          label={Math.round(dutyPct*100) + "%"} sub="ON DUTY" />
-      </div>
-
-      {/* Two small cards row */}
-      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14, marginBottom:14 }}>
-        <Tile bg={PASTEL.lilac} label="Approvals" value={pc} sub="awaiting your review" onClick={() => onGoTo("approvals")} />
-        <Tile bg={PASTEL.butter} label="Expiring" value={expiringCerts + expiringDocs} sub="certs + documents ≤90d" onClick={() => onGoTo("documents")} />
-      </div>
-
-      {/* Section breakdown as dark card with horizontal bars */}
-      <Tile bg={theme.cs} dark label="Section Breakdown">
-        <div style={{ display:"flex", flexDirection:"column", gap:10, marginTop:8 }}>
-          {sectionCounts.map((s, i) => (
-            <div key={s.name} style={{ display:"flex", alignItems:"center", gap:10 }}>
-              <div style={{ width:100, fontSize:12, color:theme.tx, fontWeight:600 }}>{s.name}</div>
-              <div style={{ flex:1, height:8, background:"rgba(255,255,255,0.08)", borderRadius:99, overflow:"hidden" }}>
-                <div style={{ width:`${(s.count/maxSectionCount)*100}%`, height:"100%",
-                  background: [PASTEL.coral, PASTEL.lilac, PASTEL.mint, PASTEL.butter, PASTEL.sky][i % 5],
-                  borderRadius:99 }} />
-              </div>
-              <div style={{ width:24, fontSize:13, fontWeight:800, color:theme.tx, textAlign:"right" }}>{s.count}</div>
-            </div>
-          ))}
-        </div>
-      </Tile>
-
-      <div style={{ height:14 }} />
-
-      {/* Recent activity + on leave today */}
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))", gap:14 }}>
-        <Sec title="Recent Leave" icon="📋" action={<Bt onClick={() => onGoTo("leave")} small={true} outline={true}>View all</Bt>}>
-          {leaveRequests.slice(0, 4).map(r => (
-            <div key={r.id} style={{
-              display:"flex", justifyContent:"space-between", alignItems:"center",
-              padding:"10px 0", borderBottom:`1px solid ${theme.bd}`, flexWrap:"wrap", gap:4
-            }}>
-              <div>
-                <div style={{ fontSize:13, color:theme.tx, fontWeight:600 }}>{r.empName}</div>
-                <div style={{ fontSize:11, color:theme.td }}>{r.type} • {r.days}d</div>
-              </div>
-              <Bd text={STATUS_LABELS[r.status]} color={STATUS_COLORS[r.status]} />
-            </div>
-          ))}
-        </Sec>
-
-        <Sec title="On Leave Today" icon="🏖️" action={<Bt onClick={() => onGoTo("calendar")} small={true} outline={true}>Calendar</Bt>}>
-          {onLeaveToday.length === 0
-            ? <Empty icon="📅" text="Everyone is on duty" />
-            : onLeaveToday.map(r => (
-              <div key={r.id} style={{
-                display:"flex", justifyContent:"space-between", alignItems:"center",
-                padding:"10px 0", borderBottom:`1px solid ${theme.bd}`, flexWrap:"wrap", gap:4
-              }}>
-                <div>
-                  <div style={{ fontSize:13, color:theme.tx, fontWeight:600 }}>{r.empName}</div>
-                  <div style={{ fontSize:11, color:theme.td }}>{r.type} • until {r.endDate}</div>
-                </div>
-                <Bd text={r.section} color={theme.bu} />
-              </div>
-            ))}
-        </Sec>
-      </div>
-    </div>
-  );
-}
-
-/* ============================================================
-   EMPLOYEE DASHBOARD
-   ============================================================ */
-
-function EDash({ user, notifications, announcements, onGoTo }) {
-  const h = new Date().getHours();
-  const g = h < 12 ? "Good Morning" : h < 17 ? "Good Afternoon" : "Good Evening";
-  const myAnn = announcements.filter(a => a.target === "all" || a.target === user.section);
-  const pinnedAnn = myAnn.filter(a => a.pinned).slice(0, 1);
-  const latestAnn = myAnn.filter(a => !a.pinned).slice(0, 3);
-
-  const docsExpiring = (user.documents || []).filter(d => {
-    const diff = (new Date(d.expiryDate) - new Date()) / 864e5;
-    return diff >= 0 && diff <= 90;
-  });
-  const certsExpiring = (user.training || []).filter(x => {
-    const diff = (new Date(x.certExpiry) - new Date()) / 864e5;
-    return diff >= 0 && diff <= 90;
-  });
-
-  // Today roster code for the status pill
-  const today = new Date();
-  const mk = `2026-${String(today.getMonth()+1).padStart(2,"0")}`;
-  const dayIdx = today.getDate() - 1;
-  const todayCode = user.roster?.[mk]?.[dayIdx]?.code;
-  const dutyLabel = todayCode === "O" ? "OFF DUTY"
-    : todayCode === "L" ? "ON LEAVE"
-    : todayCode === "M" ? "MORNING SHIFT"
-    : todayCode === "N" ? "NIGHT SHIFT" : "ON DUTY";
-  const dutyColor = todayCode === "O" || todayCode === "L" ? "#94a3b8" : "#10b981";
-
-  // Leave ring: annual used vs allowed
-  const annualUsedPct = user.annualLeave ? user.usedAnnual / user.annualLeave : 0;
-  const annualLeft = user.annualLeave - user.usedAnnual;
-
-  // Sparkline of leave usage (mock monthly distribution from roster)
-  const monthlyLeaves = [0,1,2,3].map(m => {
-    const r = user.roster?.[`2026-${String(m+1).padStart(2,"0")}`] || [];
-    return r.filter(d => d.code === "L").length;
-  });
-  const currentMonthIdx = today.getMonth();
-
-  const dateStr = today.toLocaleDateString("en-GB", { weekday:"short", day:"2-digit", month:"short" }).toUpperCase();
-
-  return (
-    <div>
-      {/* Header */}
-      <div style={{ display:"flex", alignItems:"center", gap:14, marginBottom:14 }}>
-        <div style={{ flex:1 }}>
-          <div style={{ fontSize:11, color:theme.ts, letterSpacing:1, textTransform:"uppercase", fontWeight:700 }}>{g}</div>
-          <h2 style={{ fontSize:26, fontWeight:800, color:theme.tx, margin:0, letterSpacing:-0.3 }}>
-            {user.name.split(" ")[0].toUpperCase()}
-          </h2>
-        </div>
-        <div style={{ width:48, height:48, borderRadius:"50%", background:theme.gp,
-          display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, fontWeight:800, color:"#fff" }}>
-          {user.name.split(" ").map(n => n[0]).join("").slice(0,2)}
-        </div>
-      </div>
-      <div style={{ display:"inline-flex", alignItems:"center", gap:8, padding:"6px 12px",
-        background:theme.ch, borderRadius:20, marginBottom:18, fontSize:11, fontWeight:700, letterSpacing:0.5, color:theme.ts }}>
-        <span style={{ width:6, height:6, borderRadius:"50%", background:dutyColor }} />
-        {dateStr} · {dutyLabel}
-      </div>
-
-      {/* Pinned announcement (if any) */}
-      {pinnedAnn.map(a => {
-        const pr = ANN_PRIORITIES.find(p => p.key === a.priority);
-        return (
-          <div key={a.id} onClick={() => onGoTo("announcements")} style={{
-            background:`linear-gradient(135deg, ${pr.color}22, ${pr.color}08)`,
-            border:`1px solid ${pr.color}40`, borderRadius:18,
-            padding:"14px 16px", marginBottom:16, cursor:"pointer"
-          }}>
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:8, marginBottom:4 }}>
-              <div style={{ fontSize:13, fontWeight:800, color:theme.tx }}>📌 {a.title}</div>
-              <Bd text={pr.label.toUpperCase()} color={pr.color} />
-            </div>
-            <div style={{ fontSize:12, color:theme.ts }}>
-              {a.message.length > 120 ? a.message.slice(0, 120) + "…" : a.message}
-            </div>
-          </div>
-        );
-      })}
-
-      {/* Hero: Annual Leave ring */}
-      <div style={{ background:PASTEL.coral, borderRadius:24, padding:20, marginBottom:14,
-        display:"flex", alignItems:"center", gap:20, flexWrap:"wrap" }}>
-        <div style={{ flex:1, minWidth:160 }}>
-          <div style={{ fontSize:11, fontWeight:700, color:INK, opacity:0.75, letterSpacing:1 }}>THIS YEAR</div>
-          <div style={{ fontSize:30, fontWeight:900, color:INK, letterSpacing:-0.5, margin:"4px 0 10px" }}>LEAVE BALANCE</div>
-          <div style={{ display:"flex", flexDirection:"column", gap:6, fontSize:12, color:INK }}>
-            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-              <span style={{ display:"flex", alignItems:"center", gap:6 }}><span style={{ width:8, height:8, borderRadius:"50%", background:INK }} />Annual used</span>
-              <b>{user.usedAnnual}/{user.annualLeave}</b>
-            </div>
-            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-              <span style={{ display:"flex", alignItems:"center", gap:6 }}><span style={{ width:8, height:8, borderRadius:"50%", background:"#fff" }} />Sick left</span>
-              <b>{user.sickLeave - user.usedSick}/{user.sickLeave}</b>
-            </div>
-            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-              <span style={{ display:"flex", alignItems:"center", gap:6 }}><span style={{ width:8, height:8, borderRadius:"50%", background:"rgba(0,0,0,0.35)" }} />Comp-off</span>
-              <b>{user.compOff}</b>
-            </div>
-          </div>
-        </div>
-        <Ring value={annualUsedPct} size={130} stroke={12} color={INK} track="rgba(255,255,255,0.5)"
-          label={annualLeft} sub="DAYS LEFT" />
-      </div>
-
-      {/* Monthly leave trend + certs status */}
-      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14, marginBottom:14 }}>
-        <Tile bg={PASTEL.lilac} label="Leave Usage">
-          <div style={{ flex:1, display:"flex", flexDirection:"column", justifyContent:"flex-end" }}>
-            <Spark values={monthlyLeaves} color={INK} active={currentMonthIdx} />
-            <div style={{ display:"flex", justifyContent:"space-between", marginTop:6, fontSize:10, fontWeight:700, opacity:0.7 }}>
-              {["JAN","FEB","MAR","APR"].map(m => <span key={m}>{m}</span>)}
-            </div>
-          </div>
-        </Tile>
-        <Tile bg={PASTEL.butter} label="Certificates"
-          value={(user.training?.length || 0) - certsExpiring.length}
-          sub={`${certsExpiring.length} expiring · ${user.training?.length || 0} total`}
-          onClick={() => onGoTo("training")} />
-      </div>
-
-      {/* Action Required card (if anything expiring) */}
-      {(certsExpiring.length > 0 || docsExpiring.length > 0) && (
-        <Tile bg={theme.cs} dark label="⚠ Action Required">
-          <div style={{ marginTop:8 }}>
-            {certsExpiring.slice(0,3).map(x => (
-              <div key={"c"+x.id} style={{
-                display:"flex", justifyContent:"space-between", alignItems:"center",
-                padding:"10px 0", borderBottom:`1px solid ${theme.bd}`, gap:6, flexWrap:"wrap"
-              }}>
-                <div>
-                  <div style={{ fontSize:13, color:theme.tx, fontWeight:600 }}>{x.title}</div>
-                  <div style={{ fontSize:11, color:theme.td }}>Expires {x.certExpiry}</div>
-                </div>
-                <Bd text="EXPIRING" color={theme.yl} />
-              </div>
-            ))}
-            {docsExpiring.slice(0,3).map(x => (
-              <div key={"d"+x.id} style={{
-                display:"flex", justifyContent:"space-between", alignItems:"center",
-                padding:"10px 0", borderBottom:`1px solid ${theme.bd}`, gap:6, flexWrap:"wrap"
-              }}>
-                <div>
-                  <div style={{ fontSize:13, color:theme.tx, fontWeight:600 }}>{x.title}</div>
-                  <div style={{ fontSize:11, color:theme.td }}>Document expires {x.expiryDate}</div>
-                </div>
-                <Bd text="EXPIRING" color={theme.yl} />
-              </div>
-            ))}
-          </div>
-        </Tile>
-      )}
-
-      <div style={{ height:14 }} />
-
-      {/* Latest announcements list */}
-      {latestAnn.length > 0 && (
-        <Sec title="Announcements" icon="📢" action={<Bt onClick={() => onGoTo("announcements")} small={true} outline={true}>View all</Bt>}>
-          {latestAnn.map(a => {
-            const pr = ANN_PRIORITIES.find(p => p.key === a.priority);
-            return (
-              <div key={a.id} style={{ padding:"10px 0", borderBottom:`1px solid ${theme.bd}` }}>
-                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:8, flexWrap:"wrap" }}>
-                  <div style={{ fontSize:13, fontWeight:600, color:theme.tx }}>{a.title}</div>
-                  <Bd text={pr.label.toUpperCase()} color={pr.color} />
-                </div>
-                <div style={{ fontSize:11, color:theme.td, marginTop:4 }}>{fmtDt(a.date)} • {a.by}</div>
-              </div>
-            );
-          })}
-        </Sec>
-      )}
-
-      {user.achievements?.length > 0 && (
-        <Sec title="My Achievements" icon="🏆">
-          {user.achievements.map(a => (
-            <div key={a.id} style={{
-              background:"rgba(16,185,129,0.08)", border:"1px solid rgba(16,185,129,0.2)",
-              borderRadius:10, padding:14, marginBottom:8
-            }}>
-              <div style={{ fontSize:13, fontWeight:600, color:theme.gn }}>{a.title}</div>
-              <div style={{ fontSize:11, color:theme.ts, marginTop:4 }}>{a.desc}</div>
-            </div>
-          ))}
-        </Sec>
-      )}
-    </div>
-  );
-}
-
-/* ============================================================
-   PROFILE
-   ============================================================ */
-
-function Prof({ emp, canEdit, onSave, onAdd, isStaff, isMgr }) {
-  const [ed, setEd] = useState(false);
-  const [fm, setFm] = useState({ ...emp });
-  const up = k => v => setFm(p => ({ ...p, [k]:v }));
-  const [saf, setSaf] = useState(false);
-  const [af, setAf] = useState({ type:"achievement", title:"", desc:"" });
-  const finalized = !!emp.profileFinalized;
-
-  useEffect(() => { setFm({ ...emp }); }, [emp.id]);
-
-  return (
-    <div>
-      {finalized && (
-        <div style={{ background:"rgba(16,185,129,0.1)", border:"1px solid rgba(16,185,129,0.3)",
-          borderRadius:12, padding:"10px 14px", marginBottom:14, display:"flex", alignItems:"center", gap:8 }}>
-          <span style={{ fontSize:16 }}>🔒</span>
-          <span style={{ color:theme.gn, fontSize:13, fontWeight:600 }}>
-            Profile finalized — only Team Lead or Manager can make further edits
-          </span>
-        </div>
-      )}
-      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:18, flexWrap:"wrap", gap:10 }}>
-        <div>
-          <h2 style={{ fontSize:22, fontWeight:700, color:theme.tx, margin:0 }}>{emp.name}</h2>
-          <p style={{ color:theme.ts, fontSize:13, margin:"4px 0 0" }}>{emp.designation} • {emp.section}</p>
-        </div>
-        <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
-          {canEdit && !ed && <Bt onClick={() => setEd(true)}>✏️ Edit</Bt>}
-          {canEdit && <Bt onClick={() => setSaf(!saf)} bg={theme.or} small={true}>{saf ? "Cancel" : "📋 Add Record"}</Bt>}
-          {isStaff && !ed && (finalized
-            ? <Bt onClick={() => onSave({ ...emp, profileFinalized:false })} bg={theme.yl} small={true}>🔓 Unlock</Bt>
-            : <Bt onClick={() => onSave({ ...emp, profileFinalized:true })} bg={theme.gn} small={true}>🔒 Finalize</Bt>)}
-          {ed && <>
-            <Bt onClick={() => { onSave(fm); setEd(false); }} bg={theme.gn}>💾 Save</Bt>
-            <Bt onClick={() => { setFm({ ...emp }); setEd(false); }} outline={true}>Cancel</Bt>
-          </>}
-        </div>
-      </div>
-
-      {saf && (
-        <div style={{ background:theme.cs, borderRadius:14, padding:20, border:`1px solid ${theme.or}40`, marginBottom:18 }}>
-          <div style={{ display:"flex", gap:8, marginBottom:12 }}>
-            {["achievement","warning","action"].map(tp => (
-              <div key={tp} onClick={() => setAf(p => ({ ...p, type:tp }))} style={{
-                padding:"6px 14px", borderRadius:8, cursor:"pointer", fontSize:12, fontWeight:600,
-                background: af.type === tp ? (tp === "warning" ? theme.rd : tp === "achievement" ? theme.gn : theme.bu) : theme.card,
-                color: af.type === tp ? "#fff" : theme.ts, textTransform:"capitalize"
-              }}>{tp}</div>
-            ))}
-          </div>
-          <input placeholder="Title..." value={af.title} onChange={e => setAf(p => ({ ...p, title:e.target.value }))}
-            style={{ ...ib, marginBottom:10 }} />
-          <textarea placeholder="Description..." value={af.desc} onChange={e => setAf(p => ({ ...p, desc:e.target.value }))}
-            rows={2} style={{ ...ib, resize:"vertical", fontFamily:"inherit", marginBottom:12 }} />
-          <Bt onClick={() => {
-            if (af.title.trim()) {
-              onAdd(emp.id, af);
-              setAf({ type:"achievement", title:"", desc:"" });
-              setSaf(false);
-            }
-          }} bg={theme.or}>Submit</Bt>
-        </div>
-      )}
-
-      <div style={{
-        background:theme.gp, borderRadius:16, padding:24, marginBottom:18,
-        display:"flex", alignItems:"center", gap:18, flexWrap:"wrap"
-      }}>
-        <div style={{
-          width:64, height:64, borderRadius:16, background:"rgba(255,255,255,0.12)",
-          display:"flex", alignItems:"center", justifyContent:"center",
-          fontSize:22, fontWeight:800, color:"#fff"
-        }}>{emp.name.split(" ").map(n => n[0]).join("").slice(0,2)}</div>
-        <div style={{ flex:1 }}>
-          <div style={{ fontSize:20, fontWeight:700, color:"#fff" }}>{emp.name}</div>
-          <div style={{ display:"flex", gap:6, marginTop:8, flexWrap:"wrap" }}>
-            <Bd text={emp.section} color={theme.cy} />
-            <Bd text={emp.empNo} color={theme.gn} />
-          </div>
-        </div>
-      </div>
-
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))", gap:16 }}>
-        <Sec title="Personal" icon="👤">
-          <Fd label="Name" value={fm.name} editing={ed} onChange={up("name")} />
-          <Fd label="Nationality" value={fm.nationality} editing={ed} onChange={up("nationality")} />
-          <Fd label="Mobile" value={fm.mobile} editing={ed} onChange={up("mobile")} />
-        </Sec>
-        <Sec title="Employment" icon="🏢">
-          <Fd label="Employee No" value={fm.empNo} editing={ed} onChange={up("empNo")} />
-          <Fd label="Designation" value={fm.designation} editing={ed} onChange={up("designation")} />
-          <Fd label="Section" value={fm.section} editing={ed} onChange={up("section")} />
-        </Sec>
-      </div>
-
-      {isStaff && (
-        <Sec title="Capability Tier" icon="🎯">
-          {isMgr && ed ? (
-            <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
-              {["", ...TIERS_CAP].map(t => (
-                <button key={t || "none"} onClick={() => up("tier")(t)} style={{
-                  padding:"8px 16px", borderRadius:10, fontWeight:700, cursor:"pointer", fontSize:13,
-                  background: (fm.tier || "") === t ? (TIER_CAP_COLORS[t] || theme.ch) : theme.ch,
-                  color: (fm.tier || "") === t && t ? "#fff" : theme.tx,
-                  border: `1px solid ${(fm.tier || "") === t ? (TIER_CAP_COLORS[t] || theme.bd) : theme.bd}`
-                }}>{t || "—"}</button>
-              ))}
-            </div>
-          ) : (
-            <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-              {emp.tier
-                ? <Bd text={emp.tier} color={TIER_CAP_COLORS[emp.tier] || theme.bu} />
-                : <span style={{ color:theme.td, fontSize:12 }}>Not assigned</span>}
-              {!isMgr && (
-                <span style={{ color:theme.td, fontSize:11 }}>(Manager-only edit)</span>
-              )}
-            </div>
-          )}
-        </Sec>
-      )}
-
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))", gap:16 }}>
-        <Sec title="Achievements" icon="🏆">
-          {(!emp.achievements || !emp.achievements.length)
-            ? <Empty text="No records" />
-            : emp.achievements.map(a => (
-              <div key={a.id} style={{
-                background:"rgba(16,185,129,0.08)", border:"1px solid rgba(16,185,129,0.2)",
-                borderRadius:10, padding:14, marginBottom:8
-              }}>
-                <div style={{ fontSize:13, fontWeight:600, color:theme.gn }}>{a.title}</div>
-                <div style={{ fontSize:11, color:theme.ts, marginTop:4 }}>{a.desc}</div>
-                <div style={{ fontSize:10, color:theme.td, marginTop:4 }}>{a.by} • {a.date}</div>
-              </div>
-            ))}
-        </Sec>
-        <Sec title="Warnings & Actions" icon="⚠️">
-          {((!emp.warnings || !emp.warnings.length) && (!emp.actions || !emp.actions.length))
-            ? <Empty text="No records" />
-            : <>
-              {(emp.warnings || []).map(w => (
-                <div key={w.id} style={{
-                  background:"rgba(239,68,68,0.08)", borderRadius:10, padding:14, marginBottom:8
-                }}>
-                  <div style={{ fontSize:13, fontWeight:600, color:theme.rd }}>{w.title}</div>
-                  <div style={{ fontSize:11, color:theme.ts, marginTop:4 }}>{w.desc}</div>
-                </div>
-              ))}
-              {(emp.actions || []).map(a => (
-                <div key={a.id} style={{
-                  background:"rgba(56,189,248,0.08)", borderRadius:10, padding:14, marginBottom:8
-                }}>
-                  <div style={{ fontSize:13, fontWeight:600, color:theme.bu }}>{a.title}</div>
-                  <div style={{ fontSize:11, color:theme.ts, marginTop:4 }}>{a.desc}</div>
-                </div>
-              ))}
-            </>}
-        </Sec>
-      </div>
-
-      <Sec title="Training & Certifications" icon="🎓">
-        {(!emp.training || !emp.training.length)
-          ? <Empty text="No records" />
-          : emp.training.map(tr => {
-            const st = certSt(tr.certExpiry);
-            return (
-              <div key={tr.id} style={{
-                display:"flex", justifyContent:"space-between", alignItems:"center",
-                padding:"10px 0", borderBottom:`1px solid ${theme.bd}`, flexWrap:"wrap", gap:6
-              }}>
-                <div>
-                  <div style={{ fontSize:13, fontWeight:600, color:theme.tx }}>{tr.title}</div>
-                  <div style={{ fontSize:11, color:theme.ts }}>
-                    {tr.provider} • Expires: <span style={{ color:st.c, fontWeight:600 }}>{tr.certExpiry}</span>
-                  </div>
-                </div>
-                <Bd text={st.l} color={st.c} />
-              </div>
-            );
-          })}
-      </Sec>
-    </div>
-  );
-}
-
-/* ============================================================
-   TEAM LIST
-   ============================================================ */
-
-function InviteForm({ employees, onInvite, onClose }) {
-  const [fm, setFm] = useState({
-    email: "", name: "", section: SECTIONS[0] || "",
-    designation: "", role: "employee", tier: ""
-  });
-  const [err, setErr] = useState("");
-  const up = k => v => setFm(p => ({ ...p, [k]: v }));
-  const submit = () => {
-    setErr("");
-    const res = onInvite(fm);
-    if (!res.ok) { setErr(res.error || "Failed to invite"); return; }
-    onClose(res.id);
-  };
-  return (
-    <Modal title="Invite Employee" onClose={() => onClose(null)} width={520}>
-      <p style={{ color:theme.ts, fontSize:12, margin:"0 0 14px" }}>
-        Creates a placeholder record. The employee then signs up at the login
-        page using this email and sets their own password — they'll land on the
-        profile page to fill in personal details.
-      </p>
-      <div style={{ display:"grid", gap:10 }}>
-        <label style={{ color:theme.tx, fontSize:12, fontWeight:600 }}>
-          Email <span style={{ color:theme.rd }}>*</span>
-          <input value={fm.email} onChange={e => up("email")(e.target.value)}
-            placeholder="someone@adbsafegate.ae or @gmail / @outlook"
-            style={{ ...ib, marginTop:4 }} />
-        </label>
-        <label style={{ color:theme.tx, fontSize:12, fontWeight:600 }}>
-          Full name <span style={{ color:theme.rd }}>*</span>
-          <input value={fm.name} onChange={e => up("name")(e.target.value)}
-            style={{ ...ib, marginTop:4 }} />
-        </label>
-        <label style={{ color:theme.tx, fontSize:12, fontWeight:600 }}>
-          Section
-          <select value={fm.section} onChange={e => up("section")(e.target.value)}
-            style={{ ...ib, marginTop:4 }}>
-            {SECTIONS.map(s => <option key={s} value={s}>{s}</option>)}
-          </select>
-        </label>
-        <label style={{ color:theme.tx, fontSize:12, fontWeight:600 }}>
-          Designation
-          <input value={fm.designation} onChange={e => up("designation")(e.target.value)}
-            style={{ ...ib, marginTop:4 }} />
-        </label>
-        <label style={{ color:theme.tx, fontSize:12, fontWeight:600 }}>
-          Role
-          <select value={fm.role} onChange={e => up("role")(e.target.value)}
-            style={{ ...ib, marginTop:4 }}>
-            <option value="employee">Employee</option>
-            <option value="teamlead">Team Lead</option>
-            <option value="manager">Manager</option>
-          </select>
-        </label>
-        <div>
-          <div style={{ color:theme.tx, fontSize:12, fontWeight:600, marginBottom:6 }}>
-            Capability Tier
-          </div>
-          <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
-            {["", ...TIERS_CAP].map(t => (
-              <button key={t || "none"} onClick={() => up("tier")(t)} style={{
-                padding:"8px 14px", borderRadius:8, fontWeight:700, cursor:"pointer", fontSize:12,
-                background: fm.tier === t ? (TIER_CAP_COLORS[t] || theme.ch) : theme.ch,
-                color: fm.tier === t && t ? "#fff" : theme.tx,
-                border: `1px solid ${fm.tier === t ? (TIER_CAP_COLORS[t] || theme.bd) : theme.bd}`
-              }}>{t || "—"}</button>
-            ))}
-          </div>
-        </div>
-      </div>
-      {err && <div style={{ color:theme.rd, fontSize:12, marginTop:12 }}>{err}</div>}
-      <div style={{ display:"flex", gap:10, justifyContent:"flex-end", marginTop:16 }}>
-        <Bt onClick={() => onClose(null)} outline={true}>Cancel</Bt>
-        <Bt onClick={submit} bg={theme.gn}>Send invite</Bt>
-      </div>
-    </Modal>
-  );
-}
-
-function BulkInviteForm({ onBulkInvite, onClose }) {
-  const [csv, setCsv] = useState("");
-  const [preview, setPreview] = useState(null);  // { columns, rows } | null
-  const [result,  setResult]  = useState(null);  // outcome from onBulkInvite | null
-
-  const sample = "email,name,section,designation,role,tier\n" +
-                 "john.doe@adbsafegate.com,John Doe,AGL 12hrs,Technician,employee,T2\n" +
-                 "jane.smith@gmail.com,Jane Smith,Helpdesk,Specialist,employee,T1";
-
-  const parsePreview = () => {
-    const parsed = parseCSV(csv);
-    if (!parsed.rows.length) {
-      setPreview({ columns: parsed.columns, rows: [], err: "No data rows. Paste at least one row." });
-      return;
-    }
-    // Map each row to an object using the column order
-    const rowsObj = parsed.rows.map(cols => {
-      const o = {};
-      parsed.columns.forEach((c, i) => o[c] = cols[i] || "");
-      return o;
-    });
-    setPreview({ columns: parsed.columns, rows: rowsObj });
-    setResult(null);
-  };
-
-  const importNow = () => {
-    if (!preview?.rows?.length) return;
-    const r = onBulkInvite(preview.rows);
-    setResult(r);
-  };
-
-  const headers = ["email","name","section","designation","role","tier"];
-
-  return (
-    <Modal title="Bulk Import Employees (CSV)" onClose={() => onClose(result)} width={760}>
-      {!result && (
-        <>
-          <p style={{ color:theme.ts, fontSize:12, margin:"0 0 10px" }}>
-            Paste a CSV (or copy a range from Excel — tab-separated also works).
-            First row may be a header. Recognized columns: {headers.join(", ")}.
-            Tier values: T1, T2, T3, T4 or blank.
-          </p>
-          <details style={{ color:theme.td, fontSize:11, marginBottom:10 }}>
-            <summary style={{ cursor:"pointer" }}>Sample format</summary>
-            <pre style={{ background:theme.ch, padding:10, borderRadius:6, marginTop:6, fontSize:11, overflow:"auto" }}>
-{sample}
-            </pre>
-          </details>
-          <textarea
-            value={csv}
-            onChange={e => setCsv(e.target.value)}
-            placeholder="Paste rows here…"
-            rows={8}
-            style={{ ...ib, fontFamily:"monospace", fontSize:12, resize:"vertical" }}
-          />
-          <div style={{ display:"flex", gap:8, justifyContent:"flex-end", marginTop:12 }}>
-            <Bt onClick={() => onClose(null)} outline={true}>Cancel</Bt>
-            <Bt onClick={parsePreview} bg={theme.bu} disabled={!csv.trim()}>Parse preview</Bt>
-          </div>
-
-          {preview && preview.err && (
-            <div style={{ color:theme.rd, fontSize:12, marginTop:12 }}>{preview.err}</div>
-          )}
-
-          {preview && preview.rows?.length > 0 && (
-            <div style={{ marginTop:14 }}>
-              <div style={{ color:theme.tx, fontSize:13, fontWeight:700, marginBottom:6 }}>
-                Preview ({preview.rows.length} rows)
-              </div>
-              <div style={{ maxHeight:240, overflowY:"auto", border:`1px solid ${theme.bd}`, borderRadius:8 }}>
-                <table style={{ width:"100%", borderCollapse:"collapse", fontSize:11 }}>
-                  <thead>
-                    <tr style={{ background:theme.ch, position:"sticky", top:0 }}>
-                      {headers.map(h => (
-                        <th key={h} style={{ padding:"6px 8px", textAlign:"left", color:theme.td, fontWeight:700, fontSize:10, textTransform:"uppercase" }}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {preview.rows.map((r, i) => (
-                      <tr key={i} style={{ borderTop:`1px solid ${theme.bd}` }}>
-                        {headers.map(h => (
-                          <td key={h} style={{ padding:"4px 8px", color:theme.tx, whiteSpace:"nowrap" }}>{r[h] || ""}</td>
-                        ))}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <div style={{ display:"flex", gap:8, justifyContent:"flex-end", marginTop:12 }}>
-                <Bt onClick={() => { setPreview(null); setCsv(""); }} outline={true}>Clear</Bt>
-                <Bt onClick={importNow} bg={theme.gn}>Import {preview.rows.length} rows</Bt>
-              </div>
-            </div>
-          )}
-        </>
-      )}
-
-      {result && (
-        <>
-          <div style={{
-            background:"rgba(16,185,129,0.08)", border:"1px solid rgba(16,185,129,0.3)",
-            borderRadius:10, padding:14, marginBottom:14
-          }}>
-            <div style={{ color:theme.gn, fontSize:14, fontWeight:700 }}>
-              Done — {result.created} created, {result.skipped} skipped, {result.errors} errors
-            </div>
-          </div>
-          {result.outcomes.length > 0 && (
-            <div style={{ maxHeight:300, overflowY:"auto", border:`1px solid ${theme.bd}`, borderRadius:8 }}>
-              <table style={{ width:"100%", borderCollapse:"collapse", fontSize:11 }}>
-                <thead>
-                  <tr style={{ background:theme.ch, position:"sticky", top:0 }}>
-                    {["#","email","status","details"].map(h => (
-                      <th key={h} style={{ padding:"6px 8px", textAlign:"left", color:theme.td, fontWeight:700, fontSize:10, textTransform:"uppercase" }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {result.outcomes.map((o, i) => (
-                    <tr key={i} style={{ borderTop:`1px solid ${theme.bd}` }}>
-                      <td style={{ padding:"4px 8px", color:theme.td }}>{o.line}</td>
-                      <td style={{ padding:"4px 8px", color:theme.tx }}>{o.email}</td>
-                      <td style={{ padding:"4px 8px" }}>
-                        <Bd
-                          text={o.status}
-                          color={o.status === "created" ? theme.gn : o.status === "skipped" ? theme.yl : theme.rd}
-                        />
-                      </td>
-                      <td style={{ padding:"4px 8px", color:theme.ts }}>{o.id || o.reason || ""}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-          <div style={{ display:"flex", gap:8, justifyContent:"flex-end", marginTop:12 }}>
-            <Bt onClick={() => onClose(result)} bg={theme.gn}>Close</Bt>
-          </div>
-        </>
-      )}
-    </Modal>
-  );
-}
-
-function Team({ employees, onSel, isMgr, isTL, onInvite, onBulkInvite }) {
-  const [f, setF] = useState("All");
-  const [tierF, setTierF] = useState("all");
-  const [s, setS] = useState("");
-  const [showInvite, setShowInvite] = useState(false);
-  const [showBulk, setShowBulk] = useState(false);
-  const showRating = isMgr || isTL;
-
-  const fl = employees
-    .filter(e => f === "All" || e.section === f)
-    .filter(e => !e.name.toLowerCase().includes(s.toLowerCase()) ? false : true)
-    .filter(e => {
-      if (!showRating || tierF === "all") return true;
-      if (tierF === "unrated") return !gradeFromRating(e.rating);
-      if (tierF.startsWith("grade:")) return gradeFromRating(e.rating)?.label === tierF.slice(6);
-      if (tierF.startsWith("cap:")) return e.tier === tierF.slice(4);
-      return e.rating?.tier === tierF;
-    });
-
-  const headers = showRating
-    ? (isMgr
-        ? ["Name","Section","Designation","Grade","Tier","Salary",""]
-        : ["Name","Section","Designation","Grade","Tier",""])
-    : ["Name","Section","Designation",""];
-
-  return (
-    <div>
-      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16, flexWrap:"wrap", gap:10 }}>
-        <h2 style={{ fontSize:22, fontWeight:700, color:theme.tx, margin:0 }}>All Employees ({employees.length})</h2>
-        {isMgr && (
-          <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
-            {onBulkInvite && (
-              <Bt onClick={() => setShowBulk(true)} bg={theme.bu}>📋 Bulk Import (CSV)</Bt>
-            )}
-            {onInvite && (
-              <Bt onClick={() => setShowInvite(true)} bg={theme.gn}>+ Invite Employee</Bt>
-            )}
-          </div>
-        )}
-      </div>
-      <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:12 }}>
-        {["All", ...SECTIONS].map(sec => (
-          <div key={sec} onClick={() => setF(sec)} style={{
-            padding:"7px 16px", borderRadius:10, cursor:"pointer",
-            fontSize:12, fontWeight:600,
-            background: f === sec ? theme.pl : theme.card,
-            color: f === sec ? "#fff" : theme.ts
-          }}>{sec} ({sec === "All" ? employees.length : employees.filter(e => e.section === sec).length})</div>
-        ))}
-      </div>
-      {showRating && (
-        <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:12 }}>
-          {[{k:"all",l:"All"},{k:"grade:A+",l:"A+"},{k:"grade:A",l:"A"},{k:"grade:B+",l:"B+"},{k:"grade:B",l:"B"},{k:"grade:C",l:"C"},
-            ...TIERS_CAP.map(t => ({ k:`cap:${t}`, l:t })),
-            ...(isMgr ? [{k:"A",l:"Salary A"},{k:"B",l:"Salary B"},{k:"C",l:"Salary C"}] : []),
-            {k:"unrated",l:"Unrated"}].map(x => (
-            <div key={x.k} onClick={() => setTierF(x.k)} style={{
-              padding:"6px 14px", borderRadius:8, cursor:"pointer", fontSize:11, fontWeight:600,
-              background: tierF === x.k ? theme.or : theme.card,
-              color: tierF === x.k ? "#fff" : theme.ts
-            }}>{x.l}</div>
-          ))}
-        </div>
-      )}
-      <input placeholder="🔍 Search..." value={s} onChange={e => setS(e.target.value)}
-        style={{ ...ib, marginBottom:14 }} />
-      <div style={{ background:theme.card, borderRadius:14, border:`1px solid ${theme.bd}`, overflow:"hidden" }}>
-        <div style={{ overflowX:"auto" }}>
-          <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
-            <thead>
-              <tr style={{ background:"rgba(255,255,255,0.03)" }}>
-                {headers.map(h => (
-                  <th key={h} style={{
-                    padding:"12px", textAlign:"left", color:theme.td,
-                    fontWeight:700, fontSize:10, textTransform:"uppercase"
-                  }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {fl.map(e => {
-                const grade = gradeFromRating(e.rating);
-                return (
-                  <tr key={e.id} style={{ borderTop:`1px solid ${theme.bd}` }}>
-                    <td style={{ padding:"10px 12px", color:theme.tx, fontWeight:500 }}>{e.name}</td>
-                    <td style={{ padding:"10px 12px" }}><Bd text={e.section} color={theme.bu} /></td>
-                    <td style={{ padding:"10px 12px", color:theme.ts }}>{e.designation}</td>
-                    {showRating && (
-                      <td style={{ padding:"10px 12px" }}>
-                        {grade ? <Bd text={grade.label} color={grade.color} /> : <span style={{ color:theme.td, fontSize:11 }}>—</span>}
-                      </td>
-                    )}
-                    {showRating && (
-                      <td style={{ padding:"10px 12px" }}>
-                        {e.tier
-                          ? <Bd text={e.tier} color={TIER_CAP_COLORS[e.tier] || theme.bu} />
-                          : <span style={{ color:theme.td, fontSize:11 }}>—</span>}
-                      </td>
-                    )}
-                    {isMgr && (
-                      <td style={{ padding:"10px 12px" }}>
-                        {e.rating?.tier ? <Bd text={e.rating.tier} color={TIER_COLORS[e.rating.tier]} /> : <span style={{ color:theme.td, fontSize:11 }}>—</span>}
-                      </td>
-                    )}
-                    <td style={{ padding:"10px 12px" }}><Bt onClick={() => onSel(e)} small={true}>View</Bt></td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
-      {showInvite && isMgr && onInvite && (
-        <InviteForm employees={employees} onInvite={onInvite}
-          onClose={() => setShowInvite(false)} />
-      )}
-      {showBulk && isMgr && onBulkInvite && (
-        <BulkInviteForm onBulkInvite={onBulkInvite}
-          onClose={() => setShowBulk(false)} />
-      )}
-    </div>
-  );
-}
-
-/* ============================================================
-   PERFORMANCE / RATINGS (TL + Manager)
-   ============================================================ */
-
-function StarRow({ value, onChange, editable }) {
-  return (
-    <div style={{ display:"flex", gap:4 }}>
-      {[1,2,3,4,5].map(n => (
-        <button key={n} onClick={() => editable && onChange(n)} disabled={!editable} style={{
-          width:28, height:28, background:"none", border:"none", padding:0,
-          cursor: editable ? "pointer" : "default", fontSize:22, lineHeight:1,
-          color: n <= (value||0) ? "#f5a623" : "rgba(255,255,255,0.2)"
-        }}>★</button>
-      ))}
-    </div>
-  );
-}
-
-function PerfEditor({ emp, isMgr, onSave, onClose }) {
-  const [r, setR] = useState({
-    knowledge: 0, experience: 0, loyalty: 0, capability: 0, tier:"", notes:"",
-    ...(emp.rating || {})
-  });
-  const grade = gradeFromRating(r);
-  const save = () => { onSave(emp.id, r); onClose(); };
-  return (
-    <Modal title={`Performance: ${emp.name}`} onClose={onClose} width={560}>
-      <div style={{ padding:"4px 2px 8px", color:theme.ts, fontSize:12 }}>
-        {emp.designation} · {emp.section}
-      </div>
-      {RATING_KEYS.map(({ k, label, icon }) => (
-        <div key={k} style={{ display:"flex", alignItems:"center", justifyContent:"space-between",
-          padding:"12px 0", borderBottom:`1px solid ${theme.bd}` }}>
-          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-            <span style={{ fontSize:18 }}>{icon}</span>
-            <span style={{ color:theme.tx, fontSize:14, fontWeight:600 }}>{label}</span>
-          </div>
-          <StarRow value={r[k]} onChange={v => setR(p => ({ ...p, [k]:v }))} editable={true} />
-        </div>
-      ))}
-      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between",
-        padding:"14px 0", borderBottom:`1px solid ${theme.bd}` }}>
-        <span style={{ color:theme.tx, fontSize:14, fontWeight:700 }}>Auto Grade</span>
-        <span style={{ fontSize:20, fontWeight:900, color: grade?.color || theme.td }}>
-          {grade?.label || "—"}
-        </span>
-      </div>
-      {isMgr && (
-        <div style={{ padding:"14px 0", borderBottom:`1px solid ${theme.bd}` }}>
-          <div style={{ color:theme.tx, fontSize:14, fontWeight:700, marginBottom:8 }}>
-            💰 Salary Tier <span style={{ fontSize:11, color:theme.td, fontWeight:400 }}>(Manager only)</span>
-          </div>
-          <div style={{ display:"flex", gap:8 }}>
-            {["", ...TIERS].map(t => (
-              <button key={t||"none"} onClick={() => setR(p => ({ ...p, tier:t }))} style={{
-                flex:1, padding:"10px", borderRadius:10, fontWeight:700, cursor:"pointer",
-                background: r.tier === t ? (TIER_COLORS[t] || theme.ch) : theme.ch,
-                color: r.tier === t && t ? "#fff" : theme.tx,
-                border: `1px solid ${r.tier === t ? (TIER_COLORS[t] || theme.bd) : theme.bd}`
-              }}>{t ? `Tier ${t}` : "—"}</button>
-            ))}
-          </div>
-        </div>
-      )}
-      <div style={{ padding:"14px 0" }}>
-        <div style={{ color:theme.tx, fontSize:14, fontWeight:700, marginBottom:8 }}>📝 Notes</div>
-        <textarea value={r.notes || ""} onChange={e => setR(p => ({ ...p, notes:e.target.value }))}
-          rows={3} style={{ width:"100%", padding:10, borderRadius:8, background:theme.ch,
-            color:theme.tx, border:`1px solid ${theme.bd}`, resize:"vertical", fontFamily:"inherit", fontSize:13 }} />
-      </div>
-      {r.updatedBy && (
-        <div style={{ fontSize:11, color:theme.td, padding:"6px 0 10px" }}>
-          Last updated by {r.updatedBy}
-          {r.updatedAt && ` · ${fmtDt(r.updatedAt)}`}
-        </div>
-      )}
-      <div style={{ display:"flex", gap:10, justifyContent:"flex-end" }}>
-        <Bt onClick={onClose} outline={true}>Cancel</Bt>
-        <Bt onClick={save}>Save</Bt>
-      </div>
-    </Modal>
-  );
-}
-
-function Perf({ employees, isMgr, onSave }) {
-  const [filterTier, setFilterTier] = useState("all");
-  const [filterSec, setFilterSec] = useState("all");
-  const [sortBy, setSortBy] = useState("grade");
-  const [editEmp, setEditEmp] = useState(null);
-
-  const rows = employees
-    .filter(e => filterSec === "all" || e.section === filterSec)
-    .filter(e => {
-      if (filterTier === "all") return true;
-      if (filterTier === "unrated") return !e.rating || !gradeFromRating(e.rating);
-      return e.rating?.tier === filterTier;
-    })
-    .sort((a, b) => {
-      if (sortBy === "name") return a.name.localeCompare(b.name);
-      const ga = gradeFromRating(a.rating)?.label || "Z";
-      const gb = gradeFromRating(b.rating)?.label || "Z";
-      return ga.localeCompare(gb);
-    });
-
-  return (
-    <div>
-      <h2 style={{ color:theme.tx, fontSize:24, fontWeight:800, margin:"0 0 6px", letterSpacing:-0.3 }}>Performance</h2>
-      <p style={{ color:theme.ts, fontSize:13, margin:"0 0 18px" }}>
-        {isMgr ? "Rate employees and set salary tiers." : "Rate employees. Salary tier is set by the Manager."}
-      </p>
-
-      <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginBottom:16 }}>
-        <select value={filterSec} onChange={e => setFilterSec(e.target.value)} style={{
-          padding:"8px 12px", background:theme.ch, color:theme.tx, borderRadius:8,
-          border:`1px solid ${theme.bd}`, fontSize:13 }}>
-          <option value="all">All sections</option>
-          {SECTIONS.map(s => <option key={s} value={s}>{s}</option>)}
-        </select>
-        {isMgr && (
-          <select value={filterTier} onChange={e => setFilterTier(e.target.value)} style={{
-            padding:"8px 12px", background:theme.ch, color:theme.tx, borderRadius:8,
-            border:`1px solid ${theme.bd}`, fontSize:13 }}>
-            <option value="all">All tiers</option>
-            {TIERS.map(t => <option key={t} value={t}>Tier {t}</option>)}
-            <option value="unrated">Unrated</option>
-          </select>
-        )}
-        <select value={sortBy} onChange={e => setSortBy(e.target.value)} style={{
-          padding:"8px 12px", background:theme.ch, color:theme.tx, borderRadius:8,
-          border:`1px solid ${theme.bd}`, fontSize:13 }}>
-          <option value="grade">Sort by Grade</option>
-          <option value="name">Sort by Name</option>
-        </select>
-      </div>
-
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(260px, 1fr))", gap:12 }}>
-        {rows.map(e => {
-          const grade = gradeFromRating(e.rating);
-          const tier = e.rating?.tier;
-          return (
-            <div key={e.id} onClick={() => setEditEmp(e)} style={{
-              background:theme.cs, border:`1px solid ${theme.bd}`, borderRadius:14,
-              padding:14, cursor:"pointer"
-            }}>
-              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:10 }}>
-                <div style={{ minWidth:0 }}>
-                  <div style={{ color:theme.tx, fontSize:14, fontWeight:700, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{e.name}</div>
-                  <div style={{ color:theme.td, fontSize:11, marginTop:2 }}>{e.section}</div>
-                </div>
-                <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:4 }}>
-                  {grade && <Bd text={grade.label} color={grade.color} />}
-                  {isMgr && tier && <Bd text={`Tier ${tier}`} color={TIER_COLORS[tier]} />}
-                </div>
-              </div>
-              {grade ? (
-                <div style={{ display:"flex", gap:6, marginTop:10 }}>
-                  {RATING_KEYS.map(k => (
-                    <div key={k.k} title={k.label} style={{
-                      flex:1, height:6, borderRadius:4,
-                      background: `rgba(245, 166, 35, ${((e.rating?.[k.k] || 0) / 5) * 0.9 + 0.1})`
-                    }} />
-                  ))}
-                </div>
-              ) : (
-                <div style={{ color:theme.td, fontSize:11, marginTop:10, fontStyle:"italic" }}>Not yet rated — click to start</div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-
-      {editEmp && <PerfEditor emp={editEmp} isMgr={isMgr} onSave={onSave} onClose={() => setEditEmp(null)} />}
-    </div>
-  );
-}
-
-/* ============================================================
-   LEAVE FORM / CARD / PAGE / APPROVALS
-   ============================================================ */
-
-function LvFm({ onSub, onCan }) {
-  const [f, setF] = useState({ type:"Annual Leave", startDate:"", endDate:"", reason:"" });
-  const [er, setEr] = useState("");
-  const days = f.startDate && f.endDate
-    ? Math.max(1, Math.ceil((new Date(f.endDate) - new Date(f.startDate)) / 864e5) + 1)
-    : 0;
-
-  return (
-    <div style={{ background:theme.cs, borderRadius:14, padding:22, border:`1px solid ${theme.bl}`, maxWidth:520 }}>
-      <h3 style={{ fontSize:16, fontWeight:700, color:theme.tx, marginBottom:18 }}>📝 Apply for Leave</h3>
-      {er && <div style={{
-        background:"rgba(239,68,68,0.1)", borderRadius:8, padding:"8px 12px",
-        marginBottom:12, color:theme.rd, fontSize:12
-      }}>{er}</div>}
-      <div style={{ marginBottom:14 }}>
-        <label style={{ display:"block", fontSize:10, color:theme.td, fontWeight:700, marginBottom:5 }}>TYPE</label>
-        <select value={f.type} onChange={e => setF(p => ({ ...p, type:e.target.value }))}
-          style={{ ...ib, background:theme.cs }}>
-          {LEAVE_TYPES.map(tp => <option key={tp} value={tp}>{tp}</option>)}
-        </select>
-      </div>
-      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:14 }}>
-        <div>
-          <label style={{ display:"block", fontSize:10, color:theme.td, fontWeight:700, marginBottom:5 }}>START</label>
-          <input type="date" value={f.startDate} onChange={e => setF(p => ({ ...p, startDate:e.target.value }))} style={ib} />
-        </div>
-        <div>
-          <label style={{ display:"block", fontSize:10, color:theme.td, fontWeight:700, marginBottom:5 }}>END</label>
-          <input type="date" value={f.endDate} onChange={e => setF(p => ({ ...p, endDate:e.target.value }))} style={ib} />
-        </div>
-      </div>
-      {days > 0 && (
-        <div style={{
-          background:`${theme.or}15`, borderRadius:8, padding:"8px 12px",
-          marginBottom:14, fontSize:13, color:theme.or
-        }}>{days} day{days > 1 ? "s" : ""}</div>
-      )}
-      <div style={{ marginBottom:18 }}>
-        <label style={{ display:"block", fontSize:10, color:theme.td, fontWeight:700, marginBottom:5 }}>REASON</label>
-        <textarea value={f.reason} onChange={e => setF(p => ({ ...p, reason:e.target.value }))}
-          rows={3} placeholder="Reason..." style={{ ...ib, resize:"vertical", fontFamily:"inherit" }} />
-      </div>
-      <div style={{ display:"flex", gap:8 }}>
-        <Bt onClick={() => {
-          if (!f.startDate || !f.endDate || !f.reason.trim()) return setEr("Fill all fields");
-          if (new Date(f.endDate) < new Date(f.startDate)) return setEr("Invalid dates");
-          onSub({ ...f, days });
-        }} bg={theme.gn}>📤 Submit</Bt>
-        <Bt onClick={onCan} outline={true}>Cancel</Bt>
-      </div>
-    </div>
-  );
-}
-
-function LvCd({ req, role, onAct }) {
-  const [cm, setCm] = useState("");
-  const [sa, setSa] = useState(false);
-  const ca = (role === "teamlead" && req.status === "pending") || (role === "manager" && req.status === "tl_approved");
-  return (
-    <div style={{
-      background:theme.card, borderRadius:14, padding:16,
-      border:`1px solid ${theme.bd}`, borderLeft:`4px solid ${STATUS_COLORS[req.status]}`, marginBottom:10
-    }}>
-      <div style={{ display:"flex", justifyContent:"space-between", flexWrap:"wrap", gap:6, marginBottom:8 }}>
-        <div>
-          <div style={{ fontSize:14, fontWeight:600, color:theme.tx }}>{req.empName}</div>
-          <div style={{ fontSize:11, color:theme.td }}>{req.section}</div>
-        </div>
-        <Bd text={STATUS_LABELS[req.status]} color={STATUS_COLORS[req.status]} />
-      </div>
-      <div style={{ fontSize:12, marginBottom:8, color:theme.ts }}>
-        {req.type} • {req.startDate} → {req.endDate} ({req.days}d)
-      </div>
-      <div style={{
-        background:theme.ch, borderRadius:8, padding:"8px 10px",
-        marginBottom:8, fontSize:12, color:theme.ts
-      }}>{req.reason}</div>
-      {req.tlComment && (
-        <div style={{ fontSize:11, marginBottom:4, color:theme.ts }}>
-          <strong style={{ color:theme.tx }}>TL:</strong> {req.tlComment}
-        </div>
-      )}
-      {req.mgrComment && (
-        <div style={{ fontSize:11, marginBottom:4, color:theme.ts }}>
-          <strong style={{ color:theme.tx }}>MGR:</strong> {req.mgrComment}
-        </div>
-      )}
-      {ca && !sa && <Bt onClick={() => setSa(true)} small={true}>Take Action</Bt>}
-      {ca && sa && (
-        <div style={{ marginTop:8, background:theme.ch, borderRadius:10, padding:12 }}>
-          <textarea value={cm} onChange={e => setCm(e.target.value)}
-            rows={2} placeholder="Comment..." style={{ ...ib, marginBottom:8 }} />
-          <div style={{ display:"flex", gap:6 }}>
-            <Bt onClick={() => { onAct(req.id, "approve", cm); setSa(false); setCm(""); }} small={true} bg={theme.gn}>✅ Approve</Bt>
-            <Bt onClick={() => { onAct(req.id, "reject", cm); setSa(false); setCm(""); }} small={true} bg={theme.rd}>❌ Reject</Bt>
-            <Bt onClick={() => { setSa(false); setCm(""); }} small={true} outline={true}>Cancel</Bt>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function LvPg({ user, leaveRequests, onSub, onAct }) {
-  const isE = user.role === "employee";
-  const [tab, setTab] = useState(isE ? "my" : "all");
-  const [sf, setSf] = useState(false);
-  const my = leaveRequests.filter(r => r.empId === user.id);
-  const pn = user.role === "teamlead"
-    ? leaveRequests.filter(r => r.status === "pending")
-    : user.role === "manager"
-      ? leaveRequests.filter(r => r.status === "tl_approved") : [];
-  const sh = tab === "my" ? my : tab === "pending" ? pn : leaveRequests;
-
-  return (
-    <div>
-      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:18, flexWrap:"wrap", gap:10 }}>
-        <h2 style={{ fontSize:22, fontWeight:700, color:theme.tx, margin:0 }}>Leave Management</h2>
-        {isE && <Bt onClick={() => setSf(true)} bg={theme.or}>📝 Apply</Bt>}
-      </div>
-      {isE && (
-        <div style={{ display:"flex", gap:10, flexWrap:"wrap", marginBottom:18 }}>
-          <SC2 label="Annual Left" value={user.annualLeave - user.usedAnnual} color={theme.gn} icon="🏖️" />
-          <SC2 label="Sick Left" value={user.sickLeave - user.usedSick} color={theme.rd} icon="🤒" />
-        </div>
-      )}
-      {sf && (
-        <div style={{ marginBottom:18 }}>
-          <LvFm onSub={f => { onSub(f); setSf(false); }} onCan={() => setSf(false)} />
-        </div>
-      )}
-      <div style={{ display:"flex", gap:6, marginBottom:14, flexWrap:"wrap" }}>
-        {isE && (
-          <div onClick={() => setTab("my")} style={{
-            padding:"7px 14px", borderRadius:10, cursor:"pointer", fontSize:12, fontWeight:600,
-            background: tab === "my" ? theme.pl : theme.card, color: tab === "my" ? "#fff" : theme.ts
-          }}>My ({my.length})</div>
-        )}
-        {!isE && (
-          <div onClick={() => setTab("all")} style={{
-            padding:"7px 14px", borderRadius:10, cursor:"pointer", fontSize:12, fontWeight:600,
-            background: tab === "all" ? theme.pl : theme.card, color: tab === "all" ? "#fff" : theme.ts
-          }}>All ({leaveRequests.length})</div>
-        )}
-        {!isE && (
-          <div onClick={() => setTab("pending")} style={{
-            padding:"7px 14px", borderRadius:10, cursor:"pointer", fontSize:12, fontWeight:600,
-            background: tab === "pending" ? theme.or : theme.card, color: tab === "pending" ? "#fff" : theme.ts, position:"relative"
-          }}>
-            Pending ({pn.length})
-            {pn.length > 0 && (
-              <span style={{
-                position:"absolute", top:-5, right:-5, width:16, height:16, borderRadius:"50%",
-                background:theme.rd, color:"#fff", fontSize:9, fontWeight:700,
-                display:"flex", alignItems:"center", justifyContent:"center"
-              }}>{pn.length}</span>
-            )}
-          </div>
-        )}
-      </div>
-      {!sh.length
-        ? <Empty text="No requests" />
-        : sh.map(r => <LvCd key={r.id} req={r} role={user.role} onAct={onAct} />)}
-    </div>
-  );
-}
-
-function ApPg({ user, leaveRequests, onAct }) {
-  const pn = user.role === "teamlead"
-    ? leaveRequests.filter(r => r.status === "pending")
-    : leaveRequests.filter(r => r.status === "tl_approved");
-  return (
-    <div>
-      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:18 }}>
-        <h2 style={{ fontSize:22, fontWeight:700, color:theme.tx, margin:0 }}>Leave Approvals</h2>
-        {pn.length > 0 && <Bd text={`${pn.length} Pending`} color={theme.yl} />}
-      </div>
-      {!pn.length
-        ? <div style={{ textAlign:"center", padding:40, color:theme.td }}>✅ All clear</div>
-        : pn.map(r => <LvCd key={r.id} req={r} role={user.role} onAct={onAct} />)}
-    </div>
-  );
-}
-
-/* ============================================================
-   LEAVE CALENDAR (NEW)
-   ============================================================ */
-
-function LeaveCalendar({ leaveRequests, employees }) {
-  const [selectedMonth, setSelectedMonth] = useState(3); // April default
-  const [selDay, setSelDay] = useState(null);
-  const year = 2026;
-
-  const firstDay = new Date(year, selectedMonth, 1).getDay();
-  const daysInMonth = new Date(year, selectedMonth + 1, 0).getDate();
-  const weeks = [];
-  let current = [];
-  for (let i = 0; i < firstDay; i++) current.push(null);
-  for (let d = 1; d <= daysInMonth; d++) {
-    current.push(d);
-    if (current.length === 7) { weeks.push(current); current = []; }
-  }
-  if (current.length) {
-    while (current.length < 7) current.push(null);
-    weeks.push(current);
-  }
-
-  const onLeaveOn = (day) => {
-    if (!day) return [];
-    const dStr = `${year}-${String(selectedMonth+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
-    return leaveRequests.filter(r => {
-      if (r.status === "rejected") return false;
-      return dStr >= r.startDate && dStr <= r.endDate;
-    });
-  };
-
-  const dayDetails = selDay != null ? onLeaveOn(selDay) : [];
-  const dayStr = selDay != null
-    ? `${year}-${String(selectedMonth+1).padStart(2,"0")}-${String(selDay).padStart(2,"0")}`
-    : "";
-
-  return (
-    <div>
-      <h2 style={{ fontSize:22, fontWeight:700, color:theme.tx, marginBottom:16 }}>Leave Calendar</h2>
-      <p style={{ color:theme.ts, fontSize:13, marginBottom:16 }}>
-        Plan approvals by spotting overlaps. Click a day to see everyone on leave that day.
-      </p>
-
-      <div style={{ display:"flex", gap:6, marginBottom:18, flexWrap:"wrap" }}>
-        {[0,1,2,3,4,5].map(m => (
-          <div key={m} onClick={() => { setSelectedMonth(m); setSelDay(null); }} style={{
-            padding:"8px 18px", borderRadius:10, cursor:"pointer",
-            fontSize:13, fontWeight:600,
-            background: selectedMonth === m ? theme.ga : theme.card,
-            color: selectedMonth === m ? "#fff" : theme.ts
-          }}>{MONTHS[m]} {year}</div>
-        ))}
-      </div>
-
-      <div style={{ background:theme.card, borderRadius:14, padding:14, border:`1px solid ${theme.bd}`, marginBottom:16 }}>
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", gap:4, marginBottom:6 }}>
-          {["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map(d => (
-            <div key={d} style={{
-              padding:6, textAlign:"center", fontSize:10, fontWeight:700,
-              color:theme.td, textTransform:"uppercase"
-            }}>{d}</div>
-          ))}
-        </div>
-        {weeks.map((w, wi) => (
-          <div key={wi} style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", gap:4, marginBottom:4 }}>
-            {w.map((day, di) => {
-              if (!day) return <div key={di} />;
-              const leaves = onLeaveOn(day);
-              const isSel = selDay === day;
-              const bgColor = leaves.length === 0
-                ? theme.ch
-                : leaves.length >= 3 ? "rgba(239,68,68,0.20)"
-                : leaves.length === 2 ? "rgba(245,158,11,0.20)"
-                : "rgba(56,189,248,0.15)";
-              const brColor = isSel ? theme.or
-                : leaves.length >= 3 ? theme.rd
-                : leaves.length === 2 ? theme.yl
-                : leaves.length === 1 ? theme.bu
-                : theme.bd;
-              return (
-                <div key={di} onClick={() => setSelDay(day)} style={{
-                  minHeight:60, padding:6, borderRadius:8, cursor:"pointer",
-                  background: bgColor, border:`1px solid ${brColor}`,
-                  display:"flex", flexDirection:"column", gap:3,
-                  transform: isSel ? "scale(1.03)" : "none", transition:"transform 0.15s"
-                }}>
-                  <div style={{ fontSize:12, fontWeight:700, color:theme.tx }}>{day}</div>
-                  {leaves.length > 0 && (
-                    <div style={{ fontSize:10, color:theme.ts, lineHeight:1.3 }}>
-                      {leaves.slice(0,2).map(r => (
-                        <div key={r.id} style={{
-                          overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap",
-                          color: r.status === "approved" ? theme.gn : r.status === "tl_approved" ? theme.bu : theme.yl
-                        }}>{r.empName.split(" ")[0]}</div>
-                      ))}
-                      {leaves.length > 2 && <div style={{ color:theme.td }}>+{leaves.length - 2} more</div>}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        ))}
-      </div>
-
-      <div style={{ display:"flex", gap:10, flexWrap:"wrap", marginBottom:16 }}>
-        <Bd text="Approved" color={theme.gn} />
-        <Bd text="TL Approved" color={theme.bu} />
-        <Bd text="Pending" color={theme.yl} />
-        <Bd text="2+ overlapping = orange" color={theme.yl} />
-        <Bd text="3+ overlapping = red" color={theme.rd} />
-      </div>
-
-      {selDay != null && (
-        <Sec title={`${dayStr} - ${dayDetails.length} on leave`} icon="📅">
-          {dayDetails.length === 0
-            ? <Empty icon="✅" text="Everyone is on duty" />
-            : dayDetails.map(r => (
-              <div key={r.id} style={{
-                display:"flex", justifyContent:"space-between", alignItems:"center",
-                padding:"10px 0", borderBottom:`1px solid ${theme.bd}`, gap:6, flexWrap:"wrap"
-              }}>
-                <div>
-                  <div style={{ fontSize:13, color:theme.tx, fontWeight:500 }}>{r.empName}</div>
-                  <div style={{ fontSize:11, color:theme.td }}>{r.section} • {r.type}</div>
-                </div>
-                <div style={{ display:"flex", gap:6, alignItems:"center" }}>
-                  <Bd text={`${r.days}d`} color={theme.bu} />
-                  <Bd text={STATUS_LABELS[r.status]} color={STATUS_COLORS[r.status]} />
-                </div>
-              </div>
-            ))}
-        </Sec>
-      )}
-    </div>
-  );
-}
-
-/* ============================================================
-   ATTENDANCE (Working Hours + Roster Editor)
-   ============================================================ */
-
-function AttPg({ employees, selectedMonth, setSelectedMonth, onEditRoster, canEdit }) {
-  const [sf, setSf] = useState("All");
-  const [sr, setSr] = useState("");
-  const [editEmp, setEditEmp] = useState(null);
-  const fl = employees.filter(e => (sf === "All" || e.section === sf) && e.name.toLowerCase().includes(sr.toLowerCase()));
-  const mk = `2026-${String(selectedMonth+1).padStart(2,"0")}`;
-
-  return (
-    <div>
-      <h2 style={{ fontSize:22, fontWeight:700, color:theme.tx, marginBottom:16 }}>Attendance & Working Hours</h2>
-      <div style={{ display:"flex", gap:6, marginBottom:18, flexWrap:"wrap" }}>
-        {[0,1,2,3,4,5].map(m => (
-          <div key={m} onClick={() => setSelectedMonth(m)} style={{
-            padding:"8px 18px", borderRadius:10, cursor:"pointer",
-            fontSize:13, fontWeight:600,
-            background: selectedMonth === m ? theme.ga : theme.card,
-            color: selectedMonth === m ? "#fff" : theme.ts
-          }}>{MONTHS[m]} 2026</div>
-        ))}
-      </div>
-      <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:12 }}>
-        {["All", ...SECTIONS].map(s => (
-          <div key={s} onClick={() => setSf(s)} style={{
-            padding:"6px 14px", borderRadius:8, cursor:"pointer",
-            fontSize:12, fontWeight:600,
-            background: sf === s ? theme.pl : theme.card,
-            color: sf === s ? "#fff" : theme.ts
-          }}>{s}</div>
-        ))}
-      </div>
-      <input placeholder="🔍 Search..." value={sr} onChange={e => setSr(e.target.value)}
-        style={{ ...ib, marginBottom:14 }} />
-      <div style={{ background:theme.card, borderRadius:14, border:`1px solid ${theme.bd}`, overflow:"hidden" }}>
-        <div style={{ overflowX:"auto" }}>
-          <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
-            <thead>
-              <tr style={{ background:"rgba(255,255,255,0.03)" }}>
-                {["Employee","Section","Day","Night","Off","Leave","Sched","Worked","%",""].map(h => (
-                  <th key={h} style={{
-                    padding:"12px", textAlign:"left", color:theme.td,
-                    fontWeight:700, fontSize:10, textTransform:"uppercase"
-                  }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {fl.map(e => {
-                const h = cH(e.roster?.[mk], e.section);
-                const pc2 = h.sc > 0 ? Math.round(h.w / h.sc * 100) : 0;
-                return (
-                  <tr key={e.id} style={{ borderTop:`1px solid ${theme.bd}` }}>
-                    <td style={{ padding:"10px 12px", color:theme.tx, fontWeight:500 }}>{e.name}</td>
-                    <td style={{ padding:"10px 12px" }}><Bd text={e.section} color={theme.bu} /></td>
-                    <td style={{ padding:"10px 12px", color:theme.gn, fontWeight:700 }}>{h.mc}</td>
-                    <td style={{ padding:"10px 12px", color:theme.pu, fontWeight:700 }}>{h.nc}</td>
-                    <td style={{ padding:"10px 12px", color:theme.td }}>{h.oc}</td>
-                    <td style={{ padding:"10px 12px", color: h.lc > 0 ? theme.yl : theme.td, fontWeight: h.lc > 0 ? 700 : 400 }}>{h.lc}</td>
-                    <td style={{ padding:"10px 12px", color:theme.tx, fontWeight:700 }}>{h.sc}h</td>
-                    <td style={{ padding:"10px 12px", color:theme.gn, fontWeight:700 }}>{h.w}h</td>
-                    <td style={{ padding:"10px 12px" }}>
-                      <span style={{
-                        padding:"3px 10px", borderRadius:12, fontSize:11, fontWeight:700,
-                        background: pc2 >= 95 ? `${theme.gn}18` : pc2 >= 80 ? `${theme.yl}18` : `${theme.rd}18`,
-                        color: pc2 >= 95 ? theme.gn : pc2 >= 80 ? theme.yl : theme.rd
-                      }}>{pc2}%</span>
-                    </td>
-                    <td style={{ padding:"10px 12px" }}>
-                      {canEdit && <Bt onClick={() => setEditEmp(e)} small={true} outline={true}>✏️ Edit Roster</Bt>}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {editEmp && (
-        <Modal title={`Edit Roster - ${editEmp.name} (${MONTHS[selectedMonth]} 2026)`} onClose={() => setEditEmp(null)} width={720}>
-          <RosterEditor emp={editEmp} mk={mk} onEdit={onEditRoster} />
-        </Modal>
-      )}
-    </div>
-  );
-}
-
-function RosterEditor({ emp, mk, onEdit }) {
-  const ro = emp.roster?.[mk] || [];
-  const cc = { M:theme.gn, N:theme.pu, O:theme.td, L:theme.yl };
-  const cycle = { M:"N", N:"O", O:"L", L:"M" };
-
-  return (
-    <div>
-      <p style={{ color:theme.ts, fontSize:12, marginBottom:14 }}>
-        <strong style={{ color:theme.tx }}>Click a day</strong> to cycle: Morning → Night → Off → Leave
-      </p>
-      <div style={{ display:"flex", gap:10, flexWrap:"wrap", marginBottom:14, fontSize:11, color:theme.ts }}>
-        <div><span style={{ color:theme.gn, fontWeight:700 }}>M</span> Morning</div>
-        <div><span style={{ color:theme.pu, fontWeight:700 }}>N</span> Night</div>
-        <div><span style={{ color:theme.td, fontWeight:700 }}>O</span> Off</div>
-        <div><span style={{ color:theme.yl, fontWeight:700 }}>L</span> Leave</div>
-      </div>
-      <div style={{ display:"flex", gap:5, flexWrap:"wrap" }}>
-        {ro.map(d => {
-          const dn = ["SU","MO","TU","WE","TH","FR","SA"][new Date(d.date).getDay()];
-          return (
-            <div key={d.day} onClick={() => onEdit(emp.id, mk, d.day, cycle[d.code] || "M")} style={{
-              width:50, height:64, borderRadius:10,
-              background: theme.ch, display:"flex", flexDirection:"column",
-              alignItems:"center", justifyContent:"center",
-              border:`1px solid ${d.code === "L" ? theme.yl+"40" : theme.bd}`,
-              cursor:"pointer", transition:"all 0.15s"
-            }}>
-              <div style={{ fontSize:9, color:theme.td }}>{dn}</div>
-              <div style={{ fontSize:14, fontWeight:700, color:theme.tx }}>{d.day}</div>
-              <div style={{ fontSize:12, fontWeight:800, color: cc[d.code] || theme.td }}>{d.code}</div>
-            </div>
-          );
-        })}
-      </div>
-      <div style={{
-        marginTop:16, padding:12, background:"rgba(56,189,248,0.06)",
-        borderRadius:8, fontSize:11, color:theme.ts, borderLeft:`3px solid ${theme.bu}`
-      }}>
-        ℹ️ Changes save automatically. Working hours and % compliance recalculate on close.
-      </div>
-    </div>
-  );
-}
-
-function MyAtt({ emp, selectedMonth, setSelectedMonth }) {
-  const cc = { M:theme.gn, N:theme.pu, O:theme.td, L:theme.yl };
-  const mk = `2026-${String(selectedMonth+1).padStart(2,"0")}`;
-  const ro = emp.roster?.[mk] || [];
-  const h = cH(ro, emp.section);
-  const ms = [0,1,2,3,4,5].map(m => {
-    const k = `2026-${String(m+1).padStart(2,"0")}`;
-    const hr = cH(emp.roster?.[k], emp.section);
-    return { m:MONTHS[m], sc:hr.sc, w:hr.w, idx:m };
-  });
-  return (
-    <div>
-      <h2 style={{ fontSize:22, fontWeight:700, color:theme.tx, marginBottom:16 }}>My Attendance</h2>
-      <Sec title="Monthly Working Hours" icon="📊">
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))", gap:10 }}>
-          {ms.map(x => (
-            <div key={x.m} onClick={() => setSelectedMonth(x.idx)} style={{
-              background: selectedMonth === x.idx ? theme.pl+"20" : theme.ch,
-              borderRadius:12, padding:14, cursor:"pointer",
-              border:`1px solid ${selectedMonth === x.idx ? theme.pl : theme.bd}`, textAlign:"center"
-            }}>
-              <div style={{ fontSize:12, fontWeight:700, color: selectedMonth === x.idx ? theme.or : theme.ts, marginBottom:6 }}>{x.m}</div>
-              <div style={{ fontSize:22, fontWeight:800, color:theme.gn }}>{x.w}h</div>
-              <div style={{ fontSize:10, color:theme.td }}>of {x.sc}h</div>
-              <div style={{ width:"100%", height:4, borderRadius:2, background:theme.bd, marginTop:8 }}>
-                <div style={{
-                  height:4, borderRadius:2, background:theme.gn,
-                  width: x.sc > 0 ? `${Math.round(x.w/x.sc*100)}%` : "0%"
-                }}/>
-              </div>
-            </div>
-          ))}
-        </div>
-      </Sec>
-      <div style={{ display:"flex", gap:10, flexWrap:"wrap", marginBottom:18 }}>
-        <SC2 label="Scheduled" value={`${h.sc}h`} color={theme.bu} icon="📋" />
-        <SC2 label="Worked" value={`${h.w}h`} color={theme.gn} icon="✅" />
-        <SC2 label="Day" value={h.mc} color={theme.gn} icon="☀️" />
-        <SC2 label="Night" value={h.nc} color={theme.pu} icon="🌙" />
-      </div>
-      <Sec title={`${MONTHS[selectedMonth]} 2026 Roster`} icon="📋">
-        <div style={{ display:"flex", gap:5, flexWrap:"wrap" }}>
-          {ro.map(d => {
-            const dn = ["SU","MO","TU","WE","TH","FR","SA"][new Date(d.date).getDay()];
-            return (
-              <div key={d.day} style={{
-                width:44, height:56, borderRadius:10, background:theme.ch,
-                display:"flex", flexDirection:"column",
-                alignItems:"center", justifyContent:"center",
-                border:`1px solid ${d.code === "L" ? theme.yl+"40" : theme.bd}`
-              }}>
-                <div style={{ fontSize:9, color:theme.td }}>{dn}</div>
-                <div style={{ fontSize:14, fontWeight:700, color:theme.tx }}>{d.day}</div>
-                <div style={{ fontSize:11, fontWeight:800, color: cc[d.code] || theme.td }}>{d.code}</div>
-              </div>
-            );
-          })}
-        </div>
-      </Sec>
-    </div>
-  );
-}
-
-/* ============================================================
-   TRAINING
-   ============================================================ */
-
-function MyTr({ emp }) {
-  const tr = emp.training || [];
-  const valid = tr.filter(x => certSt(x.certExpiry).l === "VALID").length;
-  const expiring = tr.filter(x => certSt(x.certExpiry).l === "EXPIRING").length;
-  const expired = tr.filter(x => certSt(x.certExpiry).l === "EXPIRED").length;
-  return (
-    <div>
-      <h2 style={{ fontSize:22, fontWeight:700, color:theme.tx, marginBottom:16 }}>My Training & Certifications</h2>
-      <div style={{ display:"flex", gap:12, flexWrap:"wrap", marginBottom:20 }}>
-        <SC2 label="Total" value={tr.length} color={theme.bu} icon="🎓" />
-        <SC2 label="Valid" value={valid} color={theme.gn} icon="✅" />
-        <SC2 label="Expiring" value={expiring} color={theme.yl} icon="⚠️" />
-        <SC2 label="Expired" value={expired} color={theme.rd} icon="❌" />
-      </div>
-      <Sec title="Certificates" icon="📜">
-        {tr.map(x => {
-          const st = certSt(x.certExpiry);
-          return (
-            <div key={x.id} style={{
-              background:theme.ch, borderRadius:12, padding:16, marginBottom:10,
-              borderLeft:`4px solid ${st.c}`, display:"flex",
-              justifyContent:"space-between", alignItems:"flex-start",
-              flexWrap:"wrap", gap:10
-            }}>
-              <div style={{ flex:1, minWidth:200 }}>
-                <div style={{ fontSize:14, fontWeight:600, color:theme.tx }}>{x.title}</div>
-                <div style={{ fontSize:12, color:theme.ts, marginTop:4 }}>{x.provider}</div>
-                <div style={{ fontSize:12, color:theme.ts, marginTop:2 }}>
-                  Cert: <span style={{ fontFamily:"monospace", color:theme.bu }}>{x.certNo}</span>
-                </div>
-                <div style={{ display:"flex", gap:16, marginTop:8 }}>
-                  <div>
-                    <div style={{ fontSize:9, color:theme.td, fontWeight:700 }}>COMPLETED</div>
-                    <div style={{ fontSize:12, color:theme.tx }}>{x.completedDate}</div>
-                  </div>
-                  <div>
-                    <div style={{ fontSize:9, color:theme.td, fontWeight:700 }}>EXPIRES</div>
-                    <div style={{ fontSize:12, color:st.c, fontWeight:600 }}>{x.certExpiry}</div>
-                  </div>
-                </div>
-              </div>
-              <div style={{ textAlign:"right" }}>
-                <Bd text={st.l} color={st.c} />
-                <div style={{ fontSize:11, color: st.d < 0 ? theme.rd : theme.td, marginTop:6, fontWeight:600 }}>
-                  {st.d < 0 ? `${Math.abs(st.d)}d overdue` : `${st.d}d left`}
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </Sec>
-    </div>
-  );
-}
-
-function TrMatrix({ employees }) {
-  const [typeFilter, setTypeFilter] = useState("all");
-  const [search, setSearch] = useState("");
-  const [view, setView] = useState("matrix"); // "matrix" or "gap"
-
-  const courses = TRAINING_CATALOG.filter(c =>
-    (typeFilter === "all" || c.type === typeFilter) &&
-    (!search || c.title.toLowerCase().includes(search.toLowerCase()))
-  );
-
-  // Gap view: for each employee, how many required courses are missing from their completed training
-  const gaps = employees.map(e => {
-    const roleCode = designationToRoleCode(e.designation);
-    const required = TRAINING_CATALOG.filter(c => roleCode && c.roles.includes(roleCode));
-    const completed = new Set((e.training || []).map(t => t.title.toLowerCase()));
-    const missing = required.filter(c => !completed.has(c.title.toLowerCase()));
-    return { emp:e, roleCode, required:required.length, completed:required.length - missing.length, missing:missing.length };
-  }).sort((a, b) => b.missing - a.missing);
-
-  const types = Array.from(new Set(TRAINING_CATALOG.map(c => c.type)));
-
-  return (
-    <div>
-      <div style={{ display:"flex", gap:8, marginBottom:16, flexWrap:"wrap" }}>
-        <button onClick={() => setView("matrix")} style={{
-          padding:"8px 16px", borderRadius:10, fontWeight:700, cursor:"pointer", border:"none",
-          background: view === "matrix" ? theme.pl : theme.ch, color: view === "matrix" ? "#fff" : theme.tx
-        }}>📋 Course Matrix ({TRAINING_CATALOG.length})</button>
-        <button onClick={() => setView("gap")} style={{
-          padding:"8px 16px", borderRadius:10, fontWeight:700, cursor:"pointer", border:"none",
-          background: view === "gap" ? theme.pl : theme.ch, color: view === "gap" ? "#fff" : theme.tx
-        }}>⚠ Compliance Gap</button>
-      </div>
-
-      {view === "matrix" ? (
-        <>
-          <div style={{ display:"flex", gap:8, marginBottom:12, flexWrap:"wrap" }}>
-            <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)} style={{
-              padding:"8px 12px", background:theme.ch, color:theme.tx, borderRadius:8,
-              border:`1px solid ${theme.bd}`, fontSize:13 }}>
-              <option value="all">All types</option>
-              {types.map(t => <option key={t} value={t}>{t}</option>)}
-            </select>
-            <input placeholder="🔍 search course…" value={search} onChange={e => setSearch(e.target.value)}
-              style={{ flex:1, minWidth:200, padding:"8px 12px", background:theme.ch, color:theme.tx,
-                borderRadius:8, border:`1px solid ${theme.bd}`, fontSize:13 }} />
-          </div>
-          <div style={{ fontSize:11, color:theme.td, marginBottom:8 }}>
-            M = Mandatory for this role • Source: AUH AFM Training Need Analysis Matrix 2026
-          </div>
-          <div style={{ overflowX:"auto", background:theme.card, borderRadius:14, border:`1px solid ${theme.bd}` }}>
-            <table style={{ width:"100%", borderCollapse:"collapse", fontSize:11 }}>
-              <thead>
-                <tr style={{ background:"rgba(255,255,255,0.03)" }}>
-                  <th style={{ padding:"10px 8px", textAlign:"left", color:theme.td, fontWeight:700, fontSize:10, textTransform:"uppercase", position:"sticky", left:0, background:theme.cs, zIndex:1 }}>Course</th>
-                  <th style={{ padding:"10px 6px", color:theme.td, fontWeight:700, fontSize:10 }}>Freq</th>
-                  {ROLE_ORDER.map(rc => (
-                    <th key={rc} title={ROLE_CODES[rc]} style={{
-                      padding:"10px 6px", color:theme.td, fontWeight:700, fontSize:10,
-                      writingMode:"vertical-rl", transform:"rotate(180deg)",
-                      minWidth:24, whiteSpace:"nowrap"
-                    }}>{rc}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {courses.map((c, i) => (
-                  <tr key={i} style={{ borderTop:`1px solid ${theme.bd}` }}>
-                    <td style={{ padding:"8px", color:theme.tx, position:"sticky", left:0, background:theme.cs, maxWidth:260 }}>
-                      <div style={{ fontSize:12, fontWeight:600 }}>{c.title}</div>
-                      <div style={{ fontSize:10, color:theme.td }}>{c.type} · {c.mode} · {c.dur}</div>
-                    </td>
-                    <td style={{ padding:"6px", color:theme.ts, fontSize:10, textAlign:"center" }}>{(c.freq||"").trim()}</td>
-                    {ROLE_ORDER.map(rc => (
-                      <td key={rc} style={{ padding:"6px", textAlign:"center" }}>
-                        {c.roles.includes(rc) && (
-                          <span style={{
-                            display:"inline-block", minWidth:22, padding:"2px 6px", borderRadius:6,
-                            background:"#15425f", color:"#fff", fontSize:10, fontWeight:800
-                          }}>M</span>
-                        )}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginTop:12, fontSize:10, color:theme.td }}>
-            {ROLE_ORDER.map(rc => (
-              <span key={rc}><b style={{ color:theme.tx }}>{rc}</b>: {ROLE_CODES[rc]}</span>
-            ))}
-          </div>
-        </>
-      ) : (
-        <>
-          <div style={{ fontSize:12, color:theme.ts, marginBottom:12 }}>
-            For each employee, this shows how many mandatory courses (per their role) are completed.
-          </div>
-          <div style={{ background:theme.card, borderRadius:14, border:`1px solid ${theme.bd}`, overflow:"hidden" }}>
-            <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
-              <thead><tr style={{ background:"rgba(255,255,255,0.03)" }}>
-                {["Employee","Section","Role","Completed","Required","Missing","Compliance"].map(h => (
-                  <th key={h} style={{ padding:"12px", textAlign:"left", color:theme.td, fontWeight:700, fontSize:10, textTransform:"uppercase" }}>{h}</th>
-                ))}
-              </tr></thead>
-              <tbody>
-                {gaps.map((g, i) => {
-                  const pct = g.required ? Math.round((g.completed / g.required) * 100) : 0;
-                  const color = pct >= 90 ? theme.gn : pct >= 60 ? theme.yl : theme.rd;
-                  return (
-                    <tr key={i} style={{ borderTop:`1px solid ${theme.bd}` }}>
-                      <td style={{ padding:"10px 12px", color:theme.tx, fontWeight:500 }}>{g.emp.name}</td>
-                      <td style={{ padding:"10px 12px" }}><Bd text={g.emp.section} color={theme.bu} /></td>
-                      <td style={{ padding:"10px 12px", color:theme.ts, fontSize:11 }}>{g.roleCode || "—"}</td>
-                      <td style={{ padding:"10px 12px", color:theme.gn, fontWeight:600 }}>{g.completed}</td>
-                      <td style={{ padding:"10px 12px", color:theme.tx }}>{g.required}</td>
-                      <td style={{ padding:"10px 12px", color: g.missing > 0 ? theme.rd : theme.gn, fontWeight:700 }}>{g.missing}</td>
-                      <td style={{ padding:"10px 12px" }}>
-                        <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                          <div style={{ width:60, height:6, background:"rgba(255,255,255,0.08)", borderRadius:99 }}>
-                            <div style={{ width:`${pct}%`, height:"100%", background:color, borderRadius:99 }} />
-                          </div>
-                          <span style={{ fontSize:11, fontWeight:700, color }}>{pct}%</span>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
-
-function TrMgmt({ employees }) {
-  const [tab, setTab] = useState("certs");
-  const [sf, setSf] = useState("All");
-  const [sr, setSr] = useState("");
-  const [stf, setStf] = useState("all");
-  const fl = employees.filter(e => (sf === "All" || e.section === sf) && e.name.toLowerCase().includes(sr.toLowerCase()));
-  const ac = [];
-  fl.forEach(e => {
-    (e.training || []).forEach(x => {
-      const st = certSt(x.certExpiry);
-      const s2 = st.l === "EXPIRED" ? "expired" : st.l === "EXPIRING" ? "expiring" : "valid";
-      if (stf === "all" || stf === s2) ac.push({ ...x, empName:e.name, section:e.section, st:s2, days:st.d, stc:st.c, stl:st.l });
-    });
-  });
-  ac.sort((a,b) => a.days - b.days);
-  const te = employees.reduce((a,e) => a + (e.training || []).filter(x => certSt(x.certExpiry).l === "EXPIRED").length, 0);
-  const tx2 = employees.reduce((a,e) => a + (e.training || []).filter(x => certSt(x.certExpiry).l === "EXPIRING").length, 0);
-
-  return (
-    <div>
-      <h2 style={{ fontSize:22, fontWeight:700, color:theme.tx, marginBottom:14 }}>Training & Certifications</h2>
-      <div style={{ display:"flex", gap:8, marginBottom:18, flexWrap:"wrap" }}>
-        <button onClick={() => setTab("certs")} style={{
-          padding:"8px 16px", borderRadius:10, fontWeight:700, cursor:"pointer", border:"none",
-          background: tab === "certs" ? theme.pl : theme.ch, color: tab === "certs" ? "#fff" : theme.tx
-        }}>🎓 Certificates</button>
-        <button onClick={() => setTab("matrix")} style={{
-          padding:"8px 16px", borderRadius:10, fontWeight:700, cursor:"pointer", border:"none",
-          background: tab === "matrix" ? theme.pl : theme.ch, color: tab === "matrix" ? "#fff" : theme.tx
-        }}>📋 TNA Matrix</button>
-      </div>
-      {tab === "matrix" ? <TrMatrix employees={employees} /> : (
-      <>
-      <div style={{ display:"flex", gap:12, flexWrap:"wrap", marginBottom:20 }}>
-        <SC2 label="Total Certs" value={ac.length} color={theme.bu} icon="🎓" />
-        <SC2 label="Expired" value={te} color={theme.rd} icon="❌" />
-        <SC2 label="Expiring (90d)" value={tx2} color={theme.yl} icon="⚠️" />
-      </div>
-      <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:12 }}>
-        {["all","expired","expiring","valid"].map(s => (
-          <div key={s} onClick={() => setStf(s)} style={{
-            padding:"6px 14px", borderRadius:8, cursor:"pointer",
-            fontSize:12, fontWeight:600,
-            background: stf === s ? (s === "expired" ? theme.rd : s === "expiring" ? theme.yl : s === "valid" ? theme.gn : theme.pl) : theme.card,
-            color: stf === s ? "#fff" : theme.ts, textTransform:"capitalize"
-          }}>{s === "all" ? "All" : s}</div>
-        ))}
-      </div>
-      <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:12 }}>
-        {["All", ...SECTIONS].map(s => (
-          <div key={s} onClick={() => setSf(s)} style={{
-            padding:"6px 14px", borderRadius:8, cursor:"pointer",
-            fontSize:12, fontWeight:600,
-            background: sf === s ? theme.pl : theme.card,
-            color: sf === s ? "#fff" : theme.ts
-          }}>{s}</div>
-        ))}
-      </div>
-      <input placeholder="🔍 Search..." value={sr} onChange={e => setSr(e.target.value)}
-        style={{ ...ib, marginBottom:14 }} />
-      <div style={{ background:theme.card, borderRadius:14, border:`1px solid ${theme.bd}`, overflow:"hidden" }}>
-        <div style={{ overflowX:"auto" }}>
-          <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
-            <thead>
-              <tr style={{ background:"rgba(255,255,255,0.03)" }}>
-                {["Employee","Section","Training","Cert No","Completed","Expires","Status"].map(h => (
-                  <th key={h} style={{
-                    padding:"12px", textAlign:"left", color:theme.td,
-                    fontWeight:700, fontSize:10, textTransform:"uppercase"
-                  }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {!ac.length
-                ? <tr><td colSpan={7} style={{ padding:30, textAlign:"center", color:theme.td }}>No certificates</td></tr>
-                : ac.map((c,i) => (
-                  <tr key={i} style={{ borderTop:`1px solid ${theme.bd}` }}>
-                    <td style={{ padding:"10px 12px", color:theme.tx, fontWeight:500 }}>{c.empName}</td>
-                    <td style={{ padding:"10px 12px" }}><Bd text={c.section} color={theme.bu} /></td>
-                    <td style={{ padding:"10px 12px", color:theme.tx }}>{c.title}</td>
-                    <td style={{ padding:"10px 12px", color:theme.bu, fontFamily:"monospace", fontSize:11 }}>{c.certNo}</td>
-                    <td style={{ padding:"10px 12px", color:theme.ts }}>{c.completedDate}</td>
-                    <td style={{ padding:"10px 12px", color:c.stc, fontWeight:600 }}>{c.certExpiry}</td>
-                    <td style={{ padding:"10px 12px" }}>
-                      <span style={{
-                        padding:"3px 10px", borderRadius:12, fontSize:10, fontWeight:700,
-                        background:`${c.stc}18`, color:c.stc
-                      }}>{c.stl} ({c.days < 0 ? Math.abs(c.days) + "d ago" : c.days + "d"})</span>
-                    </td>
-                  </tr>
-                ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-      </>
-      )}
-    </div>
-  );
-}
-
-/* ============================================================
-   DOCUMENTS (NEW - employee + management)
-   ============================================================ */
-
-function MyDocs({ emp, onAdd, onDel }) {
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({
-    type:"passport", title:"", docNo:"", issueDate:"", expiryDate:"", fileName:""
-  });
-  const [er, setEr] = useState("");
-
-  const docs = emp.documents || [];
-  const valid = docs.filter(d => certSt(d.expiryDate).l === "VALID").length;
-  const expiring = docs.filter(d => certSt(d.expiryDate).l === "EXPIRING").length;
-  const expired = docs.filter(d => certSt(d.expiryDate).l === "EXPIRED").length;
-
-  const submit = () => {
-    setEr("");
-    if (!form.title.trim() || !form.docNo.trim() || !form.expiryDate) return setEr("Title, document number and expiry date required");
-    onAdd(emp.id, { ...form, fileName: form.fileName || form.title.toLowerCase().replace(/\s+/g,"_") + ".pdf" });
-    setForm({ type:"passport", title:"", docNo:"", issueDate:"", expiryDate:"", fileName:"" });
-    setShowForm(false);
-  };
-
-  return (
-    <div>
-      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:18, flexWrap:"wrap", gap:10 }}>
-        <h2 style={{ fontSize:22, fontWeight:700, color:theme.tx, margin:0 }}>My Documents</h2>
-        <Bt onClick={() => setShowForm(true)} bg={theme.or}>📄 Add Document</Bt>
-      </div>
-
-      <div style={{ display:"flex", gap:12, flexWrap:"wrap", marginBottom:20 }}>
-        <SC2 label="Total" value={docs.length} color={theme.bu} icon="📁" />
-        <SC2 label="Valid" value={valid} color={theme.gn} icon="✅" />
-        <SC2 label="Expiring" value={expiring} color={theme.yl} icon="⚠️" />
-        <SC2 label="Expired" value={expired} color={theme.rd} icon="❌" />
-      </div>
-
-      {showForm && (
-        <Modal title="Add New Document" onClose={() => setShowForm(false)}>
-          {er && <div style={{
-            background:"rgba(239,68,68,0.1)", borderRadius:8, padding:"8px 12px",
-            marginBottom:12, color:theme.rd, fontSize:12
-          }}>{er}</div>}
-          <div style={{ marginBottom:12 }}>
-            <label style={{ display:"block", fontSize:10, color:theme.td, fontWeight:700, marginBottom:5 }}>TYPE</label>
-            <select value={form.type} onChange={e => setForm(p => ({ ...p, type:e.target.value }))}
-              style={{ ...ib, background:theme.cs }}>
-              {DOC_TYPES.map(d => <option key={d.key} value={d.key}>{d.label}</option>)}
-            </select>
-          </div>
-          <div style={{ marginBottom:12 }}>
-            <label style={{ display:"block", fontSize:10, color:theme.td, fontWeight:700, marginBottom:5 }}>TITLE</label>
-            <input value={form.title} onChange={e => setForm(p => ({ ...p, title:e.target.value }))}
-              placeholder="e.g. UAE Employment Visa" style={ib} />
-          </div>
-          <div style={{ marginBottom:12 }}>
-            <label style={{ display:"block", fontSize:10, color:theme.td, fontWeight:700, marginBottom:5 }}>DOCUMENT NUMBER</label>
-            <input value={form.docNo} onChange={e => setForm(p => ({ ...p, docNo:e.target.value }))}
-              placeholder="e.g. AB1234567" style={ib} />
-          </div>
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:12 }}>
-            <div>
-              <label style={{ display:"block", fontSize:10, color:theme.td, fontWeight:700, marginBottom:5 }}>ISSUE DATE</label>
-              <input type="date" value={form.issueDate} onChange={e => setForm(p => ({ ...p, issueDate:e.target.value }))} style={ib} />
-            </div>
-            <div>
-              <label style={{ display:"block", fontSize:10, color:theme.td, fontWeight:700, marginBottom:5 }}>EXPIRY DATE *</label>
-              <input type="date" value={form.expiryDate} onChange={e => setForm(p => ({ ...p, expiryDate:e.target.value }))} style={ib} />
-            </div>
-          </div>
-          <div style={{ marginBottom:16 }}>
-            <label style={{ display:"block", fontSize:10, color:theme.td, fontWeight:700, marginBottom:5 }}>FILE NAME (simulated upload)</label>
-            <input value={form.fileName} onChange={e => setForm(p => ({ ...p, fileName:e.target.value }))}
-              placeholder="e.g. passport_scan.pdf" style={ib} />
-            <div style={{ fontSize:10, color:theme.td, marginTop:4 }}>
-              ℹ️ In production, this would be a real file upload to secure storage.
-            </div>
-          </div>
-          <div style={{ display:"flex", gap:8 }}>
-            <Bt onClick={submit} bg={theme.gn}>💾 Save</Bt>
-            <Bt onClick={() => setShowForm(false)} outline={true}>Cancel</Bt>
-          </div>
-        </Modal>
-      )}
-
-      <Sec title="My Documents" icon="📁">
-        {docs.length === 0
-          ? <Empty icon="📁" text="No documents uploaded. Click 'Add Document' to upload passport, visa, EID, etc." />
-          : <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(260px,1fr))", gap:12 }}>
-              {docs.map(d => {
-                const st = certSt(d.expiryDate);
-                const typeInfo = DOC_TYPES.find(x => x.key === d.type) || DOC_TYPES[DOC_TYPES.length - 1];
-                return (
-                  <div key={d.id} style={{
-                    background:theme.ch, borderRadius:12, padding:16,
-                    borderLeft:`4px solid ${st.c}`
-                  }}>
-                    <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:10 }}>
-                      <div style={{ fontSize:24 }}>{typeInfo.icon}</div>
-                      <div style={{ flex:1, minWidth:0 }}>
-                        <div style={{ fontSize:13, fontWeight:600, color:theme.tx }}>{d.title}</div>
-                        <div style={{ fontSize:10, color:theme.td, textTransform:"uppercase", fontWeight:700 }}>{typeInfo.label}</div>
-                      </div>
-                      <Bd text={st.l} color={st.c} />
-                    </div>
-                    <div style={{ fontSize:11, color:theme.ts, marginBottom:4 }}>
-                      <strong style={{ color:theme.tx }}>No:</strong> <span style={{ fontFamily:"monospace" }}>{d.docNo}</span>
-                    </div>
-                    <div style={{ fontSize:11, color:theme.ts, marginBottom:4 }}>
-                      <strong style={{ color:theme.tx }}>Expires:</strong> <span style={{ color:st.c, fontWeight:600 }}>{d.expiryDate}</span>
-                      {" "}({st.d < 0 ? `${Math.abs(st.d)}d ago` : `${st.d}d`})
-                    </div>
-                    {d.fileName && (
-                      <div style={{ fontSize:10, color:theme.bu, marginTop:6, display:"flex", alignItems:"center", gap:4 }}>
-                        📎 {d.fileName}
-                      </div>
-                    )}
-                    <div style={{ marginTop:10 }}>
-                      <Bt onClick={() => onDel(emp.id, d.id)} small={true} bg={theme.rd}>🗑️ Remove</Bt>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>}
-      </Sec>
-    </div>
-  );
-}
-
-function DocsMgmt({ employees, onSel }) {
-  const [sf, setSf] = useState("All");
-  const [sr, setSr] = useState("");
-  const [stf, setStf] = useState("all");
-
-  const fl = employees.filter(e => (sf === "All" || e.section === sf) && e.name.toLowerCase().includes(sr.toLowerCase()));
-  const ac = [];
-  fl.forEach(e => {
-    (e.documents || []).forEach(d => {
-      const st = certSt(d.expiryDate);
-      const s2 = st.l === "EXPIRED" ? "expired" : st.l === "EXPIRING" ? "expiring" : "valid";
-      if (stf === "all" || stf === s2) ac.push({ ...d, empId:e.id, empName:e.name, section:e.section, days:st.d, stc:st.c, stl:st.l });
-    });
-  });
-  ac.sort((a,b) => a.days - b.days);
-
-  const te = employees.reduce((a,e) => a + (e.documents || []).filter(x => certSt(x.expiryDate).l === "EXPIRED").length, 0);
-  const tx2 = employees.reduce((a,e) => a + (e.documents || []).filter(x => certSt(x.expiryDate).l === "EXPIRING").length, 0);
-  const tv = employees.reduce((a,e) => a + (e.documents || []).filter(x => certSt(x.expiryDate).l === "VALID").length, 0);
-
-  return (
-    <div>
-      <h2 style={{ fontSize:22, fontWeight:700, color:theme.tx, marginBottom:16 }}>Employee Documents</h2>
-      <p style={{ color:theme.ts, fontSize:13, marginBottom:16 }}>
-        Track passport, visa, EID, airport pass and medical fitness expiry across the team.
-      </p>
-      <div style={{ display:"flex", gap:12, flexWrap:"wrap", marginBottom:20 }}>
-        <SC2 label="Total Docs" value={ac.length} color={theme.bu} icon="📁" />
-        <SC2 label="Valid" value={tv} color={theme.gn} icon="✅" />
-        <SC2 label="Expiring (90d)" value={tx2} color={theme.yl} icon="⚠️" />
-        <SC2 label="Expired" value={te} color={theme.rd} icon="❌" />
-      </div>
-      <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:12 }}>
-        {["all","expired","expiring","valid"].map(s => (
-          <div key={s} onClick={() => setStf(s)} style={{
-            padding:"6px 14px", borderRadius:8, cursor:"pointer",
-            fontSize:12, fontWeight:600,
-            background: stf === s ? (s === "expired" ? theme.rd : s === "expiring" ? theme.yl : s === "valid" ? theme.gn : theme.pl) : theme.card,
-            color: stf === s ? "#fff" : theme.ts, textTransform:"capitalize"
-          }}>{s === "all" ? "All" : s}</div>
-        ))}
-      </div>
-      <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:12 }}>
-        {["All", ...SECTIONS].map(s => (
-          <div key={s} onClick={() => setSf(s)} style={{
-            padding:"6px 14px", borderRadius:8, cursor:"pointer",
-            fontSize:12, fontWeight:600,
-            background: sf === s ? theme.pl : theme.card,
-            color: sf === s ? "#fff" : theme.ts
-          }}>{s}</div>
-        ))}
-      </div>
-      <input placeholder="🔍 Search employee..." value={sr} onChange={e => setSr(e.target.value)}
-        style={{ ...ib, marginBottom:14 }} />
-      <div style={{ background:theme.card, borderRadius:14, border:`1px solid ${theme.bd}`, overflow:"hidden" }}>
-        <div style={{ overflowX:"auto" }}>
-          <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
-            <thead>
-              <tr style={{ background:"rgba(255,255,255,0.03)" }}>
-                {["Employee","Section","Document","Doc No","Expires","Status",""].map(h => (
-                  <th key={h} style={{
-                    padding:"12px", textAlign:"left", color:theme.td,
-                    fontWeight:700, fontSize:10, textTransform:"uppercase"
-                  }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {!ac.length
-                ? <tr><td colSpan={7} style={{ padding:30, textAlign:"center", color:theme.td }}>No documents match filters</td></tr>
-                : ac.map((c,i) => {
-                  const ti = DOC_TYPES.find(x => x.key === c.type) || DOC_TYPES[DOC_TYPES.length - 1];
-                  return (
-                    <tr key={i} style={{ borderTop:`1px solid ${theme.bd}` }}>
-                      <td style={{ padding:"10px 12px", color:theme.tx, fontWeight:500 }}>{c.empName}</td>
-                      <td style={{ padding:"10px 12px" }}><Bd text={c.section} color={theme.bu} /></td>
-                      <td style={{ padding:"10px 12px", color:theme.tx }}>{ti.icon} {c.title}</td>
-                      <td style={{ padding:"10px 12px", color:theme.bu, fontFamily:"monospace", fontSize:11 }}>{c.docNo}</td>
-                      <td style={{ padding:"10px 12px", color:c.stc, fontWeight:600 }}>{c.expiryDate}</td>
-                      <td style={{ padding:"10px 12px" }}>
-                        <span style={{
-                          padding:"3px 10px", borderRadius:12, fontSize:10, fontWeight:700,
-                          background:`${c.stc}18`, color:c.stc
-                        }}>{c.stl} ({c.days < 0 ? Math.abs(c.days) + "d ago" : c.days + "d"})</span>
-                      </td>
-                      <td style={{ padding:"10px 12px" }}>
-                        <Bt onClick={() => onSel(employees.find(e => e.id === c.empId))} small={true} outline={true}>View Employee</Bt>
-                      </td>
-                    </tr>
-                  );
-                })}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ============================================================
-   ANNOUNCEMENTS (NEW)
-   ============================================================ */
-
-function AnnPg({ user, announcements, employees, onAdd, onDel }) {
-  const canCompose = user.role === "manager" || user.role === "teamlead";
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ title:"", message:"", priority:"info", pinned:false, target:"all" });
-  const [er, setEr] = useState("");
-  const [filter, setFilter] = useState("all");
-
-  const visible = user.role === "employee"
-    ? announcements.filter(a => a.target === "all" || a.target === user.section)
-    : announcements;
-  const filtered = filter === "all" ? visible : visible.filter(a => a.priority === filter);
-  const pinned = filtered.filter(a => a.pinned);
-  const regular = filtered.filter(a => !a.pinned);
-
-  const submit = () => {
-    setEr("");
-    if (!form.title.trim() || !form.message.trim()) return setEr("Title and message required");
-    onAdd(form);
-    setForm({ title:"", message:"", priority:"info", pinned:false, target:"all" });
-    setShowForm(false);
-  };
-
-  return (
-    <div>
-      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:18, flexWrap:"wrap", gap:10 }}>
-        <h2 style={{ fontSize:22, fontWeight:700, color:theme.tx, margin:0 }}>Announcements</h2>
-        {canCompose && <Bt onClick={() => setShowForm(true)} bg={theme.or}>📢 Post Announcement</Bt>}
-      </div>
-
-      {showForm && (
-        <Modal title="Post Announcement" onClose={() => setShowForm(false)} width={620}>
-          {er && <div style={{
-            background:"rgba(239,68,68,0.1)", borderRadius:8, padding:"8px 12px",
-            marginBottom:12, color:theme.rd, fontSize:12
-          }}>{er}</div>}
-          <div style={{ marginBottom:12 }}>
-            <label style={{ display:"block", fontSize:10, color:theme.td, fontWeight:700, marginBottom:5 }}>TITLE</label>
-            <input value={form.title} onChange={e => setForm(p => ({ ...p, title:e.target.value }))}
-              placeholder="e.g. LVO Operations Alert" style={ib} />
-          </div>
-          <div style={{ marginBottom:12 }}>
-            <label style={{ display:"block", fontSize:10, color:theme.td, fontWeight:700, marginBottom:5 }}>MESSAGE</label>
-            <textarea value={form.message} onChange={e => setForm(p => ({ ...p, message:e.target.value }))}
-              rows={5} placeholder="Write the full announcement here..."
-              style={{ ...ib, resize:"vertical", fontFamily:"inherit" }} />
-          </div>
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:12 }}>
-            <div>
-              <label style={{ display:"block", fontSize:10, color:theme.td, fontWeight:700, marginBottom:5 }}>PRIORITY</label>
-              <select value={form.priority} onChange={e => setForm(p => ({ ...p, priority:e.target.value }))}
-                style={{ ...ib, background:theme.cs }}>
-                {ANN_PRIORITIES.map(p => <option key={p.key} value={p.key}>{p.label}</option>)}
-              </select>
-            </div>
-            <div>
-              <label style={{ display:"block", fontSize:10, color:theme.td, fontWeight:700, marginBottom:5 }}>TARGET</label>
-              <select value={form.target} onChange={e => setForm(p => ({ ...p, target:e.target.value }))}
-                style={{ ...ib, background:theme.cs }}>
-                <option value="all">All Team</option>
-                {SECTIONS.map(s => <option key={s} value={s}>{s} only</option>)}
-              </select>
-            </div>
-          </div>
-          <div style={{ marginBottom:16 }}>
-            <label style={{ display:"flex", alignItems:"center", gap:8, fontSize:12, color:theme.ts, cursor:"pointer" }}>
-              <input type="checkbox" checked={form.pinned}
-                onChange={e => setForm(p => ({ ...p, pinned:e.target.checked }))}
-                style={{ width:16, height:16, accentColor:theme.or }} />
-              📌 Pin to top (shows on dashboards)
-            </label>
-          </div>
-          <div style={{ display:"flex", gap:8 }}>
-            <Bt onClick={submit} bg={theme.gn}>📤 Post</Bt>
-            <Bt onClick={() => setShowForm(false)} outline={true}>Cancel</Bt>
-          </div>
-        </Modal>
-      )}
-
-      <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:16 }}>
-        <div onClick={() => setFilter("all")} style={{
-          padding:"6px 14px", borderRadius:8, cursor:"pointer",
-          fontSize:12, fontWeight:600,
-          background: filter === "all" ? theme.pl : theme.card,
-          color: filter === "all" ? "#fff" : theme.ts
-        }}>All ({visible.length})</div>
-        {ANN_PRIORITIES.map(pr => {
-          const count = visible.filter(a => a.priority === pr.key).length;
-          return (
-            <div key={pr.key} onClick={() => setFilter(pr.key)} style={{
-              padding:"6px 14px", borderRadius:8, cursor:"pointer",
-              fontSize:12, fontWeight:600,
-              background: filter === pr.key ? pr.color : theme.card,
-              color: filter === pr.key ? "#fff" : theme.ts
-            }}>{pr.label} ({count})</div>
-          );
-        })}
-      </div>
-
-      {pinned.length > 0 && (
-        <Sec title="Pinned" icon="📌">
-          {pinned.map(a => <AnnCard key={a.id} a={a} canDel={canCompose} onDel={onDel} />)}
-        </Sec>
-      )}
-
-      {regular.length > 0
-        ? <Sec title="Recent" icon="📢">
-            {regular.map(a => <AnnCard key={a.id} a={a} canDel={canCompose} onDel={onDel} />)}
-          </Sec>
-        : pinned.length === 0 && <Empty text="No announcements" />}
-    </div>
-  );
-}
-
-function AnnCard({ a, canDel, onDel }) {
-  const pr = ANN_PRIORITIES.find(p => p.key === a.priority);
-  return (
-    <div style={{
-      background:theme.ch, borderRadius:12, padding:16,
-      borderLeft:`4px solid ${pr.color}`, marginBottom:10
-    }}>
-      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:10, flexWrap:"wrap" }}>
-        <div style={{ flex:1, minWidth:0 }}>
-          <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
-            {a.pinned && <span style={{ fontSize:12 }}>📌</span>}
-            <div style={{ fontSize:14, fontWeight:700, color:theme.tx }}>{a.title}</div>
-            <Bd text={pr.label.toUpperCase()} color={pr.color} />
-          </div>
-          <div style={{ fontSize:10, color:theme.td, marginTop:4 }}>
-            {fmtDt(a.date)} • {a.by} • {a.target === "all" ? "All Team" : a.target}
-          </div>
-        </div>
-        {canDel && (
-          <button type="button" aria-label={`Delete announcement: ${a.title}`} onClick={() => onDel(a.id)} style={{
-            background:"none", border:"none", color:theme.td, cursor:"pointer", fontSize:14, padding:4
-          }}>🗑️</button>
-        )}
-      </div>
-      <div style={{ fontSize:13, color:theme.ts, marginTop:10, lineHeight:1.5, whiteSpace:"pre-wrap" }}>{a.message}</div>
     </div>
   );
 }
@@ -3268,4 +854,5 @@ if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("sw.js").catch(() => {});
   });
 }
+
 

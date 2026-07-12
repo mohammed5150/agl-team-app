@@ -56,7 +56,8 @@ const mE = (id, nm, sec, des, pi, em) => {
   };
 };
 
-export const INITIAL_EMPLOYEES = [
+function buildSeed() {
+  const employees = [
   mE("EMP-001","Amarnath Munderi","AGL 12hrs","AGL Technician",0),
   mE("EMP-002","Subash Chouhan","AGL 12hrs","AGL Technician",0),
   mE("EMP-003","Thauseef Khan","AGL 12hrs","AGL Technician",0),
@@ -118,24 +119,24 @@ export const INITIAL_EMPLOYEES = [
 ];
 
 // Seed some performance records so demo has content
-INITIAL_EMPLOYEES[0].achievements = [
+employees[0].achievements = [
   { id:1, title:"Best Performer - Q1 2026", date:"2026-03-31", by:"Ragesh Menon", desc:"Outstanding performance in AGL maintenance" },
   { id:2, title:"Safety Champion Award", date:"2026-02-15", by:"Mohammed Faheem", desc:"Zero incidents for 12 consecutive months" }
 ];
-INITIAL_EMPLOYEES[0].actions = [
+employees[0].actions = [
   { id:1, type:"commendation", title:"Letter of Appreciation", date:"2026-01-20", by:"Mohammed Faheem", desc:"Exceptional work during runway maintenance" }
 ];
-INITIAL_EMPLOYEES[2].warnings = [
+employees[2].warnings = [
   { id:1, title:"Late Attendance Warning", date:"2026-03-10", by:"Mohammed Faheem", desc:"3 instances of late reporting in March", severity:"minor" }
 ];
-INITIAL_EMPLOYEES[6].achievements = [
+employees[6].achievements = [
   { id:1, title:"Technical Excellence Award", date:"2026-02-28", by:"Ragesh Menon", desc:"Successfully led high mast retrofit project" }
 ];
-INITIAL_EMPLOYEES[6].actions = [
+employees[6].actions = [
   { id:1, type:"warning", title:"Verbal Warning - PPE", date:"2026-03-15", by:"Mohammed Faheem", desc:"Not wearing safety harness at height" }
 ];
 
-export const TEAMLEAD_USER = {
+const teamlead = {
   id:"TL-001", email:"mohammed.faheem@adbsafegate.com",
   name:"Mohammed Faheem", role:"teamlead", designation:"Team Leader", section:"All", shift:"General",
   nationality:"Indian", mobile:"+971 50 222 0001", empNo:"ADB-2001",
@@ -147,7 +148,7 @@ export const TEAMLEAD_USER = {
   documents:[], training:[]
 };
 
-export const MANAGER_USER = {
+const manager = {
   id:"MGR-001", email:"ragesh.menon@adbsafegate.ae",
   name:"Ragesh Menon", role:"manager", designation:"Maintenance Manager", section:"All", shift:"General",
   nationality:"Indian", mobile:"+971 50 333 0001", empNo:"ADB-3001",
@@ -159,7 +160,7 @@ export const MANAGER_USER = {
   documents:[], training:[]
 };
 
-export const INITIAL_LEAVE_REQUESTS = [
+const leaveRequests = [
   { id:"LR-001", empId:"EMP-001", empName:"Amarnath Munderi", section:"AGL 12hrs", type:"Annual Leave",
     startDate:"2026-04-15", endDate:"2026-04-18", days:4, reason:"Family visit to India",
     status:"pending", appliedOn:"2026-04-03T10:30:00", tlComment:"", mgrComment:"",
@@ -181,7 +182,7 @@ export const INITIAL_LEAVE_REQUESTS = [
     mgrComment:"Approved. Safe travels.", mgrActionDate:"2026-04-06T10:00:00", mgrName:"Ragesh Menon" }
 ];
 
-export const INITIAL_ANNOUNCEMENTS = [
+const announcements = [
   { id:"ANN-001", title:"LVO Operations - April 22-24, 2026",
     message:"Low Visibility Operations are expected between 22-24 April due to forecasted fog. All AGL and Systems teams must be on standby. Refer to MOC-OMAA-431 for procedures. Team leaders to brief shifts before handover.",
     priority:"urgent", pinned:true, date:"2026-04-18T08:00:00", by:"Ragesh Menon", target:"all" },
@@ -199,9 +200,27 @@ export const INITIAL_ANNOUNCEMENTS = [
     priority:"info", pinned:false, date:"2026-04-08T11:00:00", by:"Ragesh Menon", target:"all" }
 ];
 
-export const nfId = () => `NF-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-export const INITIAL_NOTIFICATIONS = [
+const notifications = [
   { id:"NF-SEED-001", to:"TL-001", type:"new_request", message:"New leave: Amarnath Munderi - Annual Leave (4d)", read:false, date:"2026-04-18T10:30:00" },
   { id:"NF-SEED-002", to:"MGR-001", type:"new_request", message:"Faheem Muhammed's leave approved by TL", read:false, date:"2026-04-15T14:00:00" },
   { id:"NF-SEED-003", to:"EMP-049", type:"approved", message:"Annual Leave APPROVED ✅", read:true, date:"2026-04-11T09:30:00" }
 ];
+
+  return { employees, teamlead, manager, leaveRequests, announcements, notifications };
+}
+
+// Demo/seed data (real team roster) is compiled OUT of production bundles:
+// build.js defines __SHOW_DEMO__=false unless SHOW_DEMO_LOGIN is explicitly
+// enabled, and esbuild then drops buildSeed() entirely via dead-code
+// elimination. Tooling that does not define the symbol (vitest) gets seeds.
+const EMPTY = { employees: [], teamlead: null, manager: null, leaveRequests: [], announcements: [], notifications: [] };
+const seed = (typeof __SHOW_DEMO__ !== "undefined" ? __SHOW_DEMO__ : true) ? buildSeed() : EMPTY;
+
+export const INITIAL_EMPLOYEES      = seed.employees;
+export const TEAMLEAD_USER          = seed.teamlead;
+export const MANAGER_USER           = seed.manager;
+export const INITIAL_LEAVE_REQUESTS = seed.leaveRequests;
+export const INITIAL_ANNOUNCEMENTS  = seed.announcements;
+export const INITIAL_NOTIFICATIONS  = seed.notifications;
+
+export const nfId = () => `NF-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
