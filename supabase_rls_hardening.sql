@@ -114,6 +114,11 @@ create trigger trg_guard_employee_privileges
   before update on employees
   for each row execute function public.guard_employee_privileges();
 
+-- Trigger functions must not be callable via the REST RPC surface; the trigger
+-- still fires (owner context), so revoking EXECUTE is safe and clears the
+-- "Public/Signed-in can execute SECURITY DEFINER function" advisor warning.
+revoke all on function public.guard_employee_privileges() from anon, authenticated;
+
 -- ---------------------------------------------------------------
 -- 4a. Pin allowed status transitions on leave/overtime updates
 -- ---------------------------------------------------------------
@@ -139,32 +144,6 @@ create policy lr_update_tl
     public.current_emp_role() = 'teamlead'
     and status in ('tl_approved', 'rejected')
   );
-
--- Overtime, employee self-edit (mirrors leave).
-drop policy if exists ot_update_self_pending on overtime_requests;
-create policy ot_update_self_pending
-  on overtime_requests for update
-  to authenticated
-  using (emp_id = public.current_emp_id() and status = 'pending')
-  with check (emp_id = public.current_emp_id() and status in ('pending', 'withdrawn'));
-
--- Overtime approvals: replace the unpinned ot_update_staff with role-scoped
--- policies so a team lead can no longer set overtime straight to 'approved'.
-drop policy if exists ot_update_staff on overtime_requests;
-
-drop policy if exists ot_update_tl on overtime_requests;
-create policy ot_update_tl
-  on overtime_requests for update
-  to authenticated
-  using (public.current_emp_role() = 'teamlead' and status = 'pending')
-  with check (public.current_emp_role() = 'teamlead' and status in ('tl_approved', 'rejected'));
-
-drop policy if exists ot_update_mgr on overtime_requests;
-create policy ot_update_mgr
-  on overtime_requests for update
-  to authenticated
-  using (public.is_manager())
-  with check (public.is_manager() and status in ('tl_approved', 'approved', 'rejected'));
 
 -- ---------------------------------------------------------------
 -- 4b. Freeze request identity/content after submission
@@ -204,10 +183,33 @@ create trigger trg_guard_leave_immutable
   before update on leave_requests
   for each row execute function public.guard_request_immutable();
 
-drop trigger if exists trg_guard_overtime_immutable on overtime_requests;
-create trigger trg_guard_overtime_immutable
-  before update on overtime_requests
-  for each row execute function public.guard_request_immutable();
+revoke all on function public.guard_request_immutable() from anon, authenticated;
+
+-- Overtime mirrors leave — status pinning + content freeze — but only if the
+-- overtime_requests table exists (supabase_overtime.sql is optional and not
+-- applied everywhere). Guarded so the migration never fails without overtime.
+do $$
+begin
+  if to_regclass('public.overtime_requests') is null then
+    return;
+  end if;
+
+  -- employee self-edit (keep pending or withdraw)
+  execute 'drop policy if exists ot_update_self_pending on overtime_requests';
+  execute 'create policy ot_update_self_pending on overtime_requests for update to authenticated using (emp_id = public.current_emp_id() and status = ''pending'') with check (emp_id = public.current_emp_id() and status in (''pending'', ''withdrawn''))';
+
+  -- replace the unpinned ot_update_staff with role-scoped approval policies so
+  -- a team lead can no longer set overtime straight to 'approved'
+  execute 'drop policy if exists ot_update_staff on overtime_requests';
+  execute 'drop policy if exists ot_update_tl on overtime_requests';
+  execute 'create policy ot_update_tl on overtime_requests for update to authenticated using (public.current_emp_role() = ''teamlead'' and status = ''pending'') with check (public.current_emp_role() = ''teamlead'' and status in (''tl_approved'', ''rejected''))';
+  execute 'drop policy if exists ot_update_mgr on overtime_requests';
+  execute 'create policy ot_update_mgr on overtime_requests for update to authenticated using (public.is_manager()) with check (public.is_manager() and status in (''tl_approved'', ''approved'', ''rejected''))';
+
+  -- freeze request content on overtime too
+  execute 'drop trigger if exists trg_guard_overtime_immutable on overtime_requests';
+  execute 'create trigger trg_guard_overtime_immutable before update on overtime_requests for each row execute function public.guard_request_immutable()';
+end $$;
 
 -- ---------------------------------------------------------------
 -- 5. Notifications: only real employees may create them
