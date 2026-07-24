@@ -8,11 +8,13 @@ const { useState } = React;
    ANNOUNCEMENTS (NEW)
    ============================================================ */
 
-export function AnnPg({ user, announcements, onAdd, onDel }) {
+export function AnnPg({ user, announcements, onAdd, onDraft, onDel }) {
   const canCompose = user.role === "manager" || user.role === "teamlead";
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ title:"", message:"", priority:"info", pinned:false, target:"all" });
   const [er, setEr] = useState("");
+  const [draftPrompt, setDraftPrompt] = useState("");
+  const [draftBusy, setDraftBusy] = useState(false);
   const [filter, setFilter] = useState("all");
 
   const visible = user.role === "employee"
@@ -27,7 +29,32 @@ export function AnnPg({ user, announcements, onAdd, onDel }) {
     if (!form.title.trim() || !form.message.trim()) return setEr("Title and message required");
     onAdd(form);
     setForm({ title:"", message:"", priority:"info", pinned:false, target:"all" });
+    setDraftPrompt("");
     setShowForm(false);
+  };
+
+  const draftWithGpt = async () => {
+    setEr("");
+    if (!draftPrompt.trim()) return setEr("Describe what GPT should draft");
+    setDraftBusy(true);
+    try {
+      const result = await onDraft({
+        prompt: draftPrompt,
+        target: form.target,
+        priority: form.priority,
+      });
+      if (!result?.ok) {
+        setEr(result?.error || "Could not generate a draft");
+        return;
+      }
+      setForm(p => ({
+        ...p,
+        title: result.draft.title,
+        message: result.draft.message,
+      }));
+    } finally {
+      setDraftBusy(false);
+    }
   };
 
   return (
@@ -43,6 +70,20 @@ export function AnnPg({ user, announcements, onAdd, onDel }) {
             background:"rgba(239,68,68,0.1)", borderRadius:8, padding:"8px 12px",
             marginBottom:12, color:theme.rd, fontSize:12
           }}>{er}</div>}
+          <div style={{ marginBottom:12 }}>
+            <label style={{ display:"block", fontSize:10, color:theme.td, fontWeight:700, marginBottom:5 }}>GPT BRIEF</label>
+            <textarea value={draftPrompt} onChange={e => setDraftPrompt(e.target.value)}
+              rows={3} placeholder="Example: Draft an urgent all-team notice about tomorrow's 06:00 safety briefing in the workshop."
+              style={{ ...ib, resize:"vertical", fontFamily:"inherit" }} />
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:10, marginTop:8, flexWrap:"wrap" }}>
+              <div style={{ fontSize:11, color:theme.td }}>
+                GPT fills the title and message fields. Review before posting.
+              </div>
+              <Bt onClick={draftWithGpt} bg={theme.pl} disabled={draftBusy}>
+                {draftBusy ? "Generating..." : "Draft with GPT"}
+              </Bt>
+            </div>
+          </div>
           <div style={{ marginBottom:12 }}>
             <label style={{ display:"block", fontSize:10, color:theme.td, fontWeight:700, marginBottom:5 }}>TITLE</label>
             <input value={form.title} onChange={e => setForm(p => ({ ...p, title:e.target.value }))}
@@ -149,5 +190,3 @@ export function AnnCard({ a, canDel, onDel }) {
     </div>
   );
 }
-
-

@@ -82,6 +82,32 @@ export async function sendPush(toEmpId, title, body, url = "/") {
   }
 }
 
+export async function draftAnnouncementWithGpt(prompt, context = {}) {
+  if (!supa) return { ok: false, error: "Backend unavailable" };
+  try {
+    const { data, error } = await supa.functions.invoke("draft-announcement", {
+      body: {
+        prompt,
+        target: context.target || "all",
+        priority: context.priority || "info",
+      },
+    });
+    if (error) return { ok: false, error: error.message || "Draft generation failed" };
+    if (!data?.draft?.title || !data?.draft?.message) {
+      return { ok: false, error: "Invalid draft response" };
+    }
+    return {
+      ok: true,
+      draft: {
+        title: data.draft.title,
+        message: data.draft.message,
+      },
+    };
+  } catch (e) {
+    return { ok: false, error: e?.message || "Draft generation failed" };
+  }
+}
+
 export const empToDb = e => ({
   id: e.id, email: e.email,
   name: e.name, section: e.section,

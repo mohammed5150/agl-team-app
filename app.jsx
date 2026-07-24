@@ -4,7 +4,7 @@ import { TIERS_CAP } from "./src/rating.js";
 import { INITIAL_EMPLOYEES, INITIAL_LEAVE_REQUESTS, INITIAL_ANNOUNCEMENTS, nfId, INITIAL_NOTIFICATIONS } from "./src/seedData.js";
 import { nextEmpId } from "./src/helpers.js";
 import { applyLeaveAction, newRequestRecipients } from "./src/leaveWorkflow.js";
-import { supa, subscribePush, unsubscribePush, sendPush, empToDb, empFromDb, lrToDb, lrFromDb, annToDb, annFromDb, nfToDb, nfFromDb, diffById, pushSupported } from "./src/supabasePortal.js";
+import { supa, subscribePush, unsubscribePush, sendPush, draftAnnouncementWithGpt, empToDb, empFromDb, lrToDb, lrFromDb, annToDb, annFromDb, nfToDb, nfFromDb, diffById, pushSupported } from "./src/supabasePortal.js";
 import { Logo, Bd, Bt } from "./src/uiPrimitives.jsx";
 import { LoginPage } from "./src/LoginPage.jsx";
 import { ErrorBoundary } from "./src/ErrorBoundary.jsx";
@@ -606,6 +606,10 @@ function App() {
     ]);
   }, [nextAnnId, currentUser, employees]);
 
+  const draftAnn = useCallback(async ({ prompt, target, priority }) => {
+    return draftAnnouncementWithGpt(prompt, { target, priority });
+  }, []);
+
   const delAnn = useCallback(id => {
     setAnnouncements(p => p.filter(a => a.id !== id));
   }, []);
@@ -810,7 +814,7 @@ function App() {
                 : <MyAtt emp={currentUser} selectedMonth={selectedMonth} setSelectedMonth={setSelectedMonth} />)}
               {nav === "training" && (iM ? <TrMgmt employees={employees} /> : <MyTr emp={currentUser} />)}
               {nav === "documents" && (iM ? <DocsMgmt employees={employees} onSel={setViewEmployee} /> : <MyDocs emp={currentUser} onAdd={addDoc} onDel={delDoc} />)}
-              {nav === "announcements" && <AnnPg user={currentUser} announcements={announcements} onAdd={addAnn} onDel={delAnn} />}
+              {nav === "announcements" && <AnnPg user={currentUser} announcements={announcements} onAdd={addAnn} onDraft={draftAnn} onDel={delAnn} />}
             </div>
           )}
         </div>
@@ -854,5 +858,3 @@ if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("sw.js").catch(() => {});
   });
 }
-
-

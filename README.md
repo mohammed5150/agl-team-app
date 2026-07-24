@@ -20,6 +20,25 @@ triggers `npm run build` and publishes the `dist/` folder.
 
 - Production: https://auh-adb-portal.netlify.app
 
+## GPT announcement drafting
+
+Announcement drafting now uses a Supabase Edge Function so the OpenAI key stays
+server-side.
+
+Required Supabase Edge Function secrets:
+
+- `OPENAI_API_KEY` — your server-side OpenAI API key
+- `OPENAI_MODEL` — optional, defaults to `gpt-4.1-mini`
+
+Deploy the function after setting secrets:
+
+```bash
+supabase functions deploy draft-announcement
+```
+
+Managers and team leads can then open **Announcements** and use **Draft with
+GPT** to generate a title and message before posting.
+
 ## Project structure
 
 ```
