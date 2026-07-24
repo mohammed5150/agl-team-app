@@ -2,7 +2,7 @@ import { SECTIONS, ANN_PRIORITIES, theme } from "../constants.js";
 import { fmtDt } from "../helpers.js";
 import { ib, Bd, Bt, Sec, Modal, Empty } from "../uiPrimitives.jsx";
 
-const { useState } = React;
+const { useId, useState } = React;
 
 /* ============================================================
    ANNOUNCEMENTS (NEW)
@@ -16,6 +16,7 @@ export function AnnPg({ user, announcements, onAdd, onDraft, onDel }) {
   const [draftPrompt, setDraftPrompt] = useState("");
   const [draftBusy, setDraftBusy] = useState(false);
   const [filter, setFilter] = useState("all");
+  const draftPromptId = useId();
 
   const visible = user.role === "employee"
     ? announcements.filter(a => a.target === "all" || a.target === user.section)
@@ -52,6 +53,8 @@ export function AnnPg({ user, announcements, onAdd, onDraft, onDel }) {
         title: result.draft.title,
         message: result.draft.message,
       }));
+    } catch {
+      setEr("Could not generate a draft");
     } finally {
       setDraftBusy(false);
     }
@@ -70,9 +73,9 @@ export function AnnPg({ user, announcements, onAdd, onDraft, onDel }) {
             background:"rgba(239,68,68,0.1)", borderRadius:8, padding:"8px 12px",
             marginBottom:12, color:theme.rd, fontSize:12
           }}>{er}</div>}
-          <div style={{ marginBottom:12 }}>
-            <label style={{ display:"block", fontSize:10, color:theme.td, fontWeight:700, marginBottom:5 }}>GPT BRIEF</label>
-            <textarea value={draftPrompt} onChange={e => setDraftPrompt(e.target.value)}
+          <div aria-busy={draftBusy} style={{ marginBottom:12 }}>
+            <label htmlFor={draftPromptId} style={{ display:"block", fontSize:10, color:theme.td, fontWeight:700, marginBottom:5 }}>GPT BRIEF</label>
+            <textarea id={draftPromptId} value={draftPrompt} onChange={e => setDraftPrompt(e.target.value)}
               rows={3} placeholder="Example: Draft an urgent all-team notice about tomorrow's 06:00 safety briefing in the workshop."
               style={{ ...ib, resize:"vertical", fontFamily:"inherit" }} />
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:10, marginTop:8, flexWrap:"wrap" }}>
@@ -82,6 +85,9 @@ export function AnnPg({ user, announcements, onAdd, onDraft, onDel }) {
               <Bt onClick={draftWithGpt} bg={theme.pl} disabled={draftBusy}>
                 {draftBusy ? "Generating..." : "Draft with GPT"}
               </Bt>
+            </div>
+            <div aria-live="polite" style={{ fontSize:11, color:theme.td, marginTop:6, minHeight:16 }}>
+              {draftBusy ? "Generating GPT draft..." : ""}
             </div>
           </div>
           <div style={{ marginBottom:12 }}>

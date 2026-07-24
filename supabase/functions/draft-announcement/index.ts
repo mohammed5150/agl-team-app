@@ -14,23 +14,41 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY")!;
 const OPENAI_MODEL = Deno.env.get("OPENAI_MODEL") || "gpt-4.1-mini";
+const ALLOWED_ORIGINS = (Deno.env.get("ALLOWED_ORIGINS")
+  || "https://auh-adb-portal.netlify.app,http://localhost:8080").split(",")
+  .map(v => v.trim())
+  .filter(Boolean);
 
-const cors = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+function corsHeaders(origin: string | null) {
+  if (!origin || !ALLOWED_ORIGINS.includes(origin)) return null;
+  return {
+    "Access-Control-Allow-Origin": origin,
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+    "Vary": "Origin",
+  };
+}
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
-  if (req.method !== "POST") return json({ error: "method not allowed" }, 405);
-  if (!OPENAI_API_KEY) return json({ error: "OPENAI_API_KEY is not configured" }, 500);
+  const origin = req.headers.get("Origin");
+  if (origin && !corsHeaders(origin)) return json(null, { error: "origin not allowed" }, 403);
+  if (req.method === "OPTIONS") {
+    const headers = corsHeaders(origin);
+    return headers
+      ? new Response("ok", { headers })
+      : new Response("ok", { headers: { "Vary": "Origin" } });
+  }
+  if (req.method !== "POST") return json(origin, { error: "method not allowed" }, 405);
+  if (!OPENAI_API_KEY) return json(origin, { error: "OPENAI_API_KEY is not configured" }, 500);
 
   try {
     const authHeader = req.headers.get("Authorization") || "";
-    const userEmail = getJwtEmail(authHeader);
-    if (!userEmail) return json({ error: "unauthorized" }, 401);
-
     const sb = createClient(SUPABASE_URL, SERVICE_ROLE);
+    const token = getBearerToken(authHeader);
+    if (!token) return json(origin, { error: "unauthorized" }, 401);
+    const { data: authData, error: authError } = await sb.auth.getUser(token);
+    const userEmail = authData?.user?.email?.trim().toLowerCase() || "";
+    if (authError || !userEmail) return json(origin, { error: "unauthorized" }, 401);
+
     const { data: employee, error: employeeError } = await sb
       .from("employees")
       .select("id, email, role, section")
@@ -38,9 +56,9 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (employeeError) throw employeeError;
-    if (!employee) return json({ error: "employee not found" }, 403);
+    if (!employee) return json(origin, { error: "employee not found" }, 403);
     if (employee.role !== "manager" && employee.role !== "teamlead") {
-      return json({ error: "forbidden" }, 403);
+      return json(origin, { error: "forbidden" }, 403);
     }
 
     const body = await req.json();
@@ -48,8 +66,8 @@ Deno.serve(async (req) => {
     const target = typeof body?.target === "string" ? body.target.trim() : "all";
     const priority = typeof body?.priority === "string" ? body.priority.trim() : "info";
 
-    if (!prompt) return json({ error: "prompt is required" }, 400);
-    if (prompt.length > 1500) return json({ error: "prompt is too long" }, 400);
+    if (!prompt) return json(origin, { error: "prompt is required" }, 400);
+    if (prompt.length > 1500) return json(origin, { error: "prompt is too long" }, 400);
 
     const draft = await createDraft({
       prompt,
@@ -59,10 +77,10 @@ Deno.serve(async (req) => {
       authorSection: employee.section || "",
     });
 
-    return json({ draft });
+    return json(origin, { draft });
   } catch (e: any) {
     console.error("[draft-announcement] fatal:", e);
-    return json({ error: e?.message || String(e) }, 500);
+    return json(origin, { error: "Draft generation failed" }, 500);
   }
 });
 
@@ -140,28 +158,18 @@ function parseDraft(content: string) {
   };
 }
 
-function getJwtEmail(authHeader: string) {
-  const token = authHeader.replace(/^Bearer\s+/i, "").trim();
-  if (!token) return "";
-  const parts = token.split(".");
-  if (parts.length < 2) return "";
-  try {
-    const payload = JSON.parse(decodeBase64Url(parts[1]));
-    return String(payload?.email || "").trim().toLowerCase();
-  } catch {
-    return "";
-  }
+function getBearerToken(authHeader: string) {
+  if (!/^Bearer\s+/i.test(authHeader)) return "";
+  return authHeader.replace(/^Bearer\s+/i, "").trim();
 }
 
-function decodeBase64Url(input: string) {
-  const normalized = input.replace(/-/g, "+").replace(/_/g, "/");
-  const padded = normalized + "=".repeat((4 - normalized.length % 4) % 4);
-  return atob(padded);
-}
-
-function json(obj: unknown, status = 200) {
+function json(origin: string | null, obj: unknown, status = 200) {
+  const cors = corsHeaders(origin);
   return new Response(JSON.stringify(obj), {
     status,
-    headers: { ...cors, "Content-Type": "application/json" },
+    headers: {
+      ...(cors || { "Vary": "Origin" }),
+      "Content-Type": "application/json",
+    },
   });
 }

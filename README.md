@@ -29,6 +29,9 @@ Required Supabase Edge Function secrets:
 
 - `OPENAI_API_KEY` — your server-side OpenAI API key
 - `OPENAI_MODEL` — optional, defaults to `gpt-4.1-mini`
+- `ALLOWED_ORIGINS` — optional comma-separated allowlist for the edge
+  function CORS policy; defaults to the production Netlify URL and
+  `http://localhost:8080`
 
 Deploy the function after setting secrets:
 
