@@ -1,4 +1,4 @@
-import { SECTIONS, theme } from "../constants.js";
+import { SECTIONS, AIRPORTS, BAND_BY_KEY, theme } from "../constants.js";
 import { gradeFromRating, TIER_COLORS, TIERS_CAP, TIER_CAP_COLORS } from "../rating.js";
 import { parseCSV } from "../helpers.js";
 import { ib, Bd, Bt, Modal } from "../uiPrimitives.jsx";
@@ -236,12 +236,14 @@ export function Team({ employees, onSel, isMgr, isTL, onInvite, onBulkInvite }) 
   const [f, setF] = useState("All");
   const [tierF, setTierF] = useState("all");
   const [s, setS] = useState("");
+  const [apF, setApF] = useState("All");
   const [showInvite, setShowInvite] = useState(false);
   const [showBulk, setShowBulk] = useState(false);
   const showRating = isMgr || isTL;
 
   const fl = employees
     .filter(e => f === "All" || e.section === f)
+    .filter(e => apF === "All" || e.airport === apF)
     .filter(e => !e.name.toLowerCase().includes(s.toLowerCase()) ? false : true)
     .filter(e => {
       if (!showRating || tierF === "all") return true;
@@ -253,9 +255,9 @@ export function Team({ employees, onSel, isMgr, isTL, onInvite, onBulkInvite }) 
 
   const headers = showRating
     ? (isMgr
-        ? ["Name","Section","Designation","Grade","Tier","Salary",""]
-        : ["Name","Section","Designation","Grade","Tier",""])
-    : ["Name","Section","Designation",""];
+        ? ["Name","Section","Designation","Band","Grade","Tier","Salary",""]
+        : ["Name","Section","Designation","Band","Grade","Tier",""])
+    : ["Name","Section","Designation","Band",""];
 
   return (
     <div>
@@ -281,6 +283,19 @@ export function Team({ employees, onSel, isMgr, isTL, onInvite, onBulkInvite }) 
             color: f === sec ? "#fff" : theme.ts
           }}>{sec} ({sec === "All" ? employees.length : employees.filter(e => e.section === sec).length})</button>
         ))}
+      </div>
+      <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:12 }}>
+        {["All", ...AIRPORTS].map(ap => {
+          const n = ap === "All" ? employees.length : employees.filter(e => e.airport === ap).length;
+          if (ap !== "All" && n === 0) return null;
+          return (
+            <button type="button" key={ap} onClick={() => setApF(ap)} style={{
+              padding:"6px 14px", borderRadius:8, cursor:"pointer", fontSize:11, fontWeight:600,
+              background: apF === ap ? theme.cy : theme.card, border:"none",
+              color: apF === ap ? "#0b1a2b" : theme.ts
+            }}>{ap} ({n})</button>
+          );
+        })}
       </div>
       {showRating && (
         <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:12 }}>
@@ -319,6 +334,11 @@ export function Team({ employees, onSel, isMgr, isTL, onInvite, onBulkInvite }) 
                     <td style={{ padding:"10px 12px", color:theme.tx, fontWeight:500 }}>{e.name}</td>
                     <td style={{ padding:"10px 12px" }}><Bd text={e.section} color={theme.bu} /></td>
                     <td style={{ padding:"10px 12px", color:theme.ts }}>{e.designation}</td>
+                    <td style={{ padding:"10px 12px" }}>
+                      {e.band
+                        ? <Bd text={e.band} color={(BAND_BY_KEY[e.band] || {}).color || theme.bu} />
+                        : <span style={{ color:theme.td, fontSize:11 }}>—</span>}
+                    </td>
                     {showRating && (
                       <td style={{ padding:"10px 12px" }}>
                         {grade ? <Bd text={grade.label} color={grade.color} /> : <span style={{ color:theme.td, fontSize:11 }}>—</span>}

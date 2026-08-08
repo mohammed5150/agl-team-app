@@ -1,4 +1,20 @@
 export const SECTIONS = ["AGL 12hrs", "AGL 8hrs", "Helpdesk", "Systems", "High Masts"];
+
+// Performance bands from the manpower salary standardisation exercise
+// (final, 14-Jul-2026). Grade titles and descriptions only — no salary or
+// invoice figures are carried into the app.
+export const BANDS = [
+  { key: "A", grade: "AGL Supervisor / Expert", desc: "Expert / lead material",   color: "#a78bfa" },
+  { key: "B", grade: "Senior AGL Technician",   desc: "Proficient — independent", color: "#38bdf8" },
+  { key: "C", grade: "AGL Technician",          desc: "Competent — routine duties", color: "#10b981" },
+  { key: "D", grade: "FMV Driver (dedicated)",  desc: "Dedicated — full movement-area permit", color: "#f5a623" },
+  { key: "E", grade: "Helper",                  desc: "Below requirement",        color: "#94a3b8" }
+];
+export const BAND_KEYS = BANDS.map(b => b.key);
+export const BAND_BY_KEY = Object.fromEntries(BANDS.map(b => [b.key, b]));
+
+// Airports covered by the AGL maintenance contract.
+export const AIRPORTS = ["ZIA", "AAN", "AZI", "XSB", "ZDY"];
 export const LEAVE_TYPES = ["Annual Leave", "Sick Leave", "Comp-Off", "Emergency Leave", "Unpaid Leave"];
 export const STATUS_COLORS = { pending: "#f59e0b", tl_approved: "#38bdf8", approved: "#10b981", rejected: "#ef4444", withdrawn: "#94a3b8" };
 export const STATUS_LABELS = { pending: "Pending TL", tl_approved: "Pending MGR", approved: "Approved", rejected: "Rejected", withdrawn: "Withdrawn" };
