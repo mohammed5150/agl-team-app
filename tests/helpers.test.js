@@ -37,7 +37,7 @@ describe("parseCSV", () => {
     expect(parseCSV("")).toEqual({ columns: [], rows: [] });
   });
 
-  test("handles rows with missing columns by padding with empty strings", () => {
+  test("returns fewer columns when CSV row has missing trailing fields", () => {
     const out = parseCSV("email,name,section\na@x.ae,Bob");
     expect(out.rows[0]).toEqual(["a@x.ae", "Bob"]);
     expect(out.rows[0].length).toBe(2);

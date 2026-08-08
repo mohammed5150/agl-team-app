@@ -1,4 +1,4 @@
-import { SECTIONS, MONTHS, ATT_MONTHS, theme } from "../constants.js";
+import { SECTIONS, MONTHS, ATT_MONTHS, ATT_YEAR, theme } from "../constants.js";
 import { cH } from "../helpers.js";
 import { ib, Bd, Bt, SC2, Sec, Modal } from "../uiPrimitives.jsx";
 
@@ -13,7 +13,7 @@ export function AttPg({ employees, selectedMonth, setSelectedMonth, onEditRoster
   const [sr, setSr] = useState("");
   const [editEmp, setEditEmp] = useState(null);
   const fl = employees.filter(e => (sf === "All" || e.section === sf) && e.name.toLowerCase().includes(sr.toLowerCase()));
-  const mk = `2026-${String(selectedMonth+1).padStart(2,"0")}`;
+  const mk = `${ATT_YEAR}-${String(selectedMonth+1).padStart(2,"0")}`;
 
   return (
     <div>
@@ -25,7 +25,7 @@ export function AttPg({ employees, selectedMonth, setSelectedMonth, onEditRoster
             fontSize:13, fontWeight:600,
             background: selectedMonth === m ? theme.ga : theme.card, border:"none",
             color: selectedMonth === m ? "#fff" : theme.ts
-          }}>{MONTHS[m]} 2026</button>
+          }}>{MONTHS[m]} ${ATT_YEAR}</button>
         ))}
       </div>
       <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:12 }}>
@@ -86,7 +86,7 @@ export function AttPg({ employees, selectedMonth, setSelectedMonth, onEditRoster
       </div>
 
       {editEmp && (
-        <Modal title={`Edit Roster - ${editEmp.name} (${MONTHS[selectedMonth]} 2026)`} onClose={() => setEditEmp(null)} width={720}>
+        <Modal title={`Edit Roster - ${editEmp.name} (${MONTHS[selectedMonth]} ${ATT_YEAR})`} onClose={() => setEditEmp(null)} width={720}>
           <RosterEditor emp={editEmp} mk={mk} onEdit={onEditRoster} />
         </Modal>
       )}
@@ -140,11 +140,11 @@ export function RosterEditor({ emp, mk, onEdit }) {
 
 export function MyAtt({ emp, selectedMonth, setSelectedMonth }) {
   const cc = { M:theme.gn, N:theme.pu, O:theme.td, L:theme.yl };
-  const mk = `2026-${String(selectedMonth+1).padStart(2,"0")}`;
+  const mk = `${ATT_YEAR}-${String(selectedMonth+1).padStart(2,"0")}`;
   const ro = emp.roster?.[mk] || [];
   const h = cH(ro, emp.section);
   const ms = ATT_MONTHS.map(m => {
-    const k = `2026-${String(m+1).padStart(2,"0")}`;
+    const k = `${ATT_YEAR}-${String(m+1).padStart(2,"0")}`;
     const hr = cH(emp.roster?.[k], emp.section);
     return { m:MONTHS[m], sc:hr.sc, w:hr.w, idx:m };
   });
@@ -178,7 +178,7 @@ export function MyAtt({ emp, selectedMonth, setSelectedMonth }) {
         <SC2 label="Day" value={h.mc} color={theme.gn} icon="☀️" />
         <SC2 label="Night" value={h.nc} color={theme.pu} icon="🌙" />
       </div>
-      <Sec title={`${MONTHS[selectedMonth]} 2026 Roster`} icon="📋">
+      <Sec title={`${MONTHS[selectedMonth]} ${ATT_YEAR} Roster`} icon="📋">
         <div style={{ display:"flex", gap:5, flexWrap:"wrap" }}>
           {ro.map(d => {
             const dn = ["SU","MO","TU","WE","TH","FR","SA"][new Date(d.date).getDay()];
