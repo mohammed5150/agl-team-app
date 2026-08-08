@@ -135,7 +135,7 @@ function buildSeed() {
   ["EMP-058", "Mustafah Arshad",                  "High Masts", "FMV Driver",          0, "D",  "ZIA",  "Epic"            ],
   ["EMP-059", "Ayyappan Shanmugam",               "AGL 8hrs",  "AGL Supervisor",      0, "A",  "XSB",  "Al Burj"         ],
   ["EMP-060", "Neeraj",                           "AGL 8hrs",  "Sr. AGL Technician",  0, "B",  "ZIA",  "Al Burj"         ],
-  ["EMP-061", "abdul Jaleel",                     "AGL 8hrs",  "FMV Driver",          0, "D",  "ZDY",  "Bahar Al Rayan"  ],
+  ["EMP-061", "Abdul Jaleel",                     "AGL 8hrs",  "FMV Driver",          0, "D",  "ZDY",  "Bahar Al Rayan"  ],
   ["EMP-062", "Abu Bakar",                        "AGL 8hrs",  "FMV Driver",          0, "D",  "ZIA",  "Bahar Al Rayan"  ],
   ["EMP-063", "Aftab",                            "AGL 8hrs",  "AGL Technician",      0, "C",  "AZI",  "Bahar Al Rayan"  ],
   ["EMP-064", "Sanilal",                          "AGL 8hrs",  "AGL Supervisor",      0, "A",  "AZI",  "Bahar Al Rayan"  ],
