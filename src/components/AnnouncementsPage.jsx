@@ -87,21 +87,21 @@ export function AnnPg({ user, announcements, onAdd, onDel }) {
       )}
 
       <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:16 }}>
-        <div onClick={() => setFilter("all")} style={{
+        <button type="button" onClick={() => setFilter("all")} style={{
           padding:"6px 14px", borderRadius:8, cursor:"pointer",
           fontSize:12, fontWeight:600,
-          background: filter === "all" ? theme.pl : theme.card,
+          background: filter === "all" ? theme.pl : theme.card, border:"none",
           color: filter === "all" ? "#fff" : theme.ts
-        }}>All ({visible.length})</div>
+        }}>All ({visible.length})</button>
         {ANN_PRIORITIES.map(pr => {
           const count = visible.filter(a => a.priority === pr.key).length;
           return (
-            <div key={pr.key} onClick={() => setFilter(pr.key)} style={{
+            <button type="button" key={pr.key} onClick={() => setFilter(pr.key)} style={{
               padding:"6px 14px", borderRadius:8, cursor:"pointer",
               fontSize:12, fontWeight:600,
-              background: filter === pr.key ? pr.color : theme.card,
+              background: filter === pr.key ? pr.color : theme.card, border:"none",
               color: filter === pr.key ? "#fff" : theme.ts
-            }}>{pr.label} ({count})</div>
+            }}>{pr.label} ({count})</button>
           );
         })}
       </div>
@@ -121,7 +121,7 @@ export function AnnPg({ user, announcements, onAdd, onDel }) {
   );
 }
 
-export function AnnCard({ a, canDel, onDel }) {
+export const AnnCard = React.memo(function AnnCard({ a, canDel, onDel }) {
   const pr = ANN_PRIORITIES.find(p => p.key === a.priority);
   return (
     <div style={{
@@ -148,6 +148,5 @@ export function AnnCard({ a, canDel, onDel }) {
       <div style={{ fontSize:13, color:theme.ts, marginTop:10, lineHeight:1.5, whiteSpace:"pre-wrap" }}>{a.message}</div>
     </div>
   );
-}
-
+});
 

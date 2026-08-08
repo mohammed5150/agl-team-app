@@ -7,7 +7,7 @@ export const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oc
 // Keep the selectable month within this range so the page never opens on a
 // month with no pill and no data.
 export const ATT_MONTHS = [0,1,2,3,4,5];
-export const ATT_YEAR = 2026;
+export const ATT_YEAR = new Date().getFullYear();
 export function defaultAttMonth() {
   const m = new Date().getMonth();
   return ATT_MONTHS.includes(m) ? m : ATT_MONTHS[ATT_MONTHS.length - 1];

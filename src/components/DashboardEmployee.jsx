@@ -1,4 +1,4 @@
-import { ANN_PRIORITIES, theme } from "../constants.js";
+import { ANN_PRIORITIES, ATT_YEAR, theme } from "../constants.js";
 import { fmtDt } from "../helpers.js";
 import { Bd, Bt, Sec } from "../uiPrimitives.jsx";
 import { PASTEL, INK, Ring, Spark, Tile } from "./charts.jsx";
@@ -15,17 +15,23 @@ export function EDash({ user, announcements, onGoTo }) {
   const latestAnn = myAnn.filter(a => !a.pinned).slice(0, 3);
 
   const docsExpiring = (user.documents || []).filter(d => {
-    const diff = (new Date(d.expiryDate) - new Date()) / 864e5;
+    if (!d.expiryDate) return false;
+    const expDate = new Date(d.expiryDate);
+    if (isNaN(expDate.getTime())) return false;
+    const diff = (expDate - new Date()) / 864e5;
     return diff >= 0 && diff <= 90;
   });
   const certsExpiring = (user.training || []).filter(x => {
-    const diff = (new Date(x.certExpiry) - new Date()) / 864e5;
+    if (!x.certExpiry) return false;
+    const expDate = new Date(x.certExpiry);
+    if (isNaN(expDate.getTime())) return false;
+    const diff = (expDate - new Date()) / 864e5;
     return diff >= 0 && diff <= 90;
   });
 
   // Today roster code for the status pill
   const today = new Date();
-  const mk = `2026-${String(today.getMonth()+1).padStart(2,"0")}`;
+  const mk = `${ATT_YEAR}-${String(today.getMonth()+1).padStart(2,"0")}`;
   const dayIdx = today.getDate() - 1;
   const todayCode = user.roster?.[mk]?.[dayIdx]?.code;
   const dutyLabel = todayCode === "O" ? "OFF DUTY"
@@ -40,7 +46,7 @@ export function EDash({ user, announcements, onGoTo }) {
 
   // Sparkline of leave usage (mock monthly distribution from roster)
   const monthlyLeaves = [0,1,2,3].map(m => {
-    const r = user.roster?.[`2026-${String(m+1).padStart(2,"0")}`] || [];
+    const r = user.roster?.[`${ATT_YEAR}-${String(m+1).padStart(2,"0")}`] || [];
     return r.filter(d => d.code === "L").length;
   });
   const currentMonthIdx = today.getMonth();
@@ -57,7 +63,7 @@ export function EDash({ user, announcements, onGoTo }) {
             {user.name.split(" ")[0].toUpperCase()}
           </h2>
         </div>
-        <div style={{ width:48, height:48, borderRadius:"50%", background:theme.gp,
+        <div aria-label={`Avatar for ${user.name}`} role="img" style={{ width:48, height:48, borderRadius:"50%", background:theme.gp,
           display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, fontWeight:800, color:"#fff" }}>
           {user.name.split(" ").map(n => n[0]).join("").slice(0,2)}
         </div>

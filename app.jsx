@@ -51,6 +51,7 @@ function App() {
   const prevLeaveRequestsRef = useRef([]);
   const prevAnnouncementsRef = useRef([]);
   const prevNotificationsRef = useRef([]);
+  const loadingRef = useRef(false);
   // Set once the user clears their initial password, so a concurrent data
   // refetch (triggered by the change-password re-auth) can't re-flag them.
   const pwClearedRef = useRef(false);
@@ -64,15 +65,19 @@ function App() {
       const raw = localStorage.getItem(LOCAL_KEY);
       if (raw) {
         const d = JSON.parse(raw);
-        if (Array.isArray(d.notifications)) setNotifications(d.notifications);
-        if (typeof d.nextLrId === "number") setNextLrId(d.nextLrId);
-        if (typeof d.nextAnnId === "number") setNextAnnId(d.nextAnnId);
+        if (d && typeof d === "object") {
+          if (Array.isArray(d.notifications)) setNotifications(d.notifications);
+          if (typeof d.nextLrId === "number") setNextLrId(d.nextLrId);
+          if (typeof d.nextAnnId === "number") setNextAnnId(d.nextAnnId);
+        }
       }
-    } catch {}
+    } catch (e) { console.warn("[portal] localStorage parse error:", e); }
   }, []);
 
   // Load all team data from Supabase for an authenticated user
   const loadPortalData = useCallback(async (authEmail) => {
+    if (loadingRef.current) return;
+    loadingRef.current = true;
     try {
       const [empsR, lrsR, annsR, nfsR] = await Promise.all([
         supa.from("employees").select("*").order("id"),
@@ -189,6 +194,8 @@ function App() {
       }
     } catch (e) {
       console.error("[portal] loadPortalData error:", e);
+    } finally {
+      loadingRef.current = false;
     }
   }, [setLoginError]);
 
@@ -222,7 +229,7 @@ function App() {
       localStorage.setItem(LOCAL_KEY, JSON.stringify({
         notifications, nextLrId, nextAnnId,
       }));
-    } catch {}
+    } catch (e) { console.warn("[portal] localStorage save error:", e); }
   }, [notifications, nextLrId, nextAnnId]);
 
   // Debounced upsert: only rows that actually changed are pushed.
@@ -371,9 +378,9 @@ function App() {
 
   const logout = useCallback(async () => {
     // Unsubscribe push first so this device stops receiving for the previous user
-    try { await unsubscribePush(); } catch {}
-    if (supa) { try { await supa.auth.signOut(); } catch {} }
-    if (window.__portalChannel) { try { window.__portalChannel.unsubscribe(); } catch {} window.__portalChannel = null; }
+    try { await unsubscribePush(); } catch (e) { console.warn("[logout] push unsubscribe:", e); }
+    if (supa) { try { await supa.auth.signOut(); } catch (e) { console.warn("[logout] signOut:", e); } }
+    if (window.__portalChannel) { try { window.__portalChannel.unsubscribe(); } catch (e) { console.warn("[logout] channel unsubscribe:", e); } window.__portalChannel = null; }
     setLoginId(""); setLoginPassword(""); setLoginError(""); setLoginSubmitting(false);
     setNav("dashboard"); setViewEmployee(null);
     // Clear the route hash so the next user on this device starts on the
@@ -675,7 +682,7 @@ function App() {
   return (
     <div style={{ display:"flex", minHeight:"100vh", background:theme.bg }}>
       {/* SIDEBAR */}
-      <div style={{
+      <nav aria-label="Main navigation" style={{
         width: sidebarOpen ? 230 : 56, transition:"width 0.3s",
         background:"rgba(13,31,48,0.95)", borderRight:`1px solid ${theme.bd}`,
         display:"flex", flexDirection:"column", overflow:"hidden", flexShrink:0
@@ -725,7 +732,7 @@ function App() {
           display:"flex", alignItems:"center", gap:8,
           justifyContent: sidebarOpen ? "flex-start" : "center"
         }}>
-          <div style={{
+          <div aria-label={`Avatar for ${currentUser.name}`} role="img" style={{
             width:30, height:30, borderRadius:10, background:theme.gp,
             display:"flex", alignItems:"center", justifyContent:"center",
             fontSize:11, fontWeight:800, color:"#fff"
@@ -737,10 +744,10 @@ function App() {
             </div>
           )}
         </div>
-      </div>
+      </nav>
 
       {/* MAIN */}
-      <div style={{ flex:1, display:"flex", flexDirection:"column", minWidth:0 }}>
+      <main style={{ flex:1, display:"flex", flexDirection:"column", minWidth:0 }}>
         <div style={{
           height:52, background:"rgba(13,31,48,0.9)",
           borderBottom:`1px solid ${theme.bd}`,
@@ -814,7 +821,7 @@ function App() {
             </div>
           )}
         </div>
-      </div>
+      </main>
 
       {syncError && (
         <div role="alert" style={{
@@ -851,7 +858,7 @@ if (reactRootEl) {
 // Register service worker for PWA install capability
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("sw.js").catch(() => {});
+    navigator.serviceWorker.register("sw.js").catch((e) => { console.warn("[sw] registration failed:", e); });
   });
 }
 

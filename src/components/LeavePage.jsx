@@ -61,7 +61,7 @@ export function LvFm({ onSub, onCan }) {
   );
 }
 
-export function LvCd({ req, role, viewerId, onAct }) {
+export const LvCd = React.memo(function LvCd({ req, role, viewerId, onAct }) {
   const [cm, setCm] = useState("");
   const [sa, setSa] = useState(false);
   const ca = (role === "teamlead" && req.status === "pending") || (role === "manager" && req.status === "tl_approved");
@@ -110,7 +110,7 @@ export function LvCd({ req, role, viewerId, onAct }) {
       )}
     </div>
   );
-}
+});
 
 export function LvPg({ user, leaveRequests, onSub, onAct }) {
   const isE = user.role === "employee";
@@ -142,21 +142,21 @@ export function LvPg({ user, leaveRequests, onSub, onAct }) {
       )}
       <div style={{ display:"flex", gap:6, marginBottom:14, flexWrap:"wrap" }}>
         {isE && (
-          <div onClick={() => setTab("my")} style={{
+          <button type="button" onClick={() => setTab("my")} style={{
             padding:"7px 14px", borderRadius:10, cursor:"pointer", fontSize:12, fontWeight:600,
-            background: tab === "my" ? theme.pl : theme.card, color: tab === "my" ? "#fff" : theme.ts
-          }}>My ({my.length})</div>
+            background: tab === "my" ? theme.pl : theme.card, color: tab === "my" ? "#fff" : theme.ts, border:"none"
+          }}>My ({my.length})</button>
         )}
         {!isE && (
-          <div onClick={() => setTab("all")} style={{
+          <button type="button" onClick={() => setTab("all")} style={{
             padding:"7px 14px", borderRadius:10, cursor:"pointer", fontSize:12, fontWeight:600,
-            background: tab === "all" ? theme.pl : theme.card, color: tab === "all" ? "#fff" : theme.ts
-          }}>All ({leaveRequests.length})</div>
+            background: tab === "all" ? theme.pl : theme.card, color: tab === "all" ? "#fff" : theme.ts, border:"none"
+          }}>All ({leaveRequests.length})</button>
         )}
         {!isE && (
-          <div onClick={() => setTab("pending")} style={{
+          <button type="button" onClick={() => setTab("pending")} style={{
             padding:"7px 14px", borderRadius:10, cursor:"pointer", fontSize:12, fontWeight:600,
-            background: tab === "pending" ? theme.or : theme.card, color: tab === "pending" ? "#fff" : theme.ts, position:"relative"
+            background: tab === "pending" ? theme.or : theme.card, color: tab === "pending" ? "#fff" : theme.ts, position:"relative", border:"none"
           }}>
             Pending ({pn.length})
             {pn.length > 0 && (
@@ -166,7 +166,7 @@ export function LvPg({ user, leaveRequests, onSub, onAct }) {
                 display:"flex", alignItems:"center", justifyContent:"center"
               }}>{pn.length}</span>
             )}
-          </div>
+          </button>
         )}
       </div>
       {!sh.length
@@ -192,4 +192,3 @@ export function ApPg({ user, leaveRequests, onAct }) {
     </div>
   );
 }
-

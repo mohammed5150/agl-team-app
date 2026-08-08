@@ -55,11 +55,11 @@ export function Prof({ emp, canEdit, onSave, onAdd, isStaff, isMgr }) {
         <div style={{ background:theme.cs, borderRadius:14, padding:20, border:`1px solid ${theme.or}40`, marginBottom:18 }}>
           <div style={{ display:"flex", gap:8, marginBottom:12 }}>
             {["achievement","warning","action"].map(tp => (
-              <div key={tp} onClick={() => setAf(p => ({ ...p, type:tp }))} style={{
+              <button type="button" key={tp} onClick={() => setAf(p => ({ ...p, type:tp }))} style={{
                 padding:"6px 14px", borderRadius:8, cursor:"pointer", fontSize:12, fontWeight:600,
-                background: af.type === tp ? (tp === "warning" ? theme.rd : tp === "achievement" ? theme.gn : theme.bu) : theme.card,
+                background: af.type === tp ? (tp === "warning" ? theme.rd : tp === "achievement" ? theme.gn : theme.bu) : theme.card, border:"none",
                 color: af.type === tp ? "#fff" : theme.ts, textTransform:"capitalize"
-              }}>{tp}</div>
+              }}>{tp}</button>
             ))}
           </div>
           <input placeholder="Title..." value={af.title} onChange={e => setAf(p => ({ ...p, title:e.target.value }))}
@@ -80,7 +80,7 @@ export function Prof({ emp, canEdit, onSave, onAdd, isStaff, isMgr }) {
         background:theme.gp, borderRadius:16, padding:24, marginBottom:18,
         display:"flex", alignItems:"center", gap:18, flexWrap:"wrap"
       }}>
-        <div style={{
+        <div aria-label={`Avatar for ${emp.name}`} role="img" style={{
           width:64, height:64, borderRadius:16, background:"rgba(255,255,255,0.12)",
           display:"flex", alignItems:"center", justifyContent:"center",
           fontSize:22, fontWeight:800, color:"#fff"
@@ -196,4 +196,3 @@ export function Prof({ emp, canEdit, onSave, onAdd, isStaff, isMgr }) {
     </div>
   );
 }
-

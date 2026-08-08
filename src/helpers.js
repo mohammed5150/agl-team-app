@@ -51,7 +51,9 @@ export const cH = (r, s) => {
 
 export const certSt = exp => {
   if (!exp) return { l:"—", c:theme.td, d:0 };
-  const d = (new Date(exp) - new Date()) / 864e5;
+  const expDate = new Date(exp);
+  if (isNaN(expDate.getTime())) return { l:"—", c:theme.td, d:0 };
+  const d = (expDate - new Date()) / 864e5;
   return d < 0 ? { l:"EXPIRED", c:theme.rd, d:Math.ceil(d) }
        : d <= 90 ? { l:"EXPIRING", c:theme.yl, d:Math.ceil(d) }
        : { l:"VALID", c:theme.gn, d:Math.ceil(d) };

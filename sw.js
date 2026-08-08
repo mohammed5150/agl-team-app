@@ -27,7 +27,7 @@ const PRECACHE_ASSETS = [
 
 self.addEventListener("install", (ev) => {
   ev.waitUntil(
-    caches.open(STATIC_CACHE).then((c) => c.addAll(PRECACHE_ASSETS)).catch(() => {})
+    caches.open(STATIC_CACHE).then((c) => c.addAll(PRECACHE_ASSETS)).catch((e) => { console.warn("[sw] precache failed:", e); })
   );
   self.skipWaiting();
 });
@@ -125,7 +125,7 @@ self.addEventListener("notificationclick", (ev) => {
       // Same-origin tab? focus it and navigate.
       if (new URL(c.url).origin === self.location.origin && "focus" in c) {
         await c.focus();
-        try { c.navigate(target); } catch {}
+        try { c.navigate(target); } catch (e) { console.warn("[sw] navigate error:", e); }
         return;
       }
     }
