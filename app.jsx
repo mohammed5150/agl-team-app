@@ -5,6 +5,7 @@ import { INITIAL_EMPLOYEES, INITIAL_LEAVE_REQUESTS, INITIAL_ANNOUNCEMENTS, nfId,
 import { nextEmpId } from "./src/helpers.js";
 import { applyLeaveAction, newRequestRecipients } from "./src/leaveWorkflow.js";
 import { applyOvertimeAction, newOvertimeRecipients } from "./src/overtimeWorkflow.js";
+import { needsOnboarding, sanitizeEmployeeEdit, canFinalizeProfile } from "./src/onboarding.js";
 import { supa, subscribePush, unsubscribePush, sendPush, empToDb, empFromDb, lrToDb, lrFromDb, otToDb, otFromDb, annToDb, annFromDb, nfToDb, nfFromDb, diffById, pushSupported } from "./src/supabasePortal.js";
 import { Logo, Bd, Bt } from "./src/uiPrimitives.jsx";
 import { LoginPage } from "./src/LoginPage.jsx";
@@ -21,6 +22,7 @@ import { OtPg } from "./src/components/OvertimePage.jsx";
 import { NotifPanel } from "./src/components/NotifPanel.jsx";
 import { Perf } from "./src/components/PerformancePage.jsx";
 import { Prof } from "./src/components/Profile.jsx";
+import { Onboarding } from "./src/components/Onboarding.jsx";
 import { Team } from "./src/components/TeamPage.jsx";
 import { MyTr, TrMgmt } from "./src/components/TrainingPage.jsx";
 
@@ -46,6 +48,8 @@ function App() {
   const [selectedMonth, setSelectedMonth] = useState(defaultAttMonth());
   const [showNotif, setShowNotif] = useState(false);
   const [syncError, setSyncError] = useState("");
+  // "Skip for now" only defers onboarding for this session; it is never persisted.
+  const [onboardingSkipped, setOnboardingSkipped] = useState(false);
 
   // --- Persistence: Supabase Auth + Supabase DB (tables RLS-protected)
   //   Data is only loaded once the user has an authenticated session.
@@ -679,6 +683,30 @@ function App() {
     res.pushes.forEach(pu => sendPush(pu.to, pu.title, pu.body, "/"));
   }, [currentUser, overtimeRequests]);
 
+  // Employee saving their own onboarding draft. sanitizeEmployeeEdit drops
+  // anything outside the editable allowlist and refuses once finalized — the
+  // database enforces the same rules (guard_employee_profile_lock).
+  const saveOwnProfile = useCallback(patch => {
+    if (!currentUser) return;
+    const clean = sanitizeEmployeeEdit(currentUser, patch);
+    if (!Object.keys(clean).length) return;
+    setEmployees(p => p.map(e => e.id === currentUser.id ? { ...e, ...clean } : e));
+    setCurrentUser(p => ({ ...p, ...clean }));
+  }, [currentUser]);
+
+  // Finalize: save the last edits, then flip the lock. One-way for an
+  // employee — only a manager can reopen it afterwards.
+  const finalizeOwnProfile = useCallback(patch => {
+    if (!currentUser) return;
+    const clean = sanitizeEmployeeEdit(currentUser, patch || {});
+    const next = { ...currentUser, ...clean };
+    if (!canFinalizeProfile(currentUser, next)) return;
+    const done = { ...clean, profileFinalized: true };
+    setEmployees(p => p.map(e => e.id === currentUser.id ? { ...e, ...done } : e));
+    setCurrentUser(p => ({ ...p, ...done }));
+    setNav("dashboard");
+  }, [currentUser]);
+
   const editRoster = useCallback((eid, mk, day, newCode) => {
     setEmployees(prev => prev.map(e => {
       if (e.id !== eid) return e;
@@ -781,6 +809,21 @@ function App() {
   // Enforced at render (not by scattered nav checks) so no route bypasses it.
   if (currentUser.initialPassword) {
     return <ChPw onCh={changePassword} forced={true} onOut={logout} />;
+  }
+
+  // First login with a password already set: send the user through profile
+  // setup before the dashboard. Rendered at the same level as the password
+  // gate so no route can bypass it. "Skip for now" defers it for this session
+  // only — nothing about the skip is persisted.
+  if (needsOnboarding(currentUser) && !onboardingSkipped && nav !== "changepw") {
+    return (
+      <Onboarding
+        emp={currentUser}
+        onSave={saveOwnProfile}
+        onFinalize={finalizeOwnProfile}
+        onSkip={() => setOnboardingSkipped(true)}
+      />
+    );
   }
 
   if (nav === "changepw") {
@@ -906,7 +949,7 @@ function App() {
             <div className="fade-in">
               <Bt onClick={() => setViewEmployee(null)} outline={true} small={true}>← Back</Bt>
               <div style={{ marginTop:12 }}>
-                <Prof emp={viewEmployee} canEdit={iM} isStaff={iM} isMgr={iMgr} onSave={saveProfile} onAdd={addEmployeeAction} onAddDoc={addDoc} onDelDoc={delDoc} />
+                <Prof emp={viewEmployee} actor={currentUser} canEdit={iM} isStaff={iM} isMgr={iMgr} onSave={saveProfile} onAdd={addEmployeeAction} onAddDoc={addDoc} onDelDoc={delDoc} />
               </div>
             </div>
           ) : (
@@ -914,7 +957,7 @@ function App() {
               {nav === "dashboard" && (iM
                 ? <MDash user={currentUser} employees={employees} leaveRequests={leaveRequests} announcements={announcements} pc={pc} onGoTo={setNav} />
                 : <EDash user={currentUser} announcements={announcements} onGoTo={setNav} />)}
-              {nav === "profile" && <Prof emp={currentUser} canEdit={iM || !currentUser.profileFinalized} isStaff={iM} isMgr={iMgr} onSave={saveProfile} onAdd={addEmployeeAction} onAddDoc={addDoc} onDelDoc={delDoc} />}
+              {nav === "profile" && <Prof emp={currentUser} actor={currentUser} canEdit={iM || !currentUser.profileFinalized} isStaff={iM} isMgr={iMgr} onSave={saveProfile} onAdd={addEmployeeAction} onAddDoc={addDoc} onDelDoc={delDoc} />}
               {nav === "team" && <Team employees={employees} onSel={setViewEmployee} isMgr={iMgr} isTL={isTL} onInvite={addInviteEmployee} onBulkInvite={addInviteEmployeesBulk} />}
               {nav === "performance" && iM && <Perf employees={employees} onSel={setViewEmployee} isMgr={iMgr} onSave={saveRating} />}
               {nav === "leave" && <LvPg user={currentUser} leaveRequests={leaveRequests} onSub={submitLeave} onAct={leaveAction} />}

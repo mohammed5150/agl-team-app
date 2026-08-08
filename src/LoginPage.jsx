@@ -61,7 +61,7 @@ export function LoginPage({
                 autoComplete="username"
                 value={loginId}
                 onChange={e => setLoginId(e.target.value)}
-                placeholder="your.email@adbsafegate.ae"
+                placeholder="your.name@adbsafegate.com"
                 style={ib}
               />
             </div>
@@ -89,11 +89,10 @@ export function LoginPage({
               }}
             >{loginSubmitting ? "Signing in…" : "Sign In"}</button>
           </form>
-          {(typeof __SHOW_DEMO__ !== "undefined" ? __SHOW_DEMO__ : true) && (
-            <div style={{ textAlign:"center", marginTop:12, fontSize:11, color:theme.td }}>
-              Default password: <strong style={{ color:theme.or }}>Adb@2026</strong>
-            </div>
-          )}
+          <div style={{ textAlign:"center", marginTop:14, fontSize:11, color:theme.td, lineHeight:1.6 }}>
+            Sign in with your Team Mail ID. First time here? Enter your team email
+            and choose your own password — it becomes your permanent password.
+          </div>
         </div>
         {(typeof __SHOW_DEMO__ !== "undefined" ? __SHOW_DEMO__ : true) && (
         <div style={{
