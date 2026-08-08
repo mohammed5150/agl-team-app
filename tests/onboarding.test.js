@@ -5,6 +5,7 @@ import {
   missingRequired, isProfileComplete, profileStatus, completionPercent,
   needsOnboarding, sanitizeEmployeeEdit,
   canEditProfile, canUnlockProfile, canFinalizeProfile,
+  isEmailTaken, normalizeLoginId,
 } from "../src/onboarding.js";
 import { empToDb, empFromDb } from "../src/supabasePortal.js";
 
@@ -249,5 +250,66 @@ describe("field lists stay disjoint", () => {
   it("every required field is employee-editable", () => {
     const orphan = REQUIRED_FIELDS.filter(f => !EMPLOYEE_EDITABLE_FIELDS.includes(f));
     expect(orphan).toEqual([]);
+  });
+});
+
+describe("duplicate login IDs are rejected", () => {
+  const roster = [
+    emp({ id: "EMP-001", email: "amarnath.munderi@adbsafegate.com" }),
+    emp({ id: "EMP-051", email: "Bv4haris@gmail.com" }),
+  ];
+
+  it("rejects an exact duplicate", () => {
+    expect(isEmailTaken(roster, "amarnath.munderi@adbsafegate.com")).toBe(true);
+  });
+
+  it("rejects a case-different duplicate", () => {
+    expect(isEmailTaken(roster, "AMARNATH.MUNDERI@ADBSAFEGATE.COM")).toBe(true);
+    expect(isEmailTaken(roster, "bv4haris@gmail.com")).toBe(true);
+  });
+
+  it("rejects a duplicate with surrounding whitespace", () => {
+    expect(isEmailTaken(roster, "  amarnath.munderi@adbsafegate.com  ")).toBe(true);
+  });
+
+  it("accepts an unused team mail ID", () => {
+    expect(isEmailTaken(roster, "nisar.ahmed@adbsafegate.com")).toBe(false);
+  });
+
+  it("does not flag a row against itself, so a manager can re-save it", () => {
+    expect(isEmailTaken(roster, "Bv4haris@gmail.com", "EMP-051")).toBe(false);
+  });
+
+  it("treats a blank email as not taken", () => {
+    expect(isEmailTaken(roster, "")).toBe(false);
+    expect(isEmailTaken(roster, null)).toBe(false);
+  });
+
+  it("preserves the stored casing of a team mail ID", () => {
+    // Bv4haris@gmail.com is compared case-insensitively but stored verbatim.
+    expect(normalizeLoginId("Bv4haris@gmail.com")).toBe("bv4haris@gmail.com");
+    expect(empToDb(emp({ email: "Bv4haris@gmail.com" })).email).toBe("Bv4haris@gmail.com");
+  });
+});
+
+describe("manager and admin corrections survive the lock", () => {
+  const locked = emp({ profileFinalized: true });
+
+  it("a manager may still edit a locked profile", () => {
+    expect(canEditProfile(MGR, locked)).toBe(true);
+  });
+
+  it("a team lead may still edit a locked profile", () => {
+    expect(canEditProfile(TL, locked)).toBe(true);
+  });
+
+  it("only a manager may reopen it", () => {
+    expect(canUnlockProfile(MGR, locked)).toBe(true);
+    expect(canUnlockProfile(TL, locked)).toBe(false);
+    expect(canUnlockProfile(locked, locked)).toBe(false);
+  });
+
+  it("staff editing rights do not depend on the target being their own row", () => {
+    expect(canEditProfile(MGR, emp({ id: "EMP-999" }))).toBe(true);
   });
 });

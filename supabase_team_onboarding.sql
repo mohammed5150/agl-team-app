@@ -156,6 +156,70 @@ revoke all on function public.guard_employee_profile_lock() from anon, authentic
 
 -- No change required; documented for reviewers.
 
+-- ---------------------------------------------------------------
+-- e. Team Mail ID mapping
+--
+-- The employees table currently carries derived @adbsafegate.ae
+-- addresses. The Team Mail ID is the permanent login ID, so these rows
+-- are repointed at their real addresses.
+--
+-- ONLY the twelve confirmed mappings are applied. Two Team Mail IDs
+-- remain UNRESOLVED and are deliberately absent:
+--
+--   praveen6273@gmail.com
+--       roster holds two candidates — Praveen Arunachalam (EMP-052)
+--       and Praveen Koothoor (EMP-080)
+--   jjijosebastian311@gmail.com
+--       labelled "Jiji"; roster holds Jiji Varghese (EMP-020) and
+--       Jijo Sebastian (EMP-057), and the address reads "jijosebastian"
+--
+-- Do not add either until the owner confirms which person it belongs
+-- to. An incorrect mapping hands one employee another's login.
+--
+-- Guarded so it is idempotent and can never collide: a row is only
+-- updated when the target address is not already held by a different
+-- employee.
+-- ---------------------------------------------------------------
+
+do $$
+declare
+  m record;
+begin
+  for m in
+    select * from (values
+      ('EMP-048', 'muhammed.farhan.ext@adbsafegate.com'),  -- Farhan
+      ('EMP-009', 'anurag.aikkal@adbsafegate.com'),        -- Anurag
+      ('EMP-001', 'amarnath.munderi@adbsafegate.com'),     -- Amarnath
+      ('EMP-005', 'gopakumar.gopinadhan@adbsafegate.com'), -- Gopa
+      ('EMP-019', 'nisar.ahmed@adbsafegate.com'),          -- Nisar
+      ('EMP-050', 'nithin.kumar@adbsafegate.com'),         -- Nithin
+      ('EMP-089', 'jesudaskt22@gmail.com'),                -- Jesudas
+      ('EMP-049', 'prajeshprabhakar002@gmail.com'),        -- Prajesh
+      ('EMP-051', 'Bv4haris@gmail.com'),                   -- Haris
+      ('MGR-001', 'ragesh.menon@adbsafegate.com'),         -- Ragesh
+      ('EMP-018', 'sanoop.louis@adbsafegate.com'),         -- Sanoop
+      ('TL-002',  'mohammed.faheem@adbsafegate.com')       -- Mohammed Faheem
+    ) as t(emp_id, team_mail)
+  loop
+    if not exists (select 1 from public.employees where id = m.emp_id) then
+      raise notice 'Team mail mapping skipped, no such employee: %', m.emp_id;
+      continue;
+    end if;
+    if exists (
+      select 1 from public.employees
+      where lower(email) = lower(m.team_mail) and id <> m.emp_id
+    ) then
+      raise notice 'Team mail % already held by another employee, skipping %',
+        m.team_mail, m.emp_id;
+      continue;
+    end if;
+    update public.employees
+       set email = m.team_mail
+     where id = m.emp_id
+       and (email is distinct from m.team_mail);
+  end loop;
+end $$;
+
 comment on function public.guard_employee_profile_lock() is
   'Team onboarding: enforces the employee-editable field allowlist, one-way '
   'profile finalization, one-way initial-password clearing, and read-only '

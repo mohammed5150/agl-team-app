@@ -159,3 +159,21 @@ export function canFinalizeProfile(actor, target) {
 export const FINALIZE_CONFIRM_MESSAGE =
   "Once you finalize your profile, your submitted information will be locked. " +
   "Future changes will require Manager/Admin approval.";
+
+/**
+ * Normalised login ID. Team Mail IDs are compared case-insensitively (the
+ * database uses a unique index on lower(email)) but stored verbatim — one of
+ * the real IDs is "Bv4haris@gmail.com".
+ */
+export function normalizeLoginId(email) {
+  return (email || "").trim().toLowerCase();
+}
+
+/** Is this email already used as a login ID by some other employee? */
+export function isEmailTaken(employees, email, exceptId = null) {
+  const target = normalizeLoginId(email);
+  if (!target) return false;
+  return (employees || []).some(
+    e => e.id !== exceptId && normalizeLoginId(e.email) === target
+  );
+}

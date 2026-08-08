@@ -5,7 +5,7 @@ import { INITIAL_EMPLOYEES, INITIAL_LEAVE_REQUESTS, INITIAL_ANNOUNCEMENTS, nfId,
 import { nextEmpId } from "./src/helpers.js";
 import { applyLeaveAction, newRequestRecipients } from "./src/leaveWorkflow.js";
 import { applyOvertimeAction, newOvertimeRecipients } from "./src/overtimeWorkflow.js";
-import { needsOnboarding, sanitizeEmployeeEdit, canFinalizeProfile } from "./src/onboarding.js";
+import { needsOnboarding, sanitizeEmployeeEdit, canFinalizeProfile, isEmailTaken, normalizeLoginId } from "./src/onboarding.js";
 import { supa, subscribePush, unsubscribePush, sendPush, empToDb, empFromDb, lrToDb, lrFromDb, otToDb, otFromDb, annToDb, annFromDb, nfToDb, nfFromDb, diffById, pushSupported } from "./src/supabasePortal.js";
 import { Logo, Bd, Bt } from "./src/uiPrimitives.jsx";
 import { LoginPage } from "./src/LoginPage.jsx";
@@ -407,7 +407,7 @@ function App() {
   // login for this employee), auto-sign them up with the given password.
   const login = useCallback(async () => {
     if (!supa) { setLoginError("Backend unavailable"); return; }
-    const email = loginId.trim().toLowerCase();
+    const email = normalizeLoginId(loginId);
     if (!email.includes("@")) { setLoginError("Please enter your email"); return; }
     if (!loginPassword) { setLoginError("Enter your password"); return; }
 
@@ -488,7 +488,7 @@ function App() {
     if (!trimmedEmail || !name?.trim()) {
       return { ok: false, error: "Email and name are required" };
     }
-    if (employees.some(e => e.email?.toLowerCase() === trimmedEmail)) {
+    if (isEmailTaken(employees, trimmedEmail)) {
       return { ok: false, error: "That email is already registered" };
     }
     const id = nextEmpId(employees, role);
@@ -534,7 +534,7 @@ function App() {
         outcomes.push({ line: i + 1, email, status: "error", reason: "missing name" });
         return;
       }
-      if (existingByEmail.has(email)) {
+      if (existingByEmail.has(email) || isEmailTaken(acc, email)) {
         outcomes.push({ line: i + 1, email, status: "skipped", reason: "email already exists" });
         return;
       }
