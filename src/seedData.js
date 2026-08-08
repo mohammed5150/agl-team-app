@@ -1,6 +1,6 @@
 import { P12, P8, PHD, PSY, gR } from "./rosterPatterns.js";
 
-const mE = (id, nm, sec, des, pi, em) => {
+const mE = (id, nm, sec, des, pi, band, airport, supplier, em) => {
   const ps = sec==="AGL 12hrs"?P12:sec==="AGL 8hrs"?P8:sec==="Helpdesk"?PHD:sec==="Systems"?PSY:P8;
   const pa = ps[pi % ps.length];
   const rr = {};
@@ -18,10 +18,17 @@ const mE = (id, nm, sec, des, pi, em) => {
   return {
     id,
     email: em || (() => {
-      const parts = nm.toLowerCase().split(" ");
-      return (parts[0] + "." + parts[parts.length - 1]).replace(/[^a-z.]/g, "") + "@adbsafegate.ae";
+      const parts = nm.toLowerCase().split(" ").filter(Boolean);
+      const local = parts.length > 1 ? parts[0] + "." + parts[parts.length - 1] : parts[0];
+      return local.replace(/[^a-z.]/g, "") + "@adbsafegate.ae";
     })(),
     name: nm, section: sec, designation: des,
+    // Performance band from the salary standardisation exercise. null = not
+    // graded in that exercise (direct staff, or trade still to be confirmed).
+    band: band || null,
+    // null = airport not assigned in the source report (3 workers).
+    airport: airport || null,
+    supplier: supplier || null,
     shift: sec==="AGL 12hrs" ? "12hr" : (sec==="AGL 8hrs"||sec==="High Masts") ? "8hr" : "24hr",
     nationality: "Indian",
     mobile: "+971 50 " + String(Math.floor(Math.random()*9e6+1e6)),
@@ -57,66 +64,109 @@ const mE = (id, nm, sec, des, pi, em) => {
 };
 
 function buildSeed() {
-  const employees = [
-  mE("EMP-001","Amarnath Munderi","AGL 12hrs","AGL Technician",0),
-  mE("EMP-002","Subash Chouhan","AGL 12hrs","AGL Technician",0),
-  mE("EMP-003","Thauseef Khan","AGL 12hrs","AGL Technician",0),
-  mE("EMP-004","Abubaker Irshad","AGL 12hrs","AGL Technician",1),
-  mE("EMP-005","Gopakumar Gopinathan","AGL 12hrs","Sr. AGL Technician",3),
-  mE("EMP-006","Babloo Sharma","AGL 12hrs","AGL Technician",3),
-  mE("EMP-007","Upendra","AGL 12hrs","AGL Technician",3),
-  mE("EMP-008","Gineesh Navaratna","AGL 12hrs","AGL Technician",3),
-  mE("EMP-009","Anurag Aikkal","AGL 12hrs","AGL Technician",2),
-  mE("EMP-010","Abhijith","AGL 12hrs","AGL Technician",2),
-  mE("EMP-011","Shaji Kolavayal","AGL 12hrs","AGL Technician",2),
-  mE("EMP-012","Dhaneesh Punnakkal","AGL 12hrs","AGL Technician",1),
-  mE("EMP-013","Badarul Muneer","AGL 12hrs","AGL Technician",1),
-  mE("EMP-014","Vikram Pal","AGL 12hrs","AGL Technician",1),
-  mE("EMP-015","Latheef Ummer","AGL 12hrs","AGL Technician",1),
-  mE("EMP-016","Thomas Padipurakkal","AGL 12hrs","AGL Technician",1),
-  mE("EMP-017","Faheem Muhammed","AGL 8hrs","AGL Technician",0),
-  mE("EMP-018","Sanoop Louis","AGL 8hrs","AGL Technician",0),
-  mE("EMP-019","Nisar Ahmed","AGL 8hrs","AGL Technician",1),
-  mE("EMP-020","Jiji Varghese","AGL 8hrs","AGL Technician",0),
-  mE("EMP-021","Inchody Dinesh Ram","AGL 8hrs","AGL Technician",0),
-  mE("EMP-022","Monish Menothparambil","AGL 8hrs","AGL Technician",0),
-  mE("EMP-023","Nikhil Koyoon","AGL 8hrs","AGL Technician",0),
-  mE("EMP-024","Sura Uthaman","AGL 8hrs","AGL Technician",1),
-  mE("EMP-025","Ganesan Subramanian","AGL 8hrs","Sr. AGL Technician",1),
-  mE("EMP-026","Gajendran Nagasundaram","AGL 8hrs","AGL Technician",0),
-  mE("EMP-027","Tahseen Khan","AGL 8hrs","AGL Technician",0),
-  mE("EMP-028","Abhishekh Pujari","AGL 8hrs","AGL Technician",0),
-  mE("EMP-029","Muthukumar Cinniah","AGL 8hrs","AGL Technician",0),
-  mE("EMP-030","Shigin Menothparambil","AGL 8hrs","AGL Technician",0),
-  mE("EMP-031","Musthafa Erchat","AGL 8hrs","AGL Technician",0),
-  mE("EMP-032","Vineeth Patteri","AGL 8hrs","AGL Technician",0),
-  mE("EMP-033","Shanmugadas Raju","AGL 8hrs","AGL Technician",0),
-  mE("EMP-034","Manish Yadav","AGL 8hrs","AGL Technician",0),
-  mE("EMP-035","Midhun Babu","AGL 8hrs","AGL Technician",0),
-  mE("EMP-036","Sandeep Selvan","AGL 8hrs","AGL Technician",1),
-  mE("EMP-037","Danish Khan","AGL 8hrs","AGL Technician",0),
-  mE("EMP-038","Rajesh Kanna Nagarajan","AGL 8hrs","AGL Technician",0),
-  mE("EMP-039","Mahthab Imdadullah","AGL 8hrs","AGL Technician",0),
-  mE("EMP-040","Raju Kolavayal","AGL 8hrs","AGL Technician",0),
-  mE("EMP-041","Prasath Maharajan","AGL 8hrs","AGL Technician",1),
-  mE("EMP-042","Adhul KP","AGL 8hrs","AGL Technician",0),
-  mE("EMP-043","Musthafa Neduvally","AGL 8hrs","AGL Technician",0),
-  mE("EMP-044","Mani Sanker","Helpdesk","Helpdesk Operator",0),
-  mE("EMP-045","Rishan Muhammed","Helpdesk","Helpdesk Operator",2),
-  mE("EMP-046","Yadhunath Kaitheri","Helpdesk","Helpdesk Operator",1),
-  mE("EMP-047","Sreevatsa Pushpalatha","Helpdesk","Helpdesk Operator",1),
-  mE("EMP-048","Farhan Muhammed","Helpdesk","Helpdesk Operator",1),
-  mE("EMP-049","Prajesh Kadavankandi","Systems","Systems Technician",0),
-  mE("EMP-050","Nithin Kumar","Systems","Systems Technician",1),
-  mE("EMP-051","Haris Muhammed","Systems","Systems Technician",0),
-  mE("EMP-052","Praveen Arunachalam","Systems","Systems Technician",1),
-  mE("EMP-053","Balamurugan Maharaja","Systems","Systems Technician",0),
-  mE("EMP-054","Syed Mussafir Shah","High Masts","High Mast Technician",0),
-  mE("EMP-055","Abhishek Aramban","High Masts","High Mast Technician",0),
-  mE("EMP-056","Divakar Gunasekaran","High Masts","High Mast Technician",1),
-  mE("EMP-057","Jijo Sebastian","High Masts","High Mast Technician",0),
-  mE("EMP-058","Mustafah Arshad","High Masts","High Mast Technician",0)
-];
+  // Roster reconciled against the ADB manpower salary standardisation report
+  // (final, 14-Jul-2026): 81 supplied workers across 5 airports, merged with
+  // the 8 people the portal already carried who are not in that supplier list.
+  // Columns: id, name, section, designation, roster pattern, band, airport,
+  // supplier. No salary, invoice rate or cut-list data is carried across.
+  //
+  // Section drives the shift pattern and attendance grid. Matched workers keep
+  // the section the portal already had; workers added from the report take
+  // Systems / High Masts / Helpdesk where the trade maps unambiguously, and
+  // otherwise default to "AGL 8hrs" pending shift confirmation.
+  const ROSTER = [
+  ["EMP-001", "Amarnath Munderi",                 "AGL 12hrs", "AGL Technician",      0, null, "ZIA",  null              ],
+  ["EMP-002", "Subash Chouhan",                   "AGL 12hrs", "AGL Technician",      0, "C",  "ZIA",  "Bahar Al Rayan"  ],
+  ["EMP-003", "Thauseef Khan",                    "AGL 12hrs", "Sr. AGL Technician",  0, "B",  "ZIA",  "EVC"             ],
+  ["EMP-004", "Abubaker Irshad",                  "AGL 12hrs", "AGL Technician",      1, null, "ZIA",  null              ],
+  ["EMP-005", "Gopakumar Gopinathan",             "AGL 12hrs", "AGL Supervisor",      3, "A",  "ZIA",  "EVC"             ],
+  ["EMP-006", "Babloo Sharma",                    "AGL 12hrs", "AGL Electrician",     3, "C",  "ZIA",  "Al Burj"         ],
+  ["EMP-007", "Upendra",                          "AGL 12hrs", "AGL Technician",      3, "C",  "ZIA",  "Al Burj"         ],
+  ["EMP-008", "Gineesh Navaratna",                "AGL 12hrs", "AGL Technician",      3, "C",  "ZIA",  "EVC"             ],
+  ["EMP-009", "Anurag Aikkal",                    "AGL 12hrs", "AGL Technician",      2, null, "ZIA",  null              ],
+  ["EMP-010", "Abhijith",                         "AGL 12hrs", "AGL Technician",      2, "C",  "ZIA",  "EVC"             ],
+  ["EMP-011", "Shaji Kolavayal",                  "AGL 12hrs", "Sr. AGL Technician",  2, "B",  "ZIA",  "EVC"             ],
+  ["EMP-012", "Dhaneesh Punnakkal",               "AGL 12hrs", "AGL Supervisor",      1, "A",  "ZIA",  "Techlor"         ],
+  ["EMP-013", "Badarul Muneer",                   "AGL 12hrs", "FMV Driver",          1, "D",  "ZIA",  "Epic"            ],
+  ["EMP-014", "Vikram Pal",                       "AGL 12hrs", "Sr. AGL Technician",  1, "B",  "ZIA",  "Al Burj"         ],
+  ["EMP-015", "Latheef Ummer",                    "AGL 12hrs", "FMV Driver",          1, "D",  "ZIA",  "Al Burj"         ],
+  ["EMP-016", "Thomas Padipurakkal",              "AGL 12hrs", "Sr. AGL Technician",  1, "B",  "ZIA",  "Al Burj"         ],
+  ["EMP-017", "Faheem Muhammed",                  "AGL 8hrs",  "AGL Technician",      0, null, "ZIA",  null              ],
+  ["EMP-018", "Sanoop Louis",                     "AGL 8hrs",  "AGL Technician",      0, null, "ZIA",  null              ],
+  ["EMP-019", "Nisar Ahmed",                      "AGL 8hrs",  "AGL Technician",      1, null, "ZIA",  null              ],
+  ["EMP-020", "Jiji Varghese",                    "AGL 8hrs",  "AGL Supervisor",      0, "A",  "ZIA",  "Epic"            ],
+  ["EMP-021", "Inchody Dinesh Ram",               "AGL 8hrs",  "AGL Technician",      0, "C",  "ZIA",  "EVC"             ],
+  ["EMP-022", "Monish Menothparambil",            "AGL 8hrs",  "Sr. AGL Technician",  0, "B",  "ZIA",  "Techlor"         ],
+  ["EMP-023", "Nikhil Koyoon",                    "AGL 8hrs",  "Helper",              0, "E",  "ZIA",  "Techlor"         ],
+  ["EMP-024", "Sura Uthaman",                     "AGL 8hrs",  "AGL Electrician",     1, "C",  "ZIA",  "EVC"             ],
+  ["EMP-025", "Ganesan Subramanian",              "AGL 8hrs",  "AGL Supervisor",      1, "A",  "ZIA",  "Al Burj"         ],
+  ["EMP-026", "Gajendran Nagasundaram",           "AGL 8hrs",  "Sr. AGL Technician",  0, "B",  "ZIA",  "Al Burj"         ],
+  ["EMP-027", "Tahseen Khan",                     "AGL 8hrs",  "AGL Electrician",     0, "C",  "ZIA",  "EVC"             ],
+  ["EMP-028", "Abhishekh Pujari",                 "AGL 8hrs",  "Helper",              0, "E",  "ZIA",  "Techlor"         ],
+  ["EMP-029", "Muthukumar Cinniah",               "AGL 8hrs",  "AGL Technician",      0, "C",  "ZIA",  "EVC"             ],
+  ["EMP-030", "Shigin Menothparambil",            "AGL 8hrs",  "Helper",              0, "E",  "ZIA",  "Techlor"         ],
+  ["EMP-031", "Musthafa Erchat",                  "AGL 8hrs",  "AGL Technician",      0, null, "ZIA",  null              ],
+  ["EMP-032", "Vineeth Patteri",                  "AGL 8hrs",  "AGL Electrician",     0, "C",  "ZIA",  "EVC"             ],
+  ["EMP-033", "Shanmugadas Raju",                 "AGL 8hrs",  "AGL Electrician",     0, "C",  "ZIA",  "EVC"             ],
+  ["EMP-034", "Manish Yadav",                     "AGL 8hrs",  "Helper",              0, "E",  "ZIA",  "Techlor"         ],
+  ["EMP-035", "Midhun Babu",                      "AGL 8hrs",  "Sr. AGL Technician",  0, "B",  "ZIA",  "Techlor"         ],
+  ["EMP-036", "Sandeep Selvan",                   "AGL 8hrs",  "AGL Electrician",     1, "C",  "ZIA",  "EVC"             ],
+  ["EMP-037", "Danish Khan",                      "AGL 8hrs",  "AGL Technician",      0, "C",  "ZIA",  "EVC"             ],
+  ["EMP-038", "Rajesh Kanna Nagarajan",           "AGL 8hrs",  "Sr. AGL Technician",  0, "B",  "ZIA",  "Al Burj"         ],
+  ["EMP-039", "Mahthab Imdadullah",               "AGL 8hrs",  "AGL Technician",      0, "C",  "ZIA",  "Techlor"         ],
+  ["EMP-040", "Raju Kolavayal",                   "AGL 8hrs",  "AGL Electrician",     0, "C",  "ZIA",  "Techlor"         ],
+  ["EMP-041", "Prasath Maharajan",                "AGL 8hrs",  "Helper",              1, "E",  "ZIA",  "Best Wheel"      ],
+  ["EMP-042", "Adhul KP",                         "AGL 8hrs",  "AGL Supervisor",      0, "A",  "ZIA",  "Techlor"         ],
+  ["EMP-043", "Musthafa Neduvally",               "AGL 8hrs",  "FMV Driver",          0, "D",  "ZIA",  "Techlor"         ],
+  ["EMP-044", "Mani Sanker",                      "Helpdesk",  "Helpdesk Operator",   0, "C",  "ZIA",  "EVC"             ],
+  ["EMP-045", "Rishan Muhammed",                  "Helpdesk",  "Systems Technician",  2, "C",  "ZIA",  "Techlor"         ],
+  ["EMP-046", "Yadhunath Kaitheri",               "Helpdesk",  "Sr. AGL Technician",  1, "B",  "ZIA",  "EVC"             ],
+  ["EMP-047", "Sreevatsa Pushpalatha",            "Helpdesk",  "AGL Electrician",     1, "C",  "ZIA",  "Techlor"         ],
+  ["EMP-048", "Farhan Muhammed",                  "Helpdesk",  "AGL Supervisor",      1, "A",  "ZIA",  "Al Burj"         ],
+  ["EMP-049", "Prajesh Kadavankandi",             "Systems",   "Systems Technician",  0, "C",  "ZIA",  "EVC"             ],
+  ["EMP-050", "Nithin Kumar",                     "Systems",   "Systems Technician",  1, null, "ZIA",  null              ],
+  ["EMP-051", "Haris Muhammed",                   "Systems",   "Systems Technician",  0, "C",  "ZIA",  "EVC"             ],
+  ["EMP-052", "Praveen Arunachalam",              "Systems",   "Systems Technician",  1, "C",  "ZIA",  "EVC"             ],
+  ["EMP-053", "Balamurugan Maharaja",             "Systems",   "Systems Technician",  0, "C",  "ZIA",  "Al Burj"         ],
+  ["EMP-054", "Syed Mussafir Shah",               "High Masts", "AGL Supervisor",      0, "A",  "ZIA",  "Bahar Al Rayan"  ],
+  ["EMP-055", "Abhishek Aramban",                 "High Masts", "Sr. AGL Technician",  0, "B",  "ZIA",  "EVC"             ],
+  ["EMP-056", "Divakar Gunasekaran",              "High Masts", "Sr. AGL Technician",  1, "B",  "ZIA",  "Techlor"         ],
+  ["EMP-057", "Jijo Sebastian",                   "High Masts", "High Mast Technician", 0, "C",  "ZIA",  "EVC"             ],
+  ["EMP-058", "Mustafah Arshad",                  "High Masts", "FMV Driver",          0, "D",  "ZIA",  "Epic"            ],
+  ["EMP-059", "Ayyappan Shanmugam",               "AGL 8hrs",  "AGL Supervisor",      0, "A",  "XSB",  "Al Burj"         ],
+  ["EMP-060", "Neeraj",                           "AGL 8hrs",  "Sr. AGL Technician",  0, "B",  "ZIA",  "Al Burj"         ],
+  ["EMP-061", "Abdul Jaleel",                     "AGL 8hrs",  "FMV Driver",          0, "D",  "ZDY",  "Bahar Al Rayan"  ],
+  ["EMP-062", "Abu Bakar",                        "AGL 8hrs",  "FMV Driver",          0, "D",  "ZIA",  "Bahar Al Rayan"  ],
+  ["EMP-063", "Aftab",                            "AGL 8hrs",  "AGL Technician",      0, "C",  "AZI",  "Bahar Al Rayan"  ],
+  ["EMP-064", "Sanilal",                          "AGL 8hrs",  "AGL Supervisor",      0, "A",  "AZI",  "Bahar Al Rayan"  ],
+  ["EMP-065", "Venkatesh Selvam",                 "AGL 8hrs",  "AGL Supervisor",      0, "A",  "ZDY",  "Bahar Al Rayan"  ],
+  ["EMP-066", "Niddish",                          "AGL 8hrs",  "AGL Technician",      0, "C",  "AAN",  "Best Wheel"      ],
+  ["EMP-067", "Mohammed Parakkal",                "AGL 8hrs",  "FMV Driver",          0, "D",  "AZI",  "Techlor"         ],
+  ["EMP-068", "Saji Gangadhran",                  "AGL 8hrs",  "AGL Supervisor",      0, "A",  "AAN",  "Epic"            ],
+  ["EMP-069", "Umair Latif",                      "AGL 8hrs",  "AGL Technician",      0, "C",  "AAN",  "Epic"            ],
+  ["EMP-070", "Arun Kumar Paswan",                "AGL 8hrs",  "AGL Technician",      0, "C",  "AAN",  "EVC"             ],
+  ["EMP-071", "Kalidas Nagasundaram",             "AGL 8hrs",  "AGL Technician",      0, "C",  "AAN",  "EVC"             ],
+  ["EMP-072", "Krishnamoorthy Mahalingam",        "AGL 8hrs",  "Sr. AGL Technician",  0, "B",  "AAN",  "EVC"             ],
+  ["EMP-073", "Kumar Muthu Kanan",                "Systems",   "Systems Technician",  0, "C",  "ZIA",  "EVC"             ],
+  ["EMP-074", "Mahamood Panakada",                "AGL 8hrs",  "FMV Driver",          0, "D",  "AZI",  "EVC"             ],
+  ["EMP-075", "Mohammad Dilshad Khan Sohrab Khan", "AGL 8hrs",  "Sr. AGL Technician",  0, "B",  "AAN",  "EVC"             ],
+  ["EMP-076", "Mohammad Tariq Mohammad",          "AGL 8hrs",  "AGL Technician",      0, "C",  "AAN",  "EVC"             ],
+  ["EMP-077", "Mohan Kurunthalingm",              "AGL 8hrs",  "AGL Technician",      0, "C",  "AAN",  "EVC"             ],
+  ["EMP-078", "Pirabaharan Thirisugu",            "AGL 8hrs",  "Sr. AGL Technician",  0, "B",  "AAN",  "EVC"             ],
+  ["EMP-079", "Prasenakumar Sreedharan",          "AGL 8hrs",  "AGL Technician",      0, "C",  "AZI",  "EVC"             ],
+  ["EMP-080", "Praveen Koothoor",                 "AGL 8hrs",  "AGL Technician",      0, "C",  null,   "EVC"             ],
+  ["EMP-081", "Ramamoorthy Sunararaj",            "AGL 8hrs",  "Sr. AGL Technician",  0, "B",  "AAN",  "EVC"             ],
+  ["EMP-082", "Rippon Mia",                       "AGL 8hrs",  "AGL Electrician",     0, "C",  "AZI",  "EVC"             ],
+  ["EMP-083", "Sujith Pathukudi",                 "AGL 8hrs",  "AGL Technician",      0, "C",  "AAN",  "EVC"             ],
+  ["EMP-084", "Muhsin Hamid Abdul Hamid",         "AGL 8hrs",  "AGL Technician",      0, "C",  null,   "EVC"             ],
+  ["EMP-085", "Faiz Rasool",                      "AGL 8hrs",  "Sr. AGL Technician",  0, "B",  "XSB",  "Power Boult"     ],
+  ["EMP-086", "Donick Dizon",                     "AGL 8hrs",  "Sr. AGL Technician",  0, "B",  "AZI",  "Techlor"         ],
+  ["EMP-087", "Girish Kumar",                     "AGL 8hrs",  "AGL Supervisor",      0, "A",  "AZI",  "Techlor"         ],
+  ["EMP-088", "Khalifa",                          "AGL 8hrs",  "AGL Technician",      0, "C",  "AZI",  "Techlor"         ],
+  ["EMP-089", "Jesudas Kaleekal Thomas",          "Systems",   "Systems Technician",  0, "C",  "ZIA",  "Techlor"         ]
+  ];
+
+  const employees = ROSTER.map(r => mE(...r));
 
 // Seed some performance records so demo has content
 employees[0].achievements = [

@@ -4,7 +4,8 @@ import { TIERS_CAP } from "./src/rating.js";
 import { INITIAL_EMPLOYEES, INITIAL_LEAVE_REQUESTS, INITIAL_ANNOUNCEMENTS, nfId, INITIAL_NOTIFICATIONS } from "./src/seedData.js";
 import { nextEmpId } from "./src/helpers.js";
 import { applyLeaveAction, newRequestRecipients } from "./src/leaveWorkflow.js";
-import { supa, subscribePush, unsubscribePush, sendPush, empToDb, empFromDb, lrToDb, lrFromDb, annToDb, annFromDb, nfToDb, nfFromDb, diffById, pushSupported } from "./src/supabasePortal.js";
+import { applyOvertimeAction, newOvertimeRecipients } from "./src/overtimeWorkflow.js";
+import { supa, subscribePush, unsubscribePush, sendPush, empToDb, empFromDb, lrToDb, lrFromDb, otToDb, otFromDb, annToDb, annFromDb, nfToDb, nfFromDb, diffById, pushSupported } from "./src/supabasePortal.js";
 import { Logo, Bd, Bt } from "./src/uiPrimitives.jsx";
 import { LoginPage } from "./src/LoginPage.jsx";
 import { ErrorBoundary } from "./src/ErrorBoundary.jsx";
@@ -16,6 +17,7 @@ import { MDash } from "./src/components/DashboardManager.jsx";
 import { MyDocs, DocsMgmt } from "./src/components/DocumentsPage.jsx";
 import { LeaveCalendar } from "./src/components/LeaveCalendar.jsx";
 import { LvPg, ApPg } from "./src/components/LeavePage.jsx";
+import { OtPg } from "./src/components/OvertimePage.jsx";
 import { NotifPanel } from "./src/components/NotifPanel.jsx";
 import { Perf } from "./src/components/PerformancePage.jsx";
 import { Prof } from "./src/components/Profile.jsx";
@@ -35,9 +37,11 @@ function App() {
   const [employees, setEmployees] = useState(INITIAL_EMPLOYEES);
   const [viewEmployee, setViewEmployee] = useState(null);
   const [leaveRequests, setLeaveRequests] = useState(INITIAL_LEAVE_REQUESTS);
+  const [overtimeRequests, setOvertimeRequests] = useState([]);
   const [notifications, setNotifications] = useState(INITIAL_NOTIFICATIONS);
   const [announcements, setAnnouncements] = useState(INITIAL_ANNOUNCEMENTS);
   const [nextLrId, setNextLrId] = useState(5);
+  const [nextOtId, setNextOtId] = useState(1);
   const [nextAnnId, setNextAnnId] = useState(6);
   const [selectedMonth, setSelectedMonth] = useState(defaultAttMonth());
   const [showNotif, setShowNotif] = useState(false);
@@ -49,6 +53,7 @@ function App() {
   const hydrated = useRef(false);
   const prevEmployeesRef     = useRef([]);
   const prevLeaveRequestsRef = useRef([]);
+  const prevOvertimeRef      = useRef([]);
   const prevAnnouncementsRef = useRef([]);
   const prevNotificationsRef = useRef([]);
   const loadingRef = useRef(false);
@@ -68,6 +73,7 @@ function App() {
         if (d && typeof d === "object") {
           if (Array.isArray(d.notifications)) setNotifications(d.notifications);
           if (typeof d.nextLrId === "number") setNextLrId(d.nextLrId);
+          if (typeof d.nextOtId === "number") setNextOtId(d.nextOtId);
           if (typeof d.nextAnnId === "number") setNextAnnId(d.nextAnnId);
         }
       }
@@ -79,14 +85,16 @@ function App() {
     if (loadingRef.current) return;
     loadingRef.current = true;
     try {
-      const [empsR, lrsR, annsR, nfsR] = await Promise.all([
+      const [empsR, lrsR, otsR, annsR, nfsR] = await Promise.all([
         supa.from("employees").select("*").order("id"),
         supa.from("leave_requests").select("*").order("applied_on", { ascending: false }),
+        supa.from("overtime_requests").select("*").order("applied_on", { ascending: false }),
         supa.from("announcements").select("*").order("date", { ascending: false }),
         supa.from("notifications").select("*").order("date", { ascending: false }),
       ]);
       if (empsR.error) console.error("[portal] employees load:", empsR.error);
       if (lrsR.error)  console.error("[portal] leaves load:",    lrsR.error);
+      if (otsR.error)  console.error("[portal] overtime load:",  otsR.error);
       if (annsR.error) console.error("[portal] anns load:",      annsR.error);
       if (nfsR.error)  console.error("[portal] notifs load:",    nfsR.error);
 
@@ -109,12 +117,15 @@ function App() {
         return;
       }
       const lrs  = (lrsR.data  || []).map(lrFromDb);
+      const ots  = (otsR.data  || []).map(otFromDb);
       const anns = (annsR.data || []).map(annFromDb);
       setEmployees(emps);
       setLeaveRequests(lrs);
+      setOvertimeRequests(ots);
       setAnnouncements(anns);
       prevEmployeesRef.current     = emps;
       prevLeaveRequestsRef.current = lrs;
+      prevOvertimeRef.current      = ots;
       prevAnnouncementsRef.current = anns;
       // Seed notifications if empty
       let nfs;
@@ -153,6 +164,14 @@ function App() {
               const fresh = data.map(lrFromDb);
               prevLeaveRequestsRef.current = fresh;
               setLeaveRequests(fresh);
+            }
+          })
+          .on("postgres_changes", { event: "*", schema: "public", table: "overtime_requests" }, async () => {
+            const { data } = await supa.from("overtime_requests").select("*").order("applied_on", { ascending: false });
+            if (data) {
+              const fresh = data.map(otFromDb);
+              prevOvertimeRef.current = fresh;
+              setOvertimeRequests(fresh);
             }
           })
           .on("postgres_changes", { event: "*", schema: "public", table: "announcements" }, async () => {
@@ -212,6 +231,7 @@ function App() {
         setCurrentUser(null);
         setEmployees([]);
         setLeaveRequests([]);
+        setOvertimeRequests([]);
         setAnnouncements([]);
       }
       hydrated.current = true;
@@ -227,10 +247,10 @@ function App() {
     if (!hydrated.current) return;
     try {
       localStorage.setItem(LOCAL_KEY, JSON.stringify({
-        notifications, nextLrId, nextAnnId,
+        notifications, nextLrId, nextOtId, nextAnnId,
       }));
     } catch (e) { console.warn("[portal] localStorage save error:", e); }
-  }, [notifications, nextLrId, nextAnnId]);
+  }, [notifications, nextLrId, nextOtId, nextAnnId]);
 
   // Debounced upsert: only rows that actually changed are pushed.
   // RLS policies restrict each user to writing rows they own/can manage,
@@ -238,11 +258,18 @@ function App() {
   useEffect(() => {
     if (!hydrated.current || !supa) return;
     const t = setTimeout(() => {
-      const changed = diffById(prevEmployeesRef.current, employees);
-      prevEmployeesRef.current = employees;
+      const baseline = prevEmployeesRef.current;
+      const changed = diffById(baseline, employees);
       if (!changed.length) return;
+      // Only advance the diff baseline once the write is known to have landed.
+      // Advancing it unconditionally drops failed rows out of every future
+      // diff, so a rejected write was never retried and local state silently
+      // diverged from the database.
       supa.from("employees").upsert(changed.map(empToDb))
-        .then(r => { if (r.error) { console.error("employees upsert:", r.error); setSyncError("Couldn't save employee changes"); } });
+        .then(r => {
+          if (r.error) { console.error("employees upsert:", r.error); setSyncError("Couldn't save employee changes"); return; }
+          if (prevEmployeesRef.current === baseline) prevEmployeesRef.current = employees;
+        });
     }, 400);
     return () => clearTimeout(t);
   }, [employees]);
@@ -250,11 +277,18 @@ function App() {
   useEffect(() => {
     if (!hydrated.current || !supa) return;
     const t = setTimeout(() => {
-      const changed = diffById(prevLeaveRequestsRef.current, leaveRequests);
-      prevLeaveRequestsRef.current = leaveRequests;
+      const baseline = prevLeaveRequestsRef.current;
+      const changed = diffById(baseline, leaveRequests);
       if (!changed.length) return;
+      // Only advance the diff baseline once the write is known to have landed.
+      // Advancing it unconditionally drops failed rows out of every future
+      // diff, so a rejected write was never retried and local state silently
+      // diverged from the database.
       supa.from("leave_requests").upsert(changed.map(lrToDb))
-        .then(r => { if (r.error) { console.error("leave_requests upsert:", r.error); setSyncError("Couldn't save leave request changes"); } });
+        .then(r => {
+          if (r.error) { console.error("leave_requests upsert:", r.error); setSyncError("Couldn't save leave request changes"); return; }
+          if (prevLeaveRequestsRef.current === baseline) prevLeaveRequestsRef.current = leaveRequests;
+        });
     }, 400);
     return () => clearTimeout(t);
   }, [leaveRequests]);
@@ -262,11 +296,33 @@ function App() {
   useEffect(() => {
     if (!hydrated.current || !supa) return;
     const t = setTimeout(() => {
-      const changed = diffById(prevAnnouncementsRef.current, announcements);
-      prevAnnouncementsRef.current = announcements;
+      const baseline = prevOvertimeRef.current;
+      const changed = diffById(baseline, overtimeRequests);
       if (!changed.length) return;
+      supa.from("overtime_requests").upsert(changed.map(otToDb))
+        .then(r => {
+          if (r.error) { console.error("overtime_requests upsert:", r.error); setSyncError("Couldn't save overtime changes"); return; }
+          if (prevOvertimeRef.current === baseline) prevOvertimeRef.current = overtimeRequests;
+        });
+    }, 400);
+    return () => clearTimeout(t);
+  }, [overtimeRequests]);
+
+  useEffect(() => {
+    if (!hydrated.current || !supa) return;
+    const t = setTimeout(() => {
+      const baseline = prevAnnouncementsRef.current;
+      const changed = diffById(baseline, announcements);
+      if (!changed.length) return;
+      // Only advance the diff baseline once the write is known to have landed.
+      // Advancing it unconditionally drops failed rows out of every future
+      // diff, so a rejected write was never retried and local state silently
+      // diverged from the database.
       supa.from("announcements").upsert(changed.map(annToDb))
-        .then(r => { if (r.error) { console.error("announcements upsert:", r.error); setSyncError("Couldn't save announcement changes"); } });
+        .then(r => {
+          if (r.error) { console.error("announcements upsert:", r.error); setSyncError("Couldn't save announcement changes"); return; }
+          if (prevAnnouncementsRef.current === baseline) prevAnnouncementsRef.current = announcements;
+        });
     }, 400);
     return () => clearTimeout(t);
   }, [announcements]);
@@ -274,11 +330,18 @@ function App() {
   useEffect(() => {
     if (!hydrated.current || !supa) return;
     const t = setTimeout(() => {
-      const changed = diffById(prevNotificationsRef.current, notifications);
-      prevNotificationsRef.current = notifications;
+      const baseline = prevNotificationsRef.current;
+      const changed = diffById(baseline, notifications);
       if (!changed.length) return;
+      // Only advance the diff baseline once the write is known to have landed.
+      // Advancing it unconditionally drops failed rows out of every future
+      // diff, so a rejected write was never retried and local state silently
+      // diverged from the database.
       supa.from("notifications").upsert(changed.map(nfToDb))
-        .then(r => { if (r.error) { console.error("notifications upsert:", r.error); setSyncError("Couldn't save notification changes"); } });
+        .then(r => {
+          if (r.error) { console.error("notifications upsert:", r.error); setSyncError("Couldn't save notification changes"); return; }
+          if (prevNotificationsRef.current === baseline) prevNotificationsRef.current = notifications;
+        });
     }, 400);
     return () => clearTimeout(t);
   }, [notifications]);
@@ -571,6 +634,51 @@ function App() {
     res.pushes.forEach(pu => sendPush(pu.to, pu.title, pu.body, "/"));
   }, [currentUser, employees, leaveRequests]);
 
+  const submitOvertime = useCallback(form => {
+    const id = `OT-${String(nextOtId).padStart(3,"0")}`;
+    setNextOtId(p => p + 1);
+    setOvertimeRequests(p => [{
+      id, empId:currentUser.id, empName:currentUser.name, section:currentUser.section || "",
+      workDate:form.workDate, hours:form.hours, reason:form.reason,
+      status:"pending", appliedOn: new Date().toISOString(),
+      tlComment:"", tlActionDate:"", tlName:"", compOffDays:0
+    }, ...p]);
+    const msg = `New overtime: ${currentUser.name} - ${form.hours}h on ${form.workDate}`;
+    // Overtime stops at the team lead, so only team leads are notified. If
+    // there is none configured, fall back to managers so it is never lost.
+    let recipients = newOvertimeRecipients(employees);
+    if (!recipients.length) {
+      recipients = employees.filter(e => e.role === "manager").map(e => e.id);
+    }
+    if (recipients.length) {
+      const date = new Date().toISOString();
+      setNotifications(p => [
+        ...recipients.map(rid => ({ id: nfId(), to:rid, type:"new_request", message: msg, read:false, date })),
+        ...p,
+      ]);
+      recipients.forEach(rid => sendPush(rid, "New Overtime Request", msg, "/"));
+    } else {
+      console.warn("[overtime] no teamlead to notify for request", id);
+      setSyncError("Overtime submitted, but no approver is configured to be notified.");
+    }
+  }, [currentUser, nextOtId, employees]);
+
+  const overtimeAction = useCallback((rid, action, comment) => {
+    const req = overtimeRequests.find(r => r.id === rid);
+    if (!req) return;
+    const now = new Date().toISOString();
+    const res = applyOvertimeAction(req, currentUser, action, comment, now);
+    if (!res) return;
+    setOvertimeRequests(prev => prev.map(r => r.id === rid ? res.updated : r));
+    if (res.notifs.length) {
+      setNotifications(p => [
+        ...res.notifs.map(n => ({ id: nfId(), ...n, read:false, date:now })),
+        ...p,
+      ]);
+    }
+    res.pushes.forEach(pu => sendPush(pu.to, pu.title, pu.body, "/"));
+  }, [currentUser, overtimeRequests]);
+
   const editRoster = useCallback((eid, mk, day, newCode) => {
     setEmployees(prev => prev.map(e => {
       if (e.id !== eid) return e;
@@ -810,6 +918,7 @@ function App() {
               {nav === "team" && <Team employees={employees} onSel={setViewEmployee} isMgr={iMgr} isTL={isTL} onInvite={addInviteEmployee} onBulkInvite={addInviteEmployeesBulk} />}
               {nav === "performance" && iM && <Perf employees={employees} onSel={setViewEmployee} isMgr={iMgr} onSave={saveRating} />}
               {nav === "leave" && <LvPg user={currentUser} leaveRequests={leaveRequests} onSub={submitLeave} onAct={leaveAction} />}
+              {nav === "overtime" && <OtPg user={currentUser} overtimeRequests={overtimeRequests} onSub={submitOvertime} onAct={overtimeAction} />}
               {nav === "approvals" && <ApPg user={currentUser} leaveRequests={leaveRequests} onAct={leaveAction} />}
               {nav === "calendar" && <LeaveCalendar leaveRequests={leaveRequests} />}
               {nav === "attendance" && !iMgr && (iM
