@@ -25,7 +25,7 @@ export function AttPg({ employees, selectedMonth, setSelectedMonth, onEditRoster
             fontSize:13, fontWeight:600,
             background: selectedMonth === m ? theme.ga : theme.card, border:"none",
             color: selectedMonth === m ? "#fff" : theme.ts
-          }}>{MONTHS[m]} ${ATT_YEAR}</button>
+          }}>{MONTHS[m]} {ATT_YEAR}</button>
         ))}
       </div>
       <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:12 }}>

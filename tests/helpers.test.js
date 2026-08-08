@@ -54,7 +54,7 @@ describe("parseCSV", () => {
     expect(out.rows[1]).toEqual(["b@x.ae", "Alice"]);
   });
 
-  test("handles quoted fields containing newline characters within a single line", () => {
+  test("parses a quoted field containing spaces as a single token", () => {
     const out = parseCSV('email,name\na@x.ae,"Bob Smith"');
     expect(out.rows[0]).toEqual(["a@x.ae", "Bob Smith"]);
   });
