@@ -50,7 +50,7 @@ export async function subscribePush(empId) {
     endpoint: j.endpoint,
     p256dh:   j.keys.p256dh,
     auth:     j.keys.auth,
-    user_agent:   typeof navigator !== "undefined" ? navigator.userAgent : null,
+    user_agent:   typeof navigator !== "undefined" ? (navigator.userAgent || "").slice(0, 512) : null,
     last_seen_at: new Date().toISOString(),
   }, { onConflict: "endpoint" });
   if (error) {
@@ -66,8 +66,8 @@ export async function unsubscribePush() {
   const sub = await reg.pushManager.getSubscription();
   if (!sub) return;
   const endpoint = sub.endpoint;
-  try { await sub.unsubscribe(); } catch {}
-  try { await supa.from("push_subscriptions").delete().eq("endpoint", endpoint); } catch {}
+  try { await sub.unsubscribe(); } catch (e) { console.warn("[push] unsubscribe error:", e); }
+  try { await supa.from("push_subscriptions").delete().eq("endpoint", endpoint); } catch (e) { console.warn("[push] delete subscription error:", e); }
 }
 
 export async function sendPush(toEmpId, title, body, url = "/") {
@@ -165,6 +165,17 @@ export function diffById(prev, next) {
   const prevMap = new Map(prev.map(r => [r.id, r]));
   return next.filter(r => {
     const p = prevMap.get(r.id);
-    return !p || JSON.stringify(p) !== JSON.stringify(r);
+    if (!p) return true;
+    const keys = Object.keys(r);
+    if (keys.length !== Object.keys(p).length) return true;
+    return keys.some(k => {
+      const rv = r[k], pv = p[k];
+      if (rv === pv) return false;
+      // Deep-compare plain objects/arrays that are common in this schema
+      if (typeof rv === "object" && rv !== null && typeof pv === "object" && pv !== null) {
+        return JSON.stringify(rv) !== JSON.stringify(pv);
+      }
+      return true;
+    });
   });
 }

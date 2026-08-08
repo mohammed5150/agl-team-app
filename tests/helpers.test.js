@@ -1,5 +1,6 @@
 import { describe, test, expect } from "vitest";
 import { parseCSV, nextEmpId, cH, certSt, fmtDt, daysInRange } from "../src/helpers.js";
+import { diffById } from "../src/supabasePortal.js";
 
 const DAY = 864e5;
 const iso = (offsetDays) => new Date(Date.now() + offsetDays * DAY).toISOString();
@@ -34,6 +35,28 @@ describe("parseCSV", () => {
 
   test("returns empty structure for empty input", () => {
     expect(parseCSV("")).toEqual({ columns: [], rows: [] });
+  });
+
+  test("handles rows with missing columns by padding with empty strings", () => {
+    const out = parseCSV("email,name,section\na@x.ae,Bob");
+    expect(out.rows[0]).toEqual(["a@x.ae", "Bob"]);
+    expect(out.rows[0].length).toBe(2);
+  });
+
+  test("handles whitespace-only input", () => {
+    expect(parseCSV("   \n  \n  ")).toEqual({ columns: [], rows: [] });
+  });
+
+  test("handles CRLF line endings", () => {
+    const out = parseCSV("email,name\r\na@x.ae,Bob\r\nb@x.ae,Alice");
+    expect(out.rows).toHaveLength(2);
+    expect(out.rows[0]).toEqual(["a@x.ae", "Bob"]);
+    expect(out.rows[1]).toEqual(["b@x.ae", "Alice"]);
+  });
+
+  test("handles quoted fields containing newline characters within a single line", () => {
+    const out = parseCSV('email,name\na@x.ae,"Bob Smith"');
+    expect(out.rows[0]).toEqual(["a@x.ae", "Bob Smith"]);
   });
 });
 
@@ -92,6 +115,12 @@ describe("certSt (certificate expiry status)", () => {
   test("returns a dash placeholder when no expiry is set", () => {
     expect(certSt(null).l).toBe("—");
   });
+
+  test("returns a dash placeholder for invalid date strings", () => {
+    expect(certSt("not-a-date").l).toBe("—");
+    expect(certSt("").l).toBe("—");
+    expect(certSt(undefined).l).toBe("—");
+  });
 });
 
 describe("fmtDt (relative date formatting)", () => {
@@ -124,5 +153,38 @@ describe("daysInRange", () => {
 
   test("returns a single day when start equals end", () => {
     expect(daysInRange("2026-07-11", "2026-07-11")).toEqual(["2026-07-11"]);
+  });
+});
+
+describe("diffById (shallow comparison with deep fallback)", () => {
+  test("detects new items", () => {
+    const prev = [{ id: 1, name: "A" }];
+    const next = [{ id: 1, name: "A" }, { id: 2, name: "B" }];
+    expect(diffById(prev, next)).toEqual([{ id: 2, name: "B" }]);
+  });
+
+  test("detects changed scalar properties", () => {
+    const prev = [{ id: 1, name: "A", role: "employee" }];
+    const next = [{ id: 1, name: "A", role: "manager" }];
+    expect(diffById(prev, next)).toHaveLength(1);
+    expect(diffById(prev, next)[0].role).toBe("manager");
+  });
+
+  test("returns empty when nothing changed", () => {
+    const prev = [{ id: 1, name: "A" }];
+    const next = [{ id: 1, name: "A" }];
+    expect(diffById(prev, next)).toEqual([]);
+  });
+
+  test("detects changes in nested objects", () => {
+    const prev = [{ id: 1, roster: { jan: [1] } }];
+    const next = [{ id: 1, roster: { jan: [1, 2] } }];
+    expect(diffById(prev, next)).toHaveLength(1);
+  });
+
+  test("ignores identical nested objects", () => {
+    const prev = [{ id: 1, roster: { jan: [1] } }];
+    const next = [{ id: 1, roster: { jan: [1] } }];
+    expect(diffById(prev, next)).toEqual([]);
   });
 });

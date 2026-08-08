@@ -20,22 +20,22 @@ export function AttPg({ employees, selectedMonth, setSelectedMonth, onEditRoster
       <h2 style={{ fontSize:22, fontWeight:700, color:theme.tx, marginBottom:16 }}>Attendance & Working Hours</h2>
       <div style={{ display:"flex", gap:6, marginBottom:18, flexWrap:"wrap" }}>
         {ATT_MONTHS.map(m => (
-          <div key={m} onClick={() => setSelectedMonth(m)} style={{
+          <button type="button" key={m} onClick={() => setSelectedMonth(m)} style={{
             padding:"8px 18px", borderRadius:10, cursor:"pointer",
             fontSize:13, fontWeight:600,
-            background: selectedMonth === m ? theme.ga : theme.card,
+            background: selectedMonth === m ? theme.ga : theme.card, border:"none",
             color: selectedMonth === m ? "#fff" : theme.ts
-          }}>{MONTHS[m]} 2026</div>
+          }}>{MONTHS[m]} 2026</button>
         ))}
       </div>
       <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:12 }}>
         {["All", ...SECTIONS].map(s => (
-          <div key={s} onClick={() => setSf(s)} style={{
+          <button type="button" key={s} onClick={() => setSf(s)} style={{
             padding:"6px 14px", borderRadius:8, cursor:"pointer",
             fontSize:12, fontWeight:600,
-            background: sf === s ? theme.pl : theme.card,
+            background: sf === s ? theme.pl : theme.card, border:"none",
             color: sf === s ? "#fff" : theme.ts
-          }}>{s}</div>
+          }}>{s}</button>
         ))}
       </div>
       <input placeholder="🔍 Search..." value={sr} onChange={e => setSr(e.target.value)}
@@ -114,7 +114,7 @@ export function RosterEditor({ emp, mk, onEdit }) {
         {ro.map(d => {
           const dn = ["SU","MO","TU","WE","TH","FR","SA"][new Date(d.date).getDay()];
           return (
-            <div key={d.day} onClick={() => onEdit(emp.id, mk, d.day, cycle[d.code] || "M")} style={{
+            <div key={d.day} onClick={() => onEdit(emp.id, mk, d.day, cycle[d.code] || "M")} role="button" tabIndex={0} onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onEdit(emp.id, mk, d.day, cycle[d.code] || "M"); } }} style={{
               width:50, height:64, borderRadius:10,
               background: theme.ch, display:"flex", flexDirection:"column",
               alignItems:"center", justifyContent:"center",
@@ -154,7 +154,7 @@ export function MyAtt({ emp, selectedMonth, setSelectedMonth }) {
       <Sec title="Monthly Working Hours" icon="📊">
         <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))", gap:10 }}>
           {ms.map(x => (
-            <div key={x.m} onClick={() => setSelectedMonth(x.idx)} style={{
+            <div key={x.m} onClick={() => setSelectedMonth(x.idx)} role="button" tabIndex={0} onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSelectedMonth(x.idx); } }} style={{
               background: selectedMonth === x.idx ? theme.pl+"20" : theme.ch,
               borderRadius:12, padding:14, cursor:"pointer",
               border:`1px solid ${selectedMonth === x.idx ? theme.pl : theme.bd}`, textAlign:"center"
@@ -200,4 +200,3 @@ export function MyAtt({ emp, selectedMonth, setSelectedMonth }) {
     </div>
   );
 }
-

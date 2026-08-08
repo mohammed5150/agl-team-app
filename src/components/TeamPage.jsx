@@ -274,12 +274,12 @@ export function Team({ employees, onSel, isMgr, isTL, onInvite, onBulkInvite }) 
       </div>
       <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:12 }}>
         {["All", ...SECTIONS].map(sec => (
-          <div key={sec} onClick={() => setF(sec)} style={{
+          <button type="button" key={sec} onClick={() => setF(sec)} style={{
             padding:"7px 16px", borderRadius:10, cursor:"pointer",
             fontSize:12, fontWeight:600,
-            background: f === sec ? theme.pl : theme.card,
+            background: f === sec ? theme.pl : theme.card, border:"none",
             color: f === sec ? "#fff" : theme.ts
-          }}>{sec} ({sec === "All" ? employees.length : employees.filter(e => e.section === sec).length})</div>
+          }}>{sec} ({sec === "All" ? employees.length : employees.filter(e => e.section === sec).length})</button>
         ))}
       </div>
       {showRating && (
@@ -288,11 +288,11 @@ export function Team({ employees, onSel, isMgr, isTL, onInvite, onBulkInvite }) 
             ...TIERS_CAP.map(t => ({ k:`cap:${t}`, l:t })),
             ...(isMgr ? [{k:"A",l:"Salary A"},{k:"B",l:"Salary B"},{k:"C",l:"Salary C"}] : []),
             {k:"unrated",l:"Unrated"}].map(x => (
-            <div key={x.k} onClick={() => setTierF(x.k)} style={{
+            <button type="button" key={x.k} onClick={() => setTierF(x.k)} style={{
               padding:"6px 14px", borderRadius:8, cursor:"pointer", fontSize:11, fontWeight:600,
-              background: tierF === x.k ? theme.or : theme.card,
+              background: tierF === x.k ? theme.or : theme.card, border:"none",
               color: tierF === x.k ? "#fff" : theme.ts
-            }}>{x.l}</div>
+            }}>{x.l}</button>
           ))}
         </div>
       )}
@@ -355,4 +355,3 @@ export function Team({ employees, onSel, isMgr, isTL, onInvite, onBulkInvite }) 
     </div>
   );
 }
-

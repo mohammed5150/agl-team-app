@@ -242,22 +242,22 @@ export function TrMgmt({ employees }) {
       </div>
       <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:12 }}>
         {["all","expired","expiring","valid"].map(s => (
-          <div key={s} onClick={() => setStf(s)} style={{
+          <button type="button" key={s} onClick={() => setStf(s)} style={{
             padding:"6px 14px", borderRadius:8, cursor:"pointer",
             fontSize:12, fontWeight:600,
-            background: stf === s ? (s === "expired" ? theme.rd : s === "expiring" ? theme.yl : s === "valid" ? theme.gn : theme.pl) : theme.card,
+            background: stf === s ? (s === "expired" ? theme.rd : s === "expiring" ? theme.yl : s === "valid" ? theme.gn : theme.pl) : theme.card, border:"none",
             color: stf === s ? "#fff" : theme.ts, textTransform:"capitalize"
-          }}>{s === "all" ? "All" : s}</div>
+          }}>{s === "all" ? "All" : s}</button>
         ))}
       </div>
       <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:12 }}>
         {["All", ...SECTIONS].map(s => (
-          <div key={s} onClick={() => setSf(s)} style={{
+          <button type="button" key={s} onClick={() => setSf(s)} style={{
             padding:"6px 14px", borderRadius:8, cursor:"pointer",
             fontSize:12, fontWeight:600,
-            background: sf === s ? theme.pl : theme.card,
+            background: sf === s ? theme.pl : theme.card, border:"none",
             color: sf === s ? "#fff" : theme.ts
-          }}>{s}</div>
+          }}>{s}</button>
         ))}
       </div>
       <input placeholder="🔍 Search..." value={sr} onChange={e => setSr(e.target.value)}
@@ -303,4 +303,3 @@ export function TrMgmt({ employees }) {
     </div>
   );
 }
-

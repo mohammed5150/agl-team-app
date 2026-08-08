@@ -18,11 +18,17 @@ export function MDash({ user, employees, leaveRequests, announcements, pc, onGoT
   const onDutyToday = employees.length - onLeaveToday.length;
   const dutyPct = employees.length ? onDutyToday / employees.length : 1;
   const expiringCerts = employees.reduce((a, e) => a + (e.training || []).filter(x => {
-    const d = (new Date(x.certExpiry) - new Date()) / 864e5;
+    if (!x.certExpiry) return false;
+    const expDate = new Date(x.certExpiry);
+    if (isNaN(expDate.getTime())) return false;
+    const d = (expDate - new Date()) / 864e5;
     return d >= 0 && d <= 90;
   }).length, 0);
   const expiringDocs = employees.reduce((a, e) => a + (e.documents || []).filter(x => {
-    const d = (new Date(x.expiryDate) - new Date()) / 864e5;
+    if (!x.expiryDate) return false;
+    const expDate = new Date(x.expiryDate);
+    if (isNaN(expDate.getTime())) return false;
+    const d = (expDate - new Date()) / 864e5;
     return d >= 0 && d <= 90;
   }).length, 0);
   const pinnedAnn = announcements.filter(a => a.pinned).slice(0, 1);
@@ -40,7 +46,7 @@ export function MDash({ user, employees, leaveRequests, announcements, pc, onGoT
           <div style={{ fontSize:11, color:theme.ts, letterSpacing:1, textTransform:"uppercase", fontWeight:700 }}>{g}</div>
           <h2 style={{ fontSize:26, fontWeight:800, color:theme.tx, margin:0, letterSpacing:-0.3 }}>{user.name.toUpperCase()}</h2>
         </div>
-        <div style={{ width:48, height:48, borderRadius:"50%", background:theme.ga,
+        <div aria-label={`Avatar for ${user.name}`} role="img" style={{ width:48, height:48, borderRadius:"50%", background:theme.ga,
           display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, fontWeight:800, color:"#fff" }}>
           {user.name.split(" ").map(n => n[0]).join("").slice(0,2)}
         </div>

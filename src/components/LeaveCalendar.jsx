@@ -1,4 +1,4 @@
-import { STATUS_COLORS, STATUS_LABELS, MONTHS, theme } from "../constants.js";
+import { STATUS_COLORS, STATUS_LABELS, MONTHS, ATT_YEAR, theme } from "../constants.js";
 import { countsAsOnLeave } from "../leaveWorkflow.js";
 import { Bd, Sec, Empty } from "../uiPrimitives.jsx";
 
@@ -11,7 +11,7 @@ const { useState } = React;
 export function LeaveCalendar({ leaveRequests }) {
   const [selectedMonth, setSelectedMonth] = useState(3); // April default
   const [selDay, setSelDay] = useState(null);
-  const year = 2026;
+  const year = ATT_YEAR;
 
   const firstDay = new Date(year, selectedMonth, 1).getDay();
   const daysInMonth = new Date(year, selectedMonth + 1, 0).getDate();
