@@ -6,6 +6,7 @@ import { nextEmpId } from "./src/helpers.js";
 import { applyLeaveAction, newRequestRecipients } from "./src/leaveWorkflow.js";
 import { applyOvertimeAction, newOvertimeRecipients } from "./src/overtimeWorkflow.js";
 import { needsOnboarding, sanitizeEmployeeEdit, canFinalizeProfile, isEmailTaken, normalizeLoginId } from "./src/onboarding.js";
+import { isApprovedTeamLogin, NOT_REGISTERED_MESSAGE } from "./src/teamDirectory.js";
 import { supa, subscribePush, unsubscribePush, sendPush, empToDb, empFromDb, lrToDb, lrFromDb, otToDb, otFromDb, annToDb, annFromDb, nfToDb, nfFromDb, diffById, pushSupported } from "./src/supabasePortal.js";
 import { Logo, Bd, Bt } from "./src/uiPrimitives.jsx";
 import { LoginPage } from "./src/LoginPage.jsx";
@@ -411,6 +412,16 @@ function App() {
     if (!email.includes("@")) { setLoginError("Please enter your email"); return; }
     if (!loginPassword) { setLoginError("Enter your password"); return; }
 
+    // Eligibility gate — runs BEFORE any Supabase call. Previously a failed
+    // sign-in fell straight through to auth.signUp(), so typing any address
+    // minted an auth user for it. Only approved Team Mail IDs get that far now.
+    // This cannot read the employees table: there is no session yet and RLS
+    // denies anonymous select, which is why the approved list is static.
+    if (!isApprovedTeamLogin(email)) {
+      setLoginError(NOT_REGISTERED_MESSAGE);
+      return;
+    }
+
     setLoginSubmitting(true);
     setLoginError("");
     try {
@@ -422,8 +433,10 @@ function App() {
           setLoginError("Please check your inbox and click the confirmation link, then sign in again.");
           return;
         }
-        // "Invalid login credentials" — could be wrong password OR first-time login.
-        // Try first-time signup with these credentials.
+        // "Invalid login credentials" — wrong password, or an approved member
+        // signing in for the first time. Account creation is reachable only for
+        // addresses that passed the gate above, so this can no longer mint an
+        // account for an arbitrary address.
         const s = await supa.auth.signUp({ email, password: loginPassword });
         if (s.error) {
           setLoginError(s.error.message || "Invalid email or password");
@@ -491,6 +504,16 @@ function App() {
     if (isEmailTaken(employees, trimmedEmail)) {
       return { ok: false, error: "That email is already registered" };
     }
+    // The login gate only admits approved Team Mail IDs, so creating a row for
+    // any other address would produce an employee who can never sign in. Refuse
+    // it here rather than leave a locked-out record behind.
+    if (!isApprovedTeamLogin(trimmedEmail)) {
+      return {
+        ok: false,
+        error: "That email is not on the approved Team Mail ID list, so it could "
+             + "not sign in. Add it to src/teamDirectory.js first.",
+      };
+    }
     const id = nextEmpId(employees, role);
     const newEmp = {
       id,
@@ -536,6 +559,10 @@ function App() {
       }
       if (existingByEmail.has(email) || isEmailTaken(acc, email)) {
         outcomes.push({ line: i + 1, email, status: "skipped", reason: "email already exists" });
+        return;
+      }
+      if (!isApprovedTeamLogin(email)) {
+        outcomes.push({ line: i + 1, email, status: "error", reason: "not an approved Team Mail ID" });
         return;
       }
       const role = ["employee","teamlead","manager"].includes((row.role || "").toLowerCase())
