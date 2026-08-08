@@ -224,3 +224,168 @@ comment on function public.guard_employee_profile_lock() is
   'Team onboarding: enforces the employee-editable field allowlist, one-way '
   'profile finalization, one-way initial-password clearing, and read-only '
   'locking of a finalized profile. Staff and backend roles bypass.';
+
+-- ---------------------------------------------------------------
+-- f. Authoritative onboarding authorization — server-side
+--
+-- The approved Team Mail ID list moves into the database and becomes
+-- the security boundary. The client copy in src/teamDirectory.js is
+-- retained for instant feedback only; nothing depends on it.
+--
+-- Three layers, each independently sufficient:
+--   f1. approved_team_logins  — the authoritative list, NOT readable
+--       by anon or authenticated (no enumeration of team emails).
+--   f2. is_approved_team_login(text) — SECURITY DEFINER RPC returning
+--       a bare boolean for ONE address. Callable pre-session so the
+--       login form can check before attempting sign-up. Discloses no
+--       employee information: you can test an address, not list them.
+--   f3. triggers that refuse the write itself:
+--         - auth.users     BEFORE INSERT  -> blocks account creation
+--         - employees      BEFORE INSERT/UPDATE OF email -> blocks
+--           roster rows for unapproved addresses
+--       These hold even if the client is bypassed entirely.
+-- ---------------------------------------------------------------
+
+create table if not exists public.approved_team_logins (
+  email       text primary key,
+  label       text,
+  approved_at timestamptz not null default now()
+);
+
+create unique index if not exists approved_team_logins_lower_key
+  on public.approved_team_logins (lower(email));
+
+comment on table public.approved_team_logins is
+  'Authoritative list of Team Mail IDs permitted to onboard. Not readable '
+  'by anon or authenticated roles — query via is_approved_team_login().';
+
+-- The 14 approved Team Mail IDs, stored verbatim.
+insert into public.approved_team_logins (email, label) values
+  ('muhammed.farhan.ext@adbsafegate.com',  'Farhan'),
+  ('anurag.aikkal@adbsafegate.com',        'Anurag'),
+  ('amarnath.munderi@adbsafegate.com',     'Amarnath'),
+  ('gopakumar.gopinadhan@adbsafegate.com', 'Gopa'),
+  ('nisar.ahmed@adbsafegate.com',          'Nisar'),
+  ('jjijosebastian311@gmail.com',          'Jiji — employee mapping unresolved'),
+  ('nithin.kumar@adbsafegate.com',         'Nithin'),
+  ('praveen6273@gmail.com',                'Praveen — employee mapping unresolved'),
+  ('jesudaskt22@gmail.com',                'Jesudas'),
+  ('prajeshprabhakar002@gmail.com',        'Prajesh'),
+  ('Bv4haris@gmail.com',                   'Haris'),
+  ('ragesh.menon@adbsafegate.com',         'Ragesh'),
+  ('sanoop.louis@adbsafegate.com',         'Sanoop'),
+  ('mohammed.faheem@adbsafegate.com',      'Mohammed Faheem')
+on conflict (email) do nothing;
+
+-- Locked down: no anon or authenticated access at all. Managers read it
+-- through the RPC below, or via the SQL editor / service_role.
+alter table public.approved_team_logins enable row level security;
+revoke all on public.approved_team_logins from anon, authenticated;
+
+drop policy if exists atl_select_manager on public.approved_team_logins;
+create policy atl_select_manager
+  on public.approved_team_logins for select
+  to authenticated
+  using (public.is_manager());
+
+-- f2. Single-address check. Returns a boolean and nothing else, so it
+--     cannot be used to enumerate the team.
+create or replace function public.is_approved_team_login(p_email text)
+returns boolean
+language sql
+security definer
+stable
+set search_path = public
+as $$
+  select exists (
+    select 1 from public.approved_team_logins
+    where lower(email) = lower(trim(coalesce(p_email, '')))
+  );
+$$;
+
+-- Deliberately callable before a session exists: the login form must be
+-- able to check an address before attempting sign-up.
+grant execute on function public.is_approved_team_login(text) to anon, authenticated;
+
+comment on function public.is_approved_team_login(text) is
+  'Returns true when the given address is an approved Team Mail ID. Boolean '
+  'only — exposes no employee data and cannot enumerate the list.';
+
+-- f3a. Refuse an employee row for an unapproved address.
+create or replace function public.guard_employee_email_approved()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  -- Only judge an address that is actually being set or changed. Supabase
+  -- upserts send every column, so an ordinary profile save includes an
+  -- unchanged email; without this, the 78 roster rows still holding derived
+  -- @adbsafegate.ae addresses would fail on every save.
+  if tg_op = 'UPDATE' and new.email is not distinct from old.email then
+    return new;
+  end if;
+  if new.email is null or trim(new.email) = '' then
+    return new;                       -- placeholder rows stay permitted
+  end if;
+  -- Trusted backend roles (migrations, SQL editor) bypass, so section (e)
+  -- and any admin data fix can run regardless of ordering.
+  if coalesce(auth.role(), 'service_role') <> 'authenticated' then
+    return new;
+  end if;
+  if not public.is_approved_team_login(new.email) then
+    raise exception
+      'Email % is not an approved Team Mail ID', new.email
+      using hint = 'Add it to approved_team_logins first.';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_guard_employee_email_approved on public.employees;
+create trigger trg_guard_employee_email_approved
+  before insert or update of email on public.employees
+  for each row execute function public.guard_employee_email_approved();
+
+revoke all on function public.guard_employee_email_approved() from anon, authenticated;
+
+-- f3b. Refuse the Supabase Auth account itself.
+--
+-- GoTrue inserts into auth.users through Postgres, so a raising trigger
+-- there stops account creation server-side — the one place RLS alone
+-- cannot reach. This is what makes the gate real rather than cosmetic.
+--
+-- Scoped narrowly: it only ever raises for an address that is neither
+-- approved nor already on the roster, so existing accounts, invited
+-- users and admin-provisioned users are unaffected.
+create or replace function public.guard_auth_user_approved()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if new.email is null or trim(new.email) = '' then
+    return new;                       -- phone-only / anonymous sign-ins
+  end if;
+  if public.is_approved_team_login(new.email) then
+    return new;
+  end if;
+  if exists (
+    select 1 from public.employees where lower(email) = lower(new.email)
+  ) then
+    return new;                       -- already on the roster
+  end if;
+  raise exception
+    'This email address is not registered for the Team Portal'
+    using hint = 'Contact your administrator.';
+end;
+$$;
+
+drop trigger if exists trg_guard_auth_user_approved on auth.users;
+create trigger trg_guard_auth_user_approved
+  before insert on auth.users
+  for each row execute function public.guard_auth_user_approved();
+
+revoke all on function public.guard_auth_user_approved() from anon, authenticated;

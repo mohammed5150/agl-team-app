@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   APPROVED_TEAM_LOGINS, UNRESOLVED_TEAM_LOGINS,
   isApprovedTeamLogin, isUnresolvedTeamLogin, NOT_REGISTERED_MESSAGE,
+  checkApprovedTeamLogin,
 } from "../src/teamDirectory.js";
 import { isEmailTaken } from "../src/onboarding.js";
 
@@ -151,5 +152,71 @@ describe("the two unresolved mappings are approved but flagged", () => {
     for (const e of UNRESOLVED_TEAM_LOGINS) {
       expect(approved).toContain(e.toLowerCase());
     }
+  });
+});
+
+describe("the authoritative check asks the database", () => {
+  const rpcReturning = (value, calls = []) => ({
+    rpc: async (fn, args) => { calls.push({ fn, args }); return { data: value, error: null }; },
+  });
+
+  it("calls is_approved_team_login with the trimmed address", async () => {
+    const calls = [];
+    await checkApprovedTeamLogin(rpcReturning(true, calls), "  nisar.ahmed@adbsafegate.com ");
+    expect(calls).toEqual([
+      { fn: "is_approved_team_login", args: { p_email: "nisar.ahmed@adbsafegate.com" } },
+    ]);
+  });
+
+  it("reports the database as the source when it answers", async () => {
+    const r = await checkApprovedTeamLogin(rpcReturning(true), "nisar.ahmed@adbsafegate.com");
+    expect(r).toEqual({ approved: true, source: "database" });
+  });
+
+  it("refuses when the database says no, even for a locally-listed address", async () => {
+    // The database is authoritative: if the row has been revoked there, the
+    // stale client list must not grant access.
+    const r = await checkApprovedTeamLogin(rpcReturning(false), "nisar.ahmed@adbsafegate.com");
+    expect(r.approved).toBe(false);
+    expect(r.source).toBe("database");
+  });
+
+  it("treats a non-true payload as a refusal", async () => {
+    for (const v of [null, undefined, 0, "", "true"]) {
+      const r = await checkApprovedTeamLogin(rpcReturning(v), "nisar.ahmed@adbsafegate.com");
+      expect(r.approved).toBe(false);
+    }
+  });
+
+  it("falls back to the local list when the RPC errors", async () => {
+    const broken = { rpc: async () => ({ data: null, error: { message: "not found" } }) };
+    const ok = await checkApprovedTeamLogin(broken, "nisar.ahmed@adbsafegate.com");
+    expect(ok).toEqual({ approved: true, source: "local-fallback" });
+    const bad = await checkApprovedTeamLogin(broken, "attacker@example.com");
+    expect(bad).toEqual({ approved: false, source: "local-fallback" });
+  });
+
+  it("falls back when the RPC throws outright", async () => {
+    const throwing = { rpc: async () => { throw new Error("offline"); } };
+    const r = await checkApprovedTeamLogin(throwing, "attacker@example.com");
+    expect(r.approved).toBe(false);
+  });
+
+  it("never grants an unknown address through any path", async () => {
+    const cases = [rpcReturning(true), rpcReturning(false), null,
+                   { rpc: async () => { throw new Error("x"); } }];
+    for (const client of cases) {
+      const r = await checkApprovedTeamLogin(client, "attacker@example.com");
+      // rpcReturning(true) is a hostile server; the database is authoritative
+      // by design, so that one case is expected to pass — every offline or
+      // failing path must still refuse.
+      if (client === cases[0]) continue;
+      expect(r.approved).toBe(false);
+    }
+  });
+
+  it("works without a client at all", async () => {
+    expect(await checkApprovedTeamLogin(null, "nisar.ahmed@adbsafegate.com"))
+      .toEqual({ approved: true, source: "local" });
   });
 });

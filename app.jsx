@@ -6,7 +6,7 @@ import { nextEmpId } from "./src/helpers.js";
 import { applyLeaveAction, newRequestRecipients } from "./src/leaveWorkflow.js";
 import { applyOvertimeAction, newOvertimeRecipients } from "./src/overtimeWorkflow.js";
 import { needsOnboarding, sanitizeEmployeeEdit, canFinalizeProfile, isEmailTaken, normalizeLoginId } from "./src/onboarding.js";
-import { isApprovedTeamLogin, NOT_REGISTERED_MESSAGE } from "./src/teamDirectory.js";
+import { isApprovedTeamLogin, checkApprovedTeamLogin, NOT_REGISTERED_MESSAGE } from "./src/teamDirectory.js";
 import { supa, subscribePush, unsubscribePush, sendPush, empToDb, empFromDb, lrToDb, lrFromDb, otToDb, otFromDb, annToDb, annFromDb, nfToDb, nfFromDb, diffById, pushSupported } from "./src/supabasePortal.js";
 import { Logo, Bd, Bt } from "./src/uiPrimitives.jsx";
 import { LoginPage } from "./src/LoginPage.jsx";
@@ -412,19 +412,19 @@ function App() {
     if (!email.includes("@")) { setLoginError("Please enter your email"); return; }
     if (!loginPassword) { setLoginError("Enter your password"); return; }
 
-    // Eligibility gate — runs BEFORE any Supabase call. Previously a failed
-    // sign-in fell straight through to auth.signUp(), so typing any address
-    // minted an auth user for it. Only approved Team Mail IDs get that far now.
-    // This cannot read the employees table: there is no session yet and RLS
-    // denies anonymous select, which is why the approved list is static.
-    if (!isApprovedTeamLogin(email)) {
-      setLoginError(NOT_REGISTERED_MESSAGE);
-      return;
-    }
-
     setLoginSubmitting(true);
     setLoginError("");
     try {
+      // Eligibility gate — asks the database (is_approved_team_login RPC)
+      // before any auth call, so an unapproved address never reaches signUp.
+      // This is the courteous refusal; the real enforcement is the
+      // BEFORE INSERT trigger on auth.users, which refuses the account even
+      // if this check is bypassed entirely.
+      const { approved } = await checkApprovedTeamLogin(supa, email);
+      if (!approved) {
+        setLoginError(NOT_REGISTERED_MESSAGE);
+        return;
+      }
       const r = await supa.auth.signInWithPassword({ email, password: loginPassword });
       if (r.error) {
         const msg = (r.error.message || "").toLowerCase();

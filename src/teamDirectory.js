@@ -8,14 +8,18 @@
 // is the only thing available at that moment.
 //
 // WHAT THIS IS AND IS NOT
-// This is a gate, not a security boundary. A determined caller can talk to
-// Supabase directly and skip it. The real enforcement is two-layered:
-//   1. Supabase Auth sign-up restrictions (dashboard: allowed email domains /
-//      disabled open sign-up) — stops account creation at the source.
-//   2. loadPortalData() signs out any authenticated email with no matching
-//      employee row, so an account without a roster record reaches nothing.
-// This list stops the accidental and the casual case, and gives the user a
-// clear message instead of a silently-created orphan account.
+// This list is UX only. The authority lives in the database
+// (supabase_team_onboarding.sql section f):
+//   - approved_team_logins       the authoritative list, unreadable by
+//                                anon/authenticated so it cannot be enumerated
+//   - is_approved_team_login()   SECURITY DEFINER RPC returning one boolean
+//   - trg_guard_auth_user_approved   BEFORE INSERT on auth.users, so an
+//                                unapproved address cannot get an account even
+//                                by calling Supabase directly
+//   - trg_guard_employee_email_approved   blocks a roster row for one
+// Bypassing the JavaScript therefore achieves nothing: the writes themselves
+// are refused. This copy exists so the form can answer instantly and so the
+// check still degrades safely if the RPC is unreachable.
 //
 // Addresses are stored verbatim and compared case-insensitively — one real ID
 // is "Bv4haris@gmail.com".
@@ -66,4 +70,28 @@ export function isUnresolvedTeamLogin(email) {
   if (typeof email !== "string") return false;
   const norm = email.trim().toLowerCase();
   return UNRESOLVED_TEAM_LOGINS.some(e => e.toLowerCase() === norm);
+}
+
+/**
+ * Authoritative eligibility check — asks the database.
+ *
+ * Returns the RPC's boolean when it answers. If the RPC is unreachable (not
+ * yet migrated, offline, network error) it falls back to the local list, which
+ * is a strict subset of the same rule and still denies unknown addresses.
+ * Either way the database triggers remain the actual boundary, so a wrong
+ * answer here cannot grant access — only delay a correct refusal.
+ */
+export async function checkApprovedTeamLogin(supa, email) {
+  const local = isApprovedTeamLogin(email);
+  if (!supa) return { approved: local, source: "local" };
+  try {
+    const { data, error } = await supa.rpc("is_approved_team_login", {
+      p_email: (email || "").trim(),
+    });
+    if (error) throw error;
+    return { approved: data === true, source: "database" };
+  } catch (e) {
+    console.warn("[auth] approval RPC unavailable, using local list:", e?.message || e);
+    return { approved: local, source: "local-fallback" };
+  }
 }

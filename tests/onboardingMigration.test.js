@@ -127,3 +127,73 @@ describe("migration: no credential handling", () => {
     expect(lower).toContain("supabase auth");
   });
 });
+
+describe("migration: onboarding authorization is enforced server-side", () => {
+  it("stores the approved list in the database", () => {
+    expect(lower).toMatch(/create table if not exists public\.approved_team_logins/);
+    expect(lower).toMatch(/insert into public\.approved_team_logins/);
+  });
+
+  it("holds all fourteen approved Team Mail IDs", () => {
+    const seed = lower.split("insert into public.approved_team_logins")[1].split(";")[0];
+    for (const mail of [
+      "muhammed.farhan.ext@adbsafegate.com", "anurag.aikkal@adbsafegate.com",
+      "amarnath.munderi@adbsafegate.com", "gopakumar.gopinadhan@adbsafegate.com",
+      "nisar.ahmed@adbsafegate.com", "jjijosebastian311@gmail.com",
+      "nithin.kumar@adbsafegate.com", "praveen6273@gmail.com",
+      "jesudaskt22@gmail.com", "prajeshprabhakar002@gmail.com",
+      "bv4haris@gmail.com", "ragesh.menon@adbsafegate.com",
+      "sanoop.louis@adbsafegate.com", "mohammed.faheem@adbsafegate.com",
+    ]) {
+      expect(seed).toContain(mail);
+    }
+  });
+
+  it("does not expose the list to anon or authenticated", () => {
+    expect(lower).toMatch(/alter table public\.approved_team_logins enable row level security/);
+    expect(lower).toMatch(/revoke all on public\.approved_team_logins from anon, authenticated/);
+  });
+
+  it("only a manager may read the list directly", () => {
+    expect(lower).toMatch(/create policy atl_select_manager[\s\S]*using \(public\.is_manager\(\)\)/);
+  });
+
+  it("exposes a boolean-only RPC that cannot enumerate the team", () => {
+    expect(lower).toMatch(/create or replace function public\.is_approved_team_login\(p_email text\)/);
+    expect(lower).toMatch(/returns boolean/);
+    expect(lower).toMatch(/security definer/);
+    expect(lower).toMatch(
+      /grant execute on function public\.is_approved_team_login\(text\) to anon, authenticated/);
+  });
+
+  it("blocks the Supabase Auth account itself for an unapproved address", () => {
+    expect(lower).toMatch(/create trigger trg_guard_auth_user_approved/);
+    expect(lower).toMatch(/before insert on auth\.users/);
+    expect(lower).toContain("not registered for the team portal");
+  });
+
+  it("lets an existing roster member through the auth guard", () => {
+    // An address already on the roster keeps working even if it predates the
+    // approved list, so applying the migration cannot lock anyone out.
+    expect(lower).toMatch(/select 1 from public\.employees where lower\(email\) = lower\(new\.email\)/);
+  });
+
+  it("blocks an employee record for an unapproved address", () => {
+    expect(lower).toMatch(/create trigger trg_guard_employee_email_approved/);
+    expect(lower).toMatch(/before insert or update of email on public\.employees/);
+    expect(lower).toContain("is not an approved team mail id");
+  });
+
+  it("only judges an email that is actually being changed", () => {
+    // Supabase upserts send every column; without this an ordinary profile
+    // save would fail for the roster rows still on derived addresses.
+    expect(lower).toMatch(/tg_op = 'update' and new\.email is not distinct from old\.email/);
+  });
+
+  it("keeps both guard functions off the REST RPC surface", () => {
+    expect(lower).toMatch(
+      /revoke all on function public\.guard_auth_user_approved\(\) from anon, authenticated/);
+    expect(lower).toMatch(
+      /revoke all on function public\.guard_employee_email_approved\(\) from anon, authenticated/);
+  });
+});
