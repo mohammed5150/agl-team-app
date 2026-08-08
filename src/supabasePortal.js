@@ -101,6 +101,11 @@ export const empToDb = e => ({
   profile_finalized: !!e.profileFinalized,
   initial_password: !!e.initialPassword,
   tier: e.tier || null,
+  // Grading metadata from the salary standardisation exercise. Manager-only
+  // at the database level (trg_guard_employee_grading).
+  band: e.band || null,
+  airport: e.airport || null,
+  supplier: e.supplier || null,
 });
 export const empFromDb = r => ({
   id: r.id, email: r.email,
@@ -121,6 +126,9 @@ export const empFromDb = r => ({
   profileFinalized: !!r.profile_finalized,
   initialPassword: !!r.initial_password,
   tier: r.tier || "",
+  band: r.band || null,
+  airport: r.airport || null,
+  supplier: r.supplier || null,
 });
 
 export const lrToDb = r => ({
@@ -140,6 +148,29 @@ export const lrFromDb = r => ({
   tlComment: r.tl_comment || "", mgrComment: r.mgr_comment || "",
   tlActionDate: r.tl_action_date || "", mgrActionDate: r.mgr_action_date || "",
   tlName: r.tl_name || "", mgrName: r.mgr_name || "",
+});
+
+// Overtime is team-lead-terminal: there are no mgr_* columns because a
+// manager never acts on an overtime request (see supabase_overtime_bands.sql).
+export const otToDb = r => ({
+  id: r.id, emp_id: r.empId, emp_name: r.empName, section: r.section,
+  work_date: r.workDate || null, hours: r.hours, reason: r.reason,
+  status: r.status,
+  applied_on: r.appliedOn || new Date().toISOString(),
+  tl_comment: r.tlComment || "",
+  tl_action_date: r.tlActionDate || null,
+  tl_name: r.tlName || "",
+  comp_off_days: r.compOffDays ?? 0,
+});
+export const otFromDb = r => ({
+  id: r.id, empId: r.emp_id, empName: r.emp_name, section: r.section,
+  workDate: r.work_date || "", hours: Number(r.hours) || 0, reason: r.reason || "",
+  status: r.status,
+  appliedOn: r.applied_on || "",
+  tlComment: r.tl_comment || "",
+  tlActionDate: r.tl_action_date || "",
+  tlName: r.tl_name || "",
+  compOffDays: Number(r.comp_off_days) || 0,
 });
 
 export const annToDb = a => ({

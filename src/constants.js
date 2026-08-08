@@ -18,6 +18,9 @@ export const AIRPORTS = ["ZIA", "AAN", "AZI", "XSB", "ZDY"];
 export const LEAVE_TYPES = ["Annual Leave", "Sick Leave", "Comp-Off", "Emergency Leave", "Unpaid Leave"];
 export const STATUS_COLORS = { pending: "#f59e0b", tl_approved: "#38bdf8", approved: "#10b981", rejected: "#ef4444", withdrawn: "#94a3b8" };
 export const STATUS_LABELS = { pending: "Pending TL", tl_approved: "Pending MGR", approved: "Approved", rejected: "Rejected", withdrawn: "Withdrawn" };
+// Overtime is team-lead-terminal, so "pending" means pending TL and there is
+// no manager stage. Colours are shared with leave.
+export const OT_STATUS_LABELS = { pending: "Pending TL", approved: "Approved", rejected: "Rejected", withdrawn: "Withdrawn" };
 export const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 // Months (0-based) for which roster/attendance data exists and pills are shown.
 // Keep the selectable month within this range so the page never opens on a
