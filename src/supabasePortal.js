@@ -192,6 +192,40 @@ export const nfFromDb = r => ({
   read: !!r.read, date: r.date || "",
 });
 
+/**
+ * Field-level diff for rows that already exist.
+ *
+ * diffById tells you WHICH rows changed; upserting those sends every column,
+ * so an ordinary profile save also writes `email` — the user's login ID —
+ * even though it never changed. That is an unnecessary write to an immutable
+ * identity column, and it makes any UPDATE OF email trigger fire spuriously.
+ *
+ * Returns { updates, inserts }:
+ *   updates — [{ id, patch }] carrying only the columns whose value differs
+ *   inserts — whole rows that had no previous version
+ */
+export function diffFieldsById(prev, next, toDb) {
+  const prevMap = new Map(prev.map(r => [r.id, r]));
+  const updates = [];
+  const inserts = [];
+  for (const row of next) {
+    const before = prevMap.get(row.id);
+    if (!before) { inserts.push(toDb(row)); continue; }
+    const a = toDb(before), b = toDb(row);
+    const patch = {};
+    for (const k of Object.keys(b)) {
+      const av = a[k], bv = b[k];
+      if (av === bv) continue;
+      if (typeof av === "object" && av !== null && typeof bv === "object" && bv !== null) {
+        if (JSON.stringify(av) === JSON.stringify(bv)) continue;
+      }
+      patch[k] = bv;
+    }
+    if (Object.keys(patch).length) updates.push({ id: row.id, patch });
+  }
+  return { updates, inserts };
+}
+
 export function diffById(prev, next) {
   const prevMap = new Map(prev.map(r => [r.id, r]));
   return next.filter(r => {

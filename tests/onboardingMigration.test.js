@@ -197,3 +197,62 @@ describe("migration: onboarding authorization is enforced server-side", () => {
       /revoke all on function public\.guard_employee_email_approved\(\) from anon, authenticated/);
   });
 });
+
+describe("migration: auth.users guard covers every onboarding scenario", () => {
+  // The trigger body, isolated so assertions cannot accidentally match text
+  // from a neighbouring function.
+  const body = sql
+    .split("create or replace function public.guard_auth_user_approved()")[1]
+    .split("$$;")[0]
+    .toLowerCase();
+
+  it("approved new Team user — admitted via the approved list", () => {
+    expect(body).toMatch(/if public\.is_approved_team_login\(new\.email\) then\s*return new;/);
+  });
+
+  it("approved existing Team user — same path, no special case to get wrong", () => {
+    // Only INSERT is guarded, so sign-in by an existing account never reaches
+    // the trigger at all.
+    expect(lower).toMatch(/before insert on auth\.users/);
+    expect(lower).not.toMatch(/before insert or update on auth\.users/);
+  });
+
+  it("existing roster user without an auth account — admitted", () => {
+    expect(body).toMatch(/from public\.employees where lower\(email\) = lower\(new\.email\)/);
+    expect(body).toMatch(/return new;/);
+  });
+
+  it("the roster lookup is guarded so the trigger is order-independent", () => {
+    expect(body).toMatch(/to_regclass\('public\.employees'\) is not null/);
+  });
+
+  it("unknown email — refused", () => {
+    expect(body).toMatch(/raise exception\s*'this email address is not registered/);
+  });
+
+  it("malformed or empty email — passed through, not crashed on", () => {
+    // GoTrue validates address format before the insert; the trigger only has
+    // to avoid throwing on null/blank (phone-only and anonymous sign-ins).
+    expect(body).toMatch(/new\.email is null or trim\(new\.email\) = ''/);
+  });
+
+  it("casing and whitespace cannot wrongly refuse a legitimate member", () => {
+    const rpc = sql
+      .split("create or replace function public.is_approved_team_login(p_email text)")[1]
+      .split("$$;")[0]
+      .toLowerCase();
+    expect(rpc).toMatch(/lower\(email\) = lower\(trim\(coalesce\(p_email, ''\)\)\)/);
+  });
+
+  it("fails closed, with a definite errcode rather than a generic one", () => {
+    expect(body).toMatch(/errcode = 'check_violation'/);
+  });
+
+  it("creates no employee row — it only ever admits or refuses", () => {
+    expect(body).not.toMatch(/insert into public\.employees/);
+  });
+
+  it("touches no credential material", () => {
+    expect(body).not.toMatch(/password|encrypted_password|token/);
+  });
+});

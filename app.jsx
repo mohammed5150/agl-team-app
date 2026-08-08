@@ -7,7 +7,7 @@ import { applyLeaveAction, newRequestRecipients } from "./src/leaveWorkflow.js";
 import { applyOvertimeAction, newOvertimeRecipients } from "./src/overtimeWorkflow.js";
 import { needsOnboarding, sanitizeEmployeeEdit, canFinalizeProfile, isEmailTaken, normalizeLoginId } from "./src/onboarding.js";
 import { isApprovedTeamLogin, checkApprovedTeamLogin, NOT_REGISTERED_MESSAGE } from "./src/teamDirectory.js";
-import { supa, subscribePush, unsubscribePush, sendPush, empToDb, empFromDb, lrToDb, lrFromDb, otToDb, otFromDb, annToDb, annFromDb, nfToDb, nfFromDb, diffById, pushSupported } from "./src/supabasePortal.js";
+import { supa, subscribePush, unsubscribePush, sendPush, diffFieldsById, empToDb, empFromDb, lrToDb, lrFromDb, otToDb, otFromDb, annToDb, annFromDb, nfToDb, nfFromDb, diffById, pushSupported } from "./src/supabasePortal.js";
 import { Logo, Bd, Bt } from "./src/uiPrimitives.jsx";
 import { LoginPage } from "./src/LoginPage.jsx";
 import { ErrorBoundary } from "./src/ErrorBoundary.jsx";
@@ -264,15 +264,24 @@ function App() {
     if (!hydrated.current || !supa) return;
     const t = setTimeout(() => {
       const baseline = prevEmployeesRef.current;
-      const changed = diffById(baseline, employees);
-      if (!changed.length) return;
-      // Only advance the diff baseline once the write is known to have landed.
-      // Advancing it unconditionally drops failed rows out of every future
-      // diff, so a rejected write was never retried and local state silently
-      // diverged from the database.
-      supa.from("employees").upsert(changed.map(empToDb))
-        .then(r => {
-          if (r.error) { console.error("employees upsert:", r.error); setSyncError("Couldn't save employee changes"); return; }
+      // Field-level diff, not row-level: an upsert writes every column, which
+      // would rewrite `email` — the immutable login ID — on every profile
+      // save. Existing rows get a patch of only what actually changed; brand
+      // new rows (manager invites) still need the whole row.
+      const { updates, inserts } = diffFieldsById(baseline, employees, empToDb);
+      if (!updates.length && !inserts.length) return;
+      const writes = [
+        ...updates.map(u => supa.from("employees").update(u.patch).eq("id", u.id)),
+        ...(inserts.length ? [supa.from("employees").upsert(inserts)] : []),
+      ];
+      // Only advance the diff baseline once the writes are known to have
+      // landed. Advancing it unconditionally drops failed rows out of every
+      // future diff, so a rejected write was never retried and local state
+      // silently diverged from the database.
+      Promise.all(writes)
+        .then(rs => {
+          const bad = rs.find(r => r.error);
+          if (bad) { console.error("employees write:", bad.error); setSyncError("Couldn't save employee changes"); return; }
           if (prevEmployeesRef.current === baseline) prevEmployeesRef.current = employees;
         });
     }, 400);

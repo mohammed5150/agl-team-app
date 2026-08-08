@@ -7,7 +7,7 @@ import {
   canEditProfile, canUnlockProfile, canFinalizeProfile,
   isEmailTaken, normalizeLoginId,
 } from "../src/onboarding.js";
-import { empToDb, empFromDb } from "../src/supabasePortal.js";
+import { empToDb, empFromDb, diffFieldsById } from "../src/supabasePortal.js";
 
 // A fully completed, not-yet-finalized employee.
 const emp = (over = {}) => ({
@@ -311,5 +311,65 @@ describe("manager and admin corrections survive the lock", () => {
 
   it("staff editing rights do not depend on the target being their own row", () => {
     expect(canEditProfile(MGR, emp({ id: "EMP-999" }))).toBe(true);
+  });
+});
+
+describe("employee profile saves do not rewrite the login ID", () => {
+  const row = e => empToDb(e);
+
+  it("a mobile-number change patches only that column", () => {
+    const before = [emp()];
+    const after  = [emp({ mobile: "+971 55 999 8888" })];
+    const { updates, inserts } = diffFieldsById(before, after, row);
+    expect(inserts).toEqual([]);
+    expect(updates).toHaveLength(1);
+    expect(Object.keys(updates[0].patch)).toEqual(["mobile"]);
+    expect(updates[0].patch).not.toHaveProperty("email");
+  });
+
+  it("a full onboarding save still never includes email", () => {
+    const before = [emp({ dob: "", address: "", emergencyName: "", emergencyContact: "" })];
+    const after  = [emp()];
+    const { updates } = diffFieldsById(before, after, row);
+    expect(Object.keys(updates[0].patch).sort())
+      .toEqual(["address", "dob", "emergency_contact", "emergency_name"]);
+    expect(updates[0].patch).not.toHaveProperty("email");
+  });
+
+  it("finalizing patches only profile_finalized", () => {
+    const { updates } = diffFieldsById([emp()], [emp({ profileFinalized: true })], row);
+    expect(updates[0].patch).toEqual({ profile_finalized: true });
+  });
+
+  it("an unchanged row produces no write at all", () => {
+    const { updates, inserts } = diffFieldsById([emp()], [emp()], row);
+    expect(updates).toEqual([]);
+    expect(inserts).toEqual([]);
+  });
+
+  it("a genuine email change by a manager is still sent", () => {
+    const { updates } = diffFieldsById(
+      [emp()], [emp({ email: "nisar.ahmed@adbsafegate.com" })], row);
+    expect(updates[0].patch).toEqual({ email: "nisar.ahmed@adbsafegate.com" });
+  });
+
+  it("a brand new row is inserted whole, so manager invites still work", () => {
+    const { updates, inserts } = diffFieldsById([], [emp({ id: "EMP-999" })], row);
+    expect(updates).toEqual([]);
+    expect(inserts).toHaveLength(1);
+    expect(inserts[0].id).toBe("EMP-999");
+    expect(inserts[0].email).toBe("amarnath.munderi@adbsafegate.com");
+  });
+
+  it("compares nested json by value, not identity", () => {
+    const a = emp({ documents: [{ id: 1, type: "passport" }] });
+    const b = emp({ documents: [{ id: 1, type: "passport" }] });
+    expect(diffFieldsById([a], [b], row).updates).toEqual([]);
+  });
+
+  it("detects a real change inside nested json", () => {
+    const a = emp({ documents: [] });
+    const b = emp({ documents: [{ id: 1, type: "passport" }] });
+    expect(Object.keys(diffFieldsById([a], [b], row).updates[0].patch)).toEqual(["documents"]);
   });
 });

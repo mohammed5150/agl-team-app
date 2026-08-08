@@ -366,20 +366,36 @@ security definer
 set search_path = public
 as $$
 begin
+  -- Phone-only, anonymous and OAuth-without-email sign-ins are out of scope.
   if new.email is null or trim(new.email) = '' then
-    return new;                       -- phone-only / anonymous sign-ins
+    return new;
   end if;
+
+  -- Approved Team Mail ID. Comparison is lower(trim(...)) inside the RPC, so
+  -- casing and stray whitespace cannot wrongly refuse a legitimate member.
   if public.is_approved_team_login(new.email) then
     return new;
   end if;
-  if exists (
-    select 1 from public.employees where lower(email) = lower(new.email)
-  ) then
-    return new;                       -- already on the roster
+
+  -- Already on the roster. Covers accounts provisioned before this migration
+  -- and any admin-created user, so applying it can never lock out an existing
+  -- member. Guarded with to_regclass so the trigger is order-independent and
+  -- does not fail if employees is absent.
+  if to_regclass('public.employees') is not null then
+    if exists (
+      select 1 from public.employees where lower(email) = lower(new.email)
+    ) then
+      return new;
+    end if;
   end if;
+
+  -- Fail closed. An authorization gate that cannot confirm approval must
+  -- refuse: letting an unverified address through would defeat the control.
+  -- Every avoidable cause of a wrong refusal is handled above.
   raise exception
     'This email address is not registered for the Team Portal'
-    using hint = 'Contact your administrator.';
+    using hint = 'Contact your administrator.',
+          errcode = 'check_violation';
 end;
 $$;
 
