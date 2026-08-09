@@ -34,9 +34,11 @@ create unique index if not exists employees_email_lower_key
 -- Rules enforced:
 --   1. A finalized profile is read-only — no employee-editable field
 --      may change once profile_finalized is true.
---   2. profile_finalized may only go false -> true (self-finalize).
---      An employee can never set it back to false; only a manager can
---      reopen a profile.
+--   0. UNLOCK IS MANAGER-ONLY. profile_finalized true -> false is
+--      refused for employees AND team leads. Checked before the staff
+--      bypass, and recorded in profile_unlock_audit (section g).
+--   2. profile_finalized may only go false -> true for an employee
+--      (self-finalize). They can never set it back.
 --   3. initial_password may only go true -> false, and only as a side
 --      effect of the employee setting their own password. It can never
 --      be re-armed by the employee.
@@ -59,7 +61,19 @@ begin
     return new;
   end if;
 
-  -- Staff keep full management access, including corrections after lock.
+  -- Rule 0 — UNLOCK IS MANAGER-ONLY.
+  -- Checked BEFORE the staff bypass below, so a team lead cannot reopen a
+  -- finalized profile either. There is no separate 'admin' role in this
+  -- schema; manager is the highest role and is_manager() is the single place
+  -- to widen this if one is ever added.
+  if old.profile_finalized and not new.profile_finalized
+     and not public.is_manager() then
+    raise exception
+      'A finalized profile can only be reopened by a manager';
+  end if;
+
+  -- Staff keep full management access for corrections, including on a
+  -- finalized profile — but not the unlock itself, handled above.
   if public.is_staff() then
     return new;
   end if;
@@ -68,12 +82,6 @@ begin
   -- row at all (emp_update_self already enforces that; belt and braces).
   if old.id is distinct from public.current_emp_id() then
     raise exception 'You may only edit your own profile';
-  end if;
-
-  -- Rule 2 — finalization is one-way for an employee.
-  if old.profile_finalized and not new.profile_finalized then
-    raise exception
-      'A finalized profile can only be reopened by a manager';
   end if;
 
   -- Rule 3 — the initial-password flag is one-way too.
@@ -405,3 +413,81 @@ create trigger trg_guard_auth_user_approved
   for each row execute function public.guard_auth_user_approved();
 
 revoke all on function public.guard_auth_user_approved() from anon, authenticated;
+
+-- ---------------------------------------------------------------
+-- g. Unlock audit trail
+--
+-- The repository had no audit mechanism, so this adds one scoped to a
+-- single high-privilege operation: reopening a finalized profile.
+--
+-- Written by the trigger itself, not by the client, so it cannot be
+-- skipped or forged from the API. Nobody holds INSERT/UPDATE/DELETE on
+-- the table — the SECURITY DEFINER trigger is the only writer, which
+-- makes the record append-only in practice.
+--
+-- An optional reason can be supplied by the caller for the duration of
+-- one transaction:
+--     select set_config('app.unlock_reason', 'EID correction', true);
+--     update employees set profile_finalized = false where id = '...';
+-- ---------------------------------------------------------------
+
+create table if not exists public.profile_unlock_audit (
+  id                bigserial primary key,
+  employee_id       text        not null,
+  employee_email    text,
+  unlocked_by_id    text,
+  unlocked_by_email text,
+  unlocked_by_role  text,
+  reason            text,
+  unlocked_at       timestamptz not null default now()
+);
+
+create index if not exists profile_unlock_audit_employee_idx
+  on public.profile_unlock_audit (employee_id, unlocked_at desc);
+
+comment on table public.profile_unlock_audit is
+  'Append-only record of every reopening of a finalized profile. Written '
+  'only by trg_guard_employee_profile_lock; no role holds write access.';
+
+alter table public.profile_unlock_audit enable row level security;
+revoke all on public.profile_unlock_audit from anon, authenticated;
+
+-- Managers may read the log. Nobody may write it directly.
+drop policy if exists pua_select_manager on public.profile_unlock_audit;
+create policy pua_select_manager
+  on public.profile_unlock_audit for select
+  to authenticated
+  using (public.is_manager());
+
+grant select on public.profile_unlock_audit to authenticated;
+
+create or replace function public.record_profile_unlock()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if old.profile_finalized and not new.profile_finalized then
+    insert into public.profile_unlock_audit (
+      employee_id, employee_email,
+      unlocked_by_id, unlocked_by_email, unlocked_by_role,
+      reason
+    ) values (
+      old.id, old.email,
+      public.current_emp_id(), auth.email(), coalesce(public.current_emp_role(), auth.role()),
+      nullif(current_setting('app.unlock_reason', true), '')
+    );
+  end if;
+  return new;
+end;
+$$;
+
+-- AFTER UPDATE: only records unlocks that actually committed past every
+-- BEFORE guard, so a refused attempt leaves no misleading audit row.
+drop trigger if exists trg_record_profile_unlock on public.employees;
+create trigger trg_record_profile_unlock
+  after update on public.employees
+  for each row execute function public.record_profile_unlock();
+
+revoke all on function public.record_profile_unlock() from anon, authenticated;

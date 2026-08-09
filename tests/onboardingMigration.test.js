@@ -256,3 +256,71 @@ describe("migration: auth.users guard covers every onboarding scenario", () => {
     expect(body).not.toMatch(/password|encrypted_password|token/);
   });
 });
+
+describe("migration: unlocking a finalized profile is manager-only", () => {
+  const guard = sql
+    .split("create or replace function public.guard_employee_profile_lock()")[1]
+    .split("$$;")[0]
+    .toLowerCase();
+
+  it("refuses the unlock for anyone who is not a manager", () => {
+    expect(guard).toMatch(
+      /old\.profile_finalized and not new\.profile_finalized\s*and not public\.is_manager\(\)/);
+    expect(guard).toContain("can only be reopened by a manager");
+  });
+
+  it("checks the unlock BEFORE the staff bypass, so a team lead is caught too", () => {
+    const unlockAt = guard.indexOf("not public.is_manager()");
+    const bypassAt = guard.indexOf("if public.is_staff() then");
+    expect(unlockAt).toBeGreaterThan(-1);
+    expect(bypassAt).toBeGreaterThan(-1);
+    expect(unlockAt).toBeLessThan(bypassAt);
+  });
+
+  it("still lets staff correct a locked profile — only the unlock is restricted", () => {
+    expect(guard).toMatch(/if public\.is_staff\(\) then\s*return new;/);
+  });
+
+  it("documents that manager is the admin-equivalent role here", () => {
+    expect(guard).toContain("there is no separate 'admin' role");
+  });
+});
+
+describe("migration: unlocks are audited", () => {
+  it("creates an append-only audit table", () => {
+    expect(lower).toMatch(/create table if not exists public\.profile_unlock_audit/);
+  });
+
+  it("records who, which employee, when, and an optional reason", () => {
+    const ddl = lower.split("create table if not exists public.profile_unlock_audit")[1]
+                     .split(");")[0];
+    for (const c of ["employee_id", "employee_email", "unlocked_by_id",
+                     "unlocked_by_email", "unlocked_by_role", "reason", "unlocked_at"]) {
+      expect(ddl).toContain(c);
+    }
+  });
+
+  it("is written by the trigger, never by the client", () => {
+    expect(lower).toMatch(/create or replace function public\.record_profile_unlock\(\)/);
+    expect(lower).toMatch(/create trigger trg_record_profile_unlock/);
+    expect(lower).toMatch(/after update on public\.employees/);
+  });
+
+  it("fires AFTER update, so a refused attempt leaves no audit row", () => {
+    expect(lower).toMatch(/after update on public\.employees\s*for each row execute function public\.record_profile_unlock/);
+  });
+
+  it("grants no write access to any end-user role", () => {
+    expect(lower).toMatch(/revoke all on public\.profile_unlock_audit from anon, authenticated/);
+    expect(lower).toMatch(/grant select on public\.profile_unlock_audit to authenticated/);
+    expect(lower).not.toMatch(/grant (insert|update|delete)[^;]*profile_unlock_audit/);
+  });
+
+  it("only a manager may read the log", () => {
+    expect(lower).toMatch(/create policy pua_select_manager[\s\S]*using \(public\.is_manager\(\)\)/);
+  });
+
+  it("supports an optional reason without a schema change", () => {
+    expect(lower).toMatch(/current_setting\('app\.unlock_reason', true\)/);
+  });
+});
