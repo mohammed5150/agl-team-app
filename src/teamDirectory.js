@@ -53,17 +53,25 @@ export const APPROVED_TEAM_LOGINS = [
   "abubaker.ab151@gmail.com",             // employee mapping UNRESOLVED
   "Mepeese@gmail.com",                    // employee mapping UNRESOLVED
   "muhammed.talhalateef@adbsafegate.com", // employee mapping UNRESOLVED
+  // Third batch — the four that arrived unusable and were corrected by an
+  // administrator before being approved. The as-supplied forms are below.
+  "sandeepselvan1999@gmail.com",          // Sandeep Selvan — ADB-036
+  "abhishekabhi0280@gmail.com",           // Abhishek Aramban — ADB-055
+  "syedmuzaffar7869@gmail.com",           // Syed Mussafir Shah — ADB-054
+  "danish.khan7556@gmail.com",            // Danish Khan — ADB-037
 ];
 
-// Four addresses from the second batch are deliberately absent, because they
-// are unusable as supplied:
-//   "abhishe kabhi0280@gmail.com"  contains a space, and is ambiguous between
-//                                  Abhishek Aramban ADB-055 and Abhishekh Pujari ADB-028
-//   "sandeepse lvan1999@gmail.com" contains a space; likely sandeepselvan1999@gmail.com
-//   "syedmuzaffar7869@gmsil.com"   "gmsil.com" is not a Gmail domain
-//   "danisn.khan7556@gmail.com"    "danisn" looks like a typo for Danish Khan ADB-037
-// Approving a mistyped address is not a harmless no-op — whoever really owns
-// it could then create an account. Each needs confirming first.
+// These four arrived in a form that could not be approved, and were held back
+// until an administrator confirmed the correction. The BROKEN forms must never
+// reappear on the list — a space makes an address invalid outright, and a
+// mistyped domain is worse than useless: whoever really owns the mistyped
+// address could create a Team Portal account with it.
+//   as supplied                     corrected to
+//   "abhishe kabhi0280@gmail.com"   abhishekabhi0280@gmail.com   (also chose
+//                                   Abhishek Aramban ADB-055 over Abhishekh Pujari ADB-028)
+//   "sandeepse lvan1999@gmail.com"  sandeepselvan1999@gmail.com
+//   "syedmuzaffar7869@gmsil.com"    syedmuzaffar7869@gmail.com   (gmsil -> gmail)
+//   "danisn.khan7556@gmail.com"     danish.khan7556@gmail.com    (danisn -> danish)
 
 // Approved to sign in, but not yet mapped to an employee row. They will pass
 // the login gate and then be stopped by loadPortalData with the "no employee

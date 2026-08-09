@@ -6,7 +6,7 @@ import {
 } from "../src/teamDirectory.js";
 import { isEmailTaken } from "../src/onboarding.js";
 
-// The 27 Team Mail IDs, verbatim.
+// The 31 Team Mail IDs, verbatim.
 const TEAM = [
   "muhammed.farhan.ext@adbsafegate.com",
   "anurag.aikkal@adbsafegate.com",
@@ -35,13 +35,17 @@ const TEAM = [
   "abubaker.ab151@gmail.com",
   "Mepeese@gmail.com",
   "muhammed.talhalateef@adbsafegate.com",
+  "sandeepselvan1999@gmail.com",
+  "abhishekabhi0280@gmail.com",
+  "syedmuzaffar7869@gmail.com",
+  "danish.khan7556@gmail.com",
 ];
 
-// The four addresses held back from the second batch. Each is unusable as
-// supplied — two contain a space, one is on "gmsil.com", one looks like a
-// typo of a roster name. Approving a mistyped address would let whoever
-// really owns it create an account, so none may appear on the list until
-// an administrator confirms it.
+// The AS-SUPPLIED forms of the last four, which were corrected before being
+// approved. Two contained a space, one was on "gmsil.com", one misspelt a
+// roster name. These broken spellings must never reappear: a space makes an
+// address invalid outright, and approving a mistyped one would let whoever
+// really owns it create an account.
 const WITHHELD = [
   "abhishe kabhi0280@gmail.com",
   "sandeepse lvan1999@gmail.com",
@@ -49,9 +53,22 @@ const WITHHELD = [
   "danisn.khan7556@gmail.com",
 ];
 
-describe("the approved list is exactly the twenty-seven Team Mail IDs", () => {
-  it("holds all twenty-seven, verbatim", () => {
+describe("the approved list is exactly the thirty-one Team Mail IDs", () => {
+  it("holds all thirty-one, verbatim", () => {
     expect([...APPROVED_TEAM_LOGINS].sort()).toEqual([...TEAM].sort());
+  });
+
+  it("holds the corrected form of each address, never the broken one", () => {
+    const approved = APPROVED_TEAM_LOGINS.map(e => e.toLowerCase());
+    for (const [broken, corrected] of [
+      ["abhishe kabhi0280@gmail.com",  "abhishekabhi0280@gmail.com"],
+      ["sandeepse lvan1999@gmail.com", "sandeepselvan1999@gmail.com"],
+      ["syedmuzaffar7869@gmsil.com",   "syedmuzaffar7869@gmail.com"],
+      ["danisn.khan7556@gmail.com",    "danish.khan7556@gmail.com"],
+    ]) {
+      expect(approved).toContain(corrected);
+      expect(approved).not.toContain(broken);
+    }
   });
 
   it("holds none of the four withheld addresses", () => {

@@ -273,7 +273,7 @@ comment on table public.approved_team_logins is
   'Authoritative list of Team Mail IDs permitted to onboard. Not readable '
   'by anon or authenticated roles — query via is_approved_team_login().';
 
--- The 27 approved Team Mail IDs, stored verbatim.
+-- The 31 approved Team Mail IDs, stored verbatim.
 --
 -- Addresses labelled "employee mapping unresolved" are approved to SIGN IN but
 -- match no employees row. That is deliberate, not an oversight: they reach the
@@ -309,21 +309,26 @@ insert into public.approved_team_logins (email, label) values
   ('thomas2937@gmail.com',                 'employee mapping unresolved — Thomas Padipurakkal ADB-016?'),
   ('abubaker.ab151@gmail.com',             'employee mapping unresolved — Abubaker Irshad ADB-004 or Abu Bakar?'),
   ('Mepeese@gmail.com',                    'employee mapping unresolved — no roster match'),
-  ('muhammed.talhalateef@adbsafegate.com', 'employee mapping unresolved — no roster row for Talha Lateef')
+  ('muhammed.talhalateef@adbsafegate.com', 'employee mapping unresolved — no roster row for Talha Lateef'),
+  -- third batch: arrived unusable, corrected by an administrator, then approved
+  ('sandeepselvan1999@gmail.com',          'Sandeep Selvan — ADB-036'),
+  ('abhishekabhi0280@gmail.com',           'Abhishek Aramban — ADB-055'),
+  ('syedmuzaffar7869@gmail.com',           'Syed Mussafir Shah — ADB-054'),
+  ('danish.khan7556@gmail.com',            'Danish Khan — ADB-037')
 on conflict (email) do nothing;
 
--- DELIBERATELY NOT SEEDED. Four addresses supplied with the second batch are
--- unusable as given and would either be dead on arrival or, worse, let someone
--- outside the team create an account:
---   abhishe kabhi0280@gmail.com   contains a space; also ambiguous between
---                                 Abhishek Aramban ADB-055 and Abhishekh Pujari ADB-028
---   sandeepse lvan1999@gmail.com  contains a space; likely sandeepselvan1999@gmail.com
---                                 (Sandeep Selvan ADB-036)
---   syedmuzaffar7869@gmsil.com    "gmsil.com" is not a Gmail domain
---   danisn.khan7556@gmail.com     "danisn" looks like a typo for the roster's
---                                 Danish Khan ADB-037
--- Approving a mistyped address is not harmless: whoever actually owns it could
--- then create a Team Portal account. Each needs confirming before it is added.
+-- MUST NEVER BE SEEDED. The four above were originally supplied in a form that
+-- could not be approved. The broken spellings are recorded here so they are not
+-- reintroduced by a later copy-paste from the original list:
+--   as supplied                   corrected to
+--   abhishe kabhi0280@gmail.com   abhishekabhi0280@gmail.com  (space; also
+--                                 ambiguous between Abhishek Aramban ADB-055
+--                                 and Abhishekh Pujari ADB-028 — ADB-055 chosen)
+--   sandeepse lvan1999@gmail.com  sandeepselvan1999@gmail.com (space)
+--   syedmuzaffar7869@gmsil.com    syedmuzaffar7869@gmail.com  (gmsil -> gmail)
+--   danisn.khan7556@gmail.com     danish.khan7556@gmail.com   (danisn -> danish)
+-- A space makes an address invalid outright; a mistyped domain is worse than
+-- useless, because whoever actually owns it could create a Team Portal account.
 
 -- Locked down: no anon or authenticated access at all. Managers read it
 -- through the RPC below, or via the SQL editor / service_role.

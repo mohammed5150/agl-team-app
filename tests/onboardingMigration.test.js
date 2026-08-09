@@ -134,7 +134,7 @@ describe("migration: onboarding authorization is enforced server-side", () => {
     expect(lower).toMatch(/insert into public\.approved_team_logins/);
   });
 
-  it("holds all twenty-seven approved Team Mail IDs", () => {
+  it("holds all thirty-one approved Team Mail IDs", () => {
     const seed = lower.split("insert into public.approved_team_logins")[1].split(";")[0];
     for (const mail of [
       "muhammed.farhan.ext@adbsafegate.com", "anurag.aikkal@adbsafegate.com",
@@ -151,12 +151,14 @@ describe("migration: onboarding authorization is enforced server-side", () => {
       "ganesh2842014@gmail.com", "thomas2937@gmail.com",
       "abubaker.ab151@gmail.com", "mepeese@gmail.com",
       "muhammed.talhalateef@adbsafegate.com",
+      "sandeepselvan1999@gmail.com", "abhishekabhi0280@gmail.com",
+      "syedmuzaffar7869@gmail.com", "danish.khan7556@gmail.com",
     ]) {
       expect(seed).toContain(mail);
     }
   });
 
-  it("seeds none of the four withheld addresses", () => {
+  it("seeds the corrected spellings, never the as-supplied ones", () => {
     // A space or a misspelt domain makes an address unusable; seeding one
     // would either be dead weight or let its real owner create an account.
     const seed = lower.split("insert into public.approved_team_logins")[1].split(";")[0];
