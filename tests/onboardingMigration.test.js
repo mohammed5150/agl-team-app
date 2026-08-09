@@ -51,7 +51,7 @@ describe("migration: the lock cannot be bypassed via the API", () => {
 
   it("is not callable over the REST RPC surface", () => {
     expect(lower).toMatch(
-      /revoke all on function public\.guard_employee_profile_lock\(\) from anon, authenticated/);
+      /revoke all on function public\.guard_employee_profile_lock\(\) from public, anon, authenticated/);
   });
 });
 
@@ -151,7 +151,7 @@ describe("migration: onboarding authorization is enforced server-side", () => {
 
   it("does not expose the list to anon or authenticated", () => {
     expect(lower).toMatch(/alter table public\.approved_team_logins enable row level security/);
-    expect(lower).toMatch(/revoke all on public\.approved_team_logins from anon, authenticated/);
+    expect(lower).toMatch(/revoke all on public\.approved_team_logins from public, anon, authenticated/);
   });
 
   it("only a manager may read the list directly", () => {
@@ -192,9 +192,9 @@ describe("migration: onboarding authorization is enforced server-side", () => {
 
   it("keeps both guard functions off the REST RPC surface", () => {
     expect(lower).toMatch(
-      /revoke all on function public\.guard_auth_user_approved\(\) from anon, authenticated/);
+      /revoke all on function public\.guard_auth_user_approved\(\) from public, anon, authenticated/);
     expect(lower).toMatch(
-      /revoke all on function public\.guard_employee_email_approved\(\) from anon, authenticated/);
+      /revoke all on function public\.guard_employee_email_approved\(\) from public, anon, authenticated/);
   });
 });
 
@@ -311,7 +311,7 @@ describe("migration: unlocks are audited", () => {
   });
 
   it("grants no write access to any end-user role", () => {
-    expect(lower).toMatch(/revoke all on public\.profile_unlock_audit from anon, authenticated/);
+    expect(lower).toMatch(/revoke all on public\.profile_unlock_audit from public, anon, authenticated/);
     expect(lower).toMatch(/grant select on public\.profile_unlock_audit to authenticated/);
     expect(lower).not.toMatch(/grant (insert|update|delete)[^;]*profile_unlock_audit/);
   });
@@ -322,5 +322,39 @@ describe("migration: unlocks are audited", () => {
 
   it("supports an optional reason without a schema change", () => {
     expect(lower).toMatch(/current_setting\('app\.unlock_reason', true\)/);
+  });
+});
+
+// Postgres grants EXECUTE on a new function to PUBLIC by default, and
+// anon/authenticated inherit it. Revoking only those two roles leaves the
+// function callable over /rest/v1/rpc/ — which is exactly what shipped and had
+// to be corrected against the live database. Pin it so it cannot regress.
+describe("migration: revokes name PUBLIC, not just the two roles", () => {
+  const revokes = sql.match(/^revoke all on .+;$/gim) || [];
+
+  it("issues at least one revoke", () => {
+    expect(revokes.length).toBeGreaterThan(0);
+  });
+
+  it("never revokes from anon/authenticated without also revoking from public", () => {
+    const weak = revokes.filter(r => /\bfrom\s+anon\s*,\s*authenticated\s*;/i.test(r));
+    expect(weak).toEqual([]);
+  });
+
+  it("closes every trigger function to the REST RPC surface", () => {
+    for (const fn of [
+      "guard_employee_profile_lock",
+      "guard_employee_email_approved",
+      "guard_auth_user_approved",
+      "record_profile_unlock",
+    ]) {
+      expect(lower).toMatch(
+        new RegExp(`revoke all on function public\\.${fn}\\(\\) from public, anon, authenticated`));
+    }
+  });
+
+  it("still lets anon call the approval check, which must work pre-session", () => {
+    expect(lower).toMatch(
+      /grant execute on function public\.is_approved_team_login\(text\) to anon, authenticated/);
   });
 });

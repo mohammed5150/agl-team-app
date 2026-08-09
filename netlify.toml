@@ -1,0 +1,47 @@
+# Netlify configuration — response headers only.
+#
+# Deliberately no [build] section: the build command and publish directory stay
+# under the project's Netlify UI settings. Adding them here would silently
+# override that, and the two would drift.
+#
+# WHY THIS FILE EXISTS
+# index.html already carries a <meta http-equiv="Content-Security-Policy">.
+# A meta CSP is honoured for most directives, but the spec requires user agents
+# to IGNORE frame-ancestors when it arrives that way — it takes effect only as
+# an HTTP response header. The portal was therefore declaring clickjacking
+# protection it did not actually have. Serving the policy as a real header is
+# what closes that, and lets the transport/browser headers below be set too.
+#
+# KEEP THE TWO POLICIES IN SYNC. A browser receiving both enforces the
+# INTERSECTION of them, so tightening a directive in one place and not the
+# other breaks the app in a way that is painful to trace. tests/securityHeaders
+# .test.js fails the suite if they disagree on any shared directive.
+
+[[headers]]
+  for = "/*"
+
+  [headers.values]
+    # Verbatim copy of the meta policy, plus form-action (which has no meaning
+    # for this app today, but costs nothing and closes a redirect vector).
+    # connect-src carries the Supabase REST + realtime origins; everything else
+    # is same-origin because React, react-dom and supabase-js are all vendored.
+    Content-Security-Policy = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://*.supabase.co wss://*.supabase.co; frame-ancestors 'self'; form-action 'self'; object-src 'none'; base-uri 'self';"
+
+    # frame-ancestors covers modern browsers; this covers the ones that only
+    # understand the legacy header. SAMEORIGIN matches frame-ancestors 'self'.
+    X-Frame-Options = "SAMEORIGIN"
+
+    X-Content-Type-Options = "nosniff"
+
+    # Employee IDs and roster views appear in the URL hash. Send the origin
+    # only when leaving the site, never the path.
+    Referrer-Policy = "strict-origin-when-cross-origin"
+
+    # The portal asks for none of these. Denying them means an injected script
+    # cannot ask on its behalf either.
+    Permissions-Policy = "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+
+    # Netlify serves this site over HTTPS only; pin it for a year. No preload —
+    # that is a one-way submission to the browser preload list and belongs to a
+    # deliberate decision about the domain, not to a headers commit.
+    Strict-Transport-Security = "max-age=31536000; includeSubDomains"

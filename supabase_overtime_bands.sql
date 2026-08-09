@@ -68,7 +68,7 @@ create trigger trg_guard_employee_grading
   before update on public.employees
   for each row execute function public.guard_employee_grading();
 
-revoke all on function public.guard_employee_grading() from anon, authenticated;
+revoke all on function public.guard_employee_grading() from public, anon, authenticated;
 
 -- ---------------------------------------------------------------
 -- b. Pin the manager's allowed leave status transitions

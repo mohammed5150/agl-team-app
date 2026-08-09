@@ -154,7 +154,13 @@ create trigger trg_guard_employee_profile_lock
   before update on public.employees
   for each row execute function public.guard_employee_profile_lock();
 
-revoke all on function public.guard_employee_profile_lock() from anon, authenticated;
+-- PUBLIC must be named explicitly. Postgres grants EXECUTE on a new function
+-- to PUBLIC by default, and anon/authenticated inherit it from there, so
+-- "revoke ... from anon, authenticated" alone leaves the function callable
+-- via /rest/v1/rpc/. Revoking a role does not remove a PUBLIC grant.
+-- Trigger functions do not need EXECUTE on the invoking user: the privilege
+-- is checked when the trigger is created, not when it fires.
+revoke all on function public.guard_employee_profile_lock() from public, anon, authenticated;
 
 -- ---------------------------------------------------------------
 -- d. An employee may not create or delete employee rows. Already true
@@ -288,7 +294,7 @@ on conflict (email) do nothing;
 -- Locked down: no anon or authenticated access at all. Managers read it
 -- through the RPC below, or via the SQL editor / service_role.
 alter table public.approved_team_logins enable row level security;
-revoke all on public.approved_team_logins from anon, authenticated;
+revoke all on public.approved_team_logins from public, anon, authenticated;
 
 drop policy if exists atl_select_manager on public.approved_team_logins;
 create policy atl_select_manager
@@ -356,7 +362,7 @@ create trigger trg_guard_employee_email_approved
   before insert or update of email on public.employees
   for each row execute function public.guard_employee_email_approved();
 
-revoke all on function public.guard_employee_email_approved() from anon, authenticated;
+revoke all on function public.guard_employee_email_approved() from public, anon, authenticated;
 
 -- f3b. Refuse the Supabase Auth account itself.
 --
@@ -412,7 +418,7 @@ create trigger trg_guard_auth_user_approved
   before insert on auth.users
   for each row execute function public.guard_auth_user_approved();
 
-revoke all on function public.guard_auth_user_approved() from anon, authenticated;
+revoke all on function public.guard_auth_user_approved() from public, anon, authenticated;
 
 -- ---------------------------------------------------------------
 -- g. Unlock audit trail
@@ -450,7 +456,7 @@ comment on table public.profile_unlock_audit is
   'only by trg_guard_employee_profile_lock; no role holds write access.';
 
 alter table public.profile_unlock_audit enable row level security;
-revoke all on public.profile_unlock_audit from anon, authenticated;
+revoke all on public.profile_unlock_audit from public, anon, authenticated;
 
 -- Managers may read the log. Nobody may write it directly.
 drop policy if exists pua_select_manager on public.profile_unlock_audit;
@@ -490,4 +496,4 @@ create trigger trg_record_profile_unlock
   after update on public.employees
   for each row execute function public.record_profile_unlock();
 
-revoke all on function public.record_profile_unlock() from anon, authenticated;
+revoke all on function public.record_profile_unlock() from public, anon, authenticated;
