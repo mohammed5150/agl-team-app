@@ -6,7 +6,7 @@ import {
 } from "../src/teamDirectory.js";
 import { isEmailTaken } from "../src/onboarding.js";
 
-// The 14 Team Mail IDs, verbatim.
+// The 31 Team Mail IDs, verbatim.
 const TEAM = [
   "muhammed.farhan.ext@adbsafegate.com",
   "anurag.aikkal@adbsafegate.com",
@@ -22,11 +22,71 @@ const TEAM = [
   "ragesh.menon@adbsafegate.com",
   "sanoop.louis@adbsafegate.com",
   "mohammed.faheem@adbsafegate.com",
+  "tahseenkhan2332@gmail.com",
+  "vikrampal642@gmail.com",
+  "midhunbabu1902@gmail.com",
+  "vineethpatteri@gmail.com",
+  "dhivakarangunasekaran@gmail.com",
+  "yadunath.kaitheri@adbsafegate.com",
+  "srigajeg84@gmail.com",
+  "rajumottammal276@gmail.com",
+  "ganesh2842014@gmail.com",
+  "thomas2937@gmail.com",
+  "abubaker.ab151@gmail.com",
+  "Mepeese@gmail.com",
+  "muhammed.talhalateef@adbsafegate.com",
+  "sandeepselvan1999@gmail.com",
+  "abhishekabhi0280@gmail.com",
+  "syedmuzaffar7869@gmail.com",
+  "danish.khan7556@gmail.com",
 ];
 
-describe("the approved list is exactly the fourteen Team Mail IDs", () => {
-  it("holds all fourteen, verbatim", () => {
+// The AS-SUPPLIED forms of the last four, which were corrected before being
+// approved. Two contained a space, one was on "gmsil.com", one misspelt a
+// roster name. These broken spellings must never reappear: a space makes an
+// address invalid outright, and approving a mistyped one would let whoever
+// really owns it create an account.
+const WITHHELD = [
+  "abhishe kabhi0280@gmail.com",
+  "sandeepse lvan1999@gmail.com",
+  "syedmuzaffar7869@gmsil.com",
+  "danisn.khan7556@gmail.com",
+];
+
+describe("the approved list is exactly the thirty-one Team Mail IDs", () => {
+  it("holds all thirty-one, verbatim", () => {
     expect([...APPROVED_TEAM_LOGINS].sort()).toEqual([...TEAM].sort());
+  });
+
+  it("holds the corrected form of each address, never the broken one", () => {
+    const approved = APPROVED_TEAM_LOGINS.map(e => e.toLowerCase());
+    for (const [broken, corrected] of [
+      ["abhishe kabhi0280@gmail.com",  "abhishekabhi0280@gmail.com"],
+      ["sandeepse lvan1999@gmail.com", "sandeepselvan1999@gmail.com"],
+      ["syedmuzaffar7869@gmsil.com",   "syedmuzaffar7869@gmail.com"],
+      ["danisn.khan7556@gmail.com",    "danish.khan7556@gmail.com"],
+    ]) {
+      expect(approved).toContain(corrected);
+      expect(approved).not.toContain(broken);
+    }
+  });
+
+  it("holds none of the four withheld addresses", () => {
+    const approved = APPROVED_TEAM_LOGINS.map(e => e.toLowerCase());
+    for (const e of WITHHELD) {
+      expect(approved).not.toContain(e.toLowerCase());
+      expect(isApprovedTeamLogin(e)).toBe(false);
+    }
+  });
+
+  it("contains no address with whitespace in it", () => {
+    for (const e of APPROVED_TEAM_LOGINS) expect(e).not.toMatch(/\s/);
+  });
+
+  it("contains no address on a misspelt Gmail domain", () => {
+    for (const e of APPROVED_TEAM_LOGINS) {
+      expect(e.toLowerCase()).not.toMatch(/@gmsil\.|@gmial\.|@gmai\./);
+    }
   });
 
   it("preserves the original casing", () => {
@@ -129,11 +189,19 @@ describe("approved Team Mail IDs proceed to onboarding", () => {
   });
 });
 
-describe("the two unresolved mappings are approved but flagged", () => {
-  it("names exactly the two ambiguous addresses", () => {
-    expect([...UNRESOLVED_TEAM_LOGINS].sort()).toEqual(
-      ["jjijosebastian311@gmail.com", "praveen6273@gmail.com"]
-    );
+describe("the unresolved mappings are approved but flagged", () => {
+  it("names exactly the nine addresses with no employee row", () => {
+    expect([...UNRESOLVED_TEAM_LOGINS].sort()).toEqual([
+      "Mepeese@gmail.com",
+      "abubaker.ab151@gmail.com",
+      "ganesh2842014@gmail.com",
+      "jjijosebastian311@gmail.com",
+      "muhammed.talhalateef@adbsafegate.com",
+      "praveen6273@gmail.com",
+      "rajumottammal276@gmail.com",
+      "srigajeg84@gmail.com",
+      "thomas2937@gmail.com",
+    ].sort());
   });
 
   it("still lets them sign in — they are approved team members", () => {
