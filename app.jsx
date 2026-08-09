@@ -5,7 +5,9 @@ import { INITIAL_EMPLOYEES, INITIAL_LEAVE_REQUESTS, INITIAL_ANNOUNCEMENTS, nfId,
 import { nextEmpId } from "./src/helpers.js";
 import { applyLeaveAction, newRequestRecipients } from "./src/leaveWorkflow.js";
 import { applyOvertimeAction, newOvertimeRecipients } from "./src/overtimeWorkflow.js";
-import { supa, subscribePush, unsubscribePush, sendPush, empToDb, empFromDb, lrToDb, lrFromDb, otToDb, otFromDb, annToDb, annFromDb, nfToDb, nfFromDb, diffById, pushSupported } from "./src/supabasePortal.js";
+import { needsOnboarding, sanitizeEmployeeEdit, canFinalizeProfile, isEmailTaken, normalizeLoginId } from "./src/onboarding.js";
+import { isApprovedTeamLogin, checkApprovedTeamLogin, NOT_REGISTERED_MESSAGE } from "./src/teamDirectory.js";
+import { supa, subscribePush, unsubscribePush, sendPush, diffFieldsById, empToDb, empFromDb, lrToDb, lrFromDb, otToDb, otFromDb, annToDb, annFromDb, nfToDb, nfFromDb, diffById, pushSupported } from "./src/supabasePortal.js";
 import { Logo, Bd, Bt } from "./src/uiPrimitives.jsx";
 import { LoginPage } from "./src/LoginPage.jsx";
 import { ErrorBoundary } from "./src/ErrorBoundary.jsx";
@@ -21,6 +23,7 @@ import { OtPg } from "./src/components/OvertimePage.jsx";
 import { NotifPanel } from "./src/components/NotifPanel.jsx";
 import { Perf } from "./src/components/PerformancePage.jsx";
 import { Prof } from "./src/components/Profile.jsx";
+import { Onboarding } from "./src/components/Onboarding.jsx";
 import { Team } from "./src/components/TeamPage.jsx";
 import { MyTr, TrMgmt } from "./src/components/TrainingPage.jsx";
 
@@ -46,6 +49,8 @@ function App() {
   const [selectedMonth, setSelectedMonth] = useState(defaultAttMonth());
   const [showNotif, setShowNotif] = useState(false);
   const [syncError, setSyncError] = useState("");
+  // "Skip for now" only defers onboarding for this session; it is never persisted.
+  const [onboardingSkipped, setOnboardingSkipped] = useState(false);
 
   // --- Persistence: Supabase Auth + Supabase DB (tables RLS-protected)
   //   Data is only loaded once the user has an authenticated session.
@@ -259,15 +264,24 @@ function App() {
     if (!hydrated.current || !supa) return;
     const t = setTimeout(() => {
       const baseline = prevEmployeesRef.current;
-      const changed = diffById(baseline, employees);
-      if (!changed.length) return;
-      // Only advance the diff baseline once the write is known to have landed.
-      // Advancing it unconditionally drops failed rows out of every future
-      // diff, so a rejected write was never retried and local state silently
-      // diverged from the database.
-      supa.from("employees").upsert(changed.map(empToDb))
-        .then(r => {
-          if (r.error) { console.error("employees upsert:", r.error); setSyncError("Couldn't save employee changes"); return; }
+      // Field-level diff, not row-level: an upsert writes every column, which
+      // would rewrite `email` — the immutable login ID — on every profile
+      // save. Existing rows get a patch of only what actually changed; brand
+      // new rows (manager invites) still need the whole row.
+      const { updates, inserts } = diffFieldsById(baseline, employees, empToDb);
+      if (!updates.length && !inserts.length) return;
+      const writes = [
+        ...updates.map(u => supa.from("employees").update(u.patch).eq("id", u.id)),
+        ...(inserts.length ? [supa.from("employees").upsert(inserts)] : []),
+      ];
+      // Only advance the diff baseline once the writes are known to have
+      // landed. Advancing it unconditionally drops failed rows out of every
+      // future diff, so a rejected write was never retried and local state
+      // silently diverged from the database.
+      Promise.all(writes)
+        .then(rs => {
+          const bad = rs.find(r => r.error);
+          if (bad) { console.error("employees write:", bad.error); setSyncError("Couldn't save employee changes"); return; }
           if (prevEmployeesRef.current === baseline) prevEmployeesRef.current = employees;
         });
     }, 400);
@@ -403,13 +417,23 @@ function App() {
   // login for this employee), auto-sign them up with the given password.
   const login = useCallback(async () => {
     if (!supa) { setLoginError("Backend unavailable"); return; }
-    const email = loginId.trim().toLowerCase();
+    const email = normalizeLoginId(loginId);
     if (!email.includes("@")) { setLoginError("Please enter your email"); return; }
     if (!loginPassword) { setLoginError("Enter your password"); return; }
 
     setLoginSubmitting(true);
     setLoginError("");
     try {
+      // Eligibility gate — asks the database (is_approved_team_login RPC)
+      // before any auth call, so an unapproved address never reaches signUp.
+      // This is the courteous refusal; the real enforcement is the
+      // BEFORE INSERT trigger on auth.users, which refuses the account even
+      // if this check is bypassed entirely.
+      const { approved } = await checkApprovedTeamLogin(supa, email);
+      if (!approved) {
+        setLoginError(NOT_REGISTERED_MESSAGE);
+        return;
+      }
       const r = await supa.auth.signInWithPassword({ email, password: loginPassword });
       if (r.error) {
         const msg = (r.error.message || "").toLowerCase();
@@ -418,8 +442,10 @@ function App() {
           setLoginError("Please check your inbox and click the confirmation link, then sign in again.");
           return;
         }
-        // "Invalid login credentials" — could be wrong password OR first-time login.
-        // Try first-time signup with these credentials.
+        // "Invalid login credentials" — wrong password, or an approved member
+        // signing in for the first time. Account creation is reachable only for
+        // addresses that passed the gate above, so this can no longer mint an
+        // account for an arbitrary address.
         const s = await supa.auth.signUp({ email, password: loginPassword });
         if (s.error) {
           setLoginError(s.error.message || "Invalid email or password");
@@ -484,8 +510,18 @@ function App() {
     if (!trimmedEmail || !name?.trim()) {
       return { ok: false, error: "Email and name are required" };
     }
-    if (employees.some(e => e.email?.toLowerCase() === trimmedEmail)) {
+    if (isEmailTaken(employees, trimmedEmail)) {
       return { ok: false, error: "That email is already registered" };
+    }
+    // The login gate only admits approved Team Mail IDs, so creating a row for
+    // any other address would produce an employee who can never sign in. Refuse
+    // it here rather than leave a locked-out record behind.
+    if (!isApprovedTeamLogin(trimmedEmail)) {
+      return {
+        ok: false,
+        error: "That email is not on the approved Team Mail ID list, so it could "
+             + "not sign in. Add it to src/teamDirectory.js first.",
+      };
     }
     const id = nextEmpId(employees, role);
     const newEmp = {
@@ -530,8 +566,12 @@ function App() {
         outcomes.push({ line: i + 1, email, status: "error", reason: "missing name" });
         return;
       }
-      if (existingByEmail.has(email)) {
+      if (existingByEmail.has(email) || isEmailTaken(acc, email)) {
         outcomes.push({ line: i + 1, email, status: "skipped", reason: "email already exists" });
+        return;
+      }
+      if (!isApprovedTeamLogin(email)) {
+        outcomes.push({ line: i + 1, email, status: "error", reason: "not an approved Team Mail ID" });
         return;
       }
       const role = ["employee","teamlead","manager"].includes((row.role || "").toLowerCase())
@@ -679,6 +719,30 @@ function App() {
     res.pushes.forEach(pu => sendPush(pu.to, pu.title, pu.body, "/"));
   }, [currentUser, overtimeRequests]);
 
+  // Employee saving their own onboarding draft. sanitizeEmployeeEdit drops
+  // anything outside the editable allowlist and refuses once finalized — the
+  // database enforces the same rules (guard_employee_profile_lock).
+  const saveOwnProfile = useCallback(patch => {
+    if (!currentUser) return;
+    const clean = sanitizeEmployeeEdit(currentUser, patch);
+    if (!Object.keys(clean).length) return;
+    setEmployees(p => p.map(e => e.id === currentUser.id ? { ...e, ...clean } : e));
+    setCurrentUser(p => ({ ...p, ...clean }));
+  }, [currentUser]);
+
+  // Finalize: save the last edits, then flip the lock. One-way for an
+  // employee — only a manager can reopen it afterwards.
+  const finalizeOwnProfile = useCallback(patch => {
+    if (!currentUser) return;
+    const clean = sanitizeEmployeeEdit(currentUser, patch || {});
+    const next = { ...currentUser, ...clean };
+    if (!canFinalizeProfile(currentUser, next)) return;
+    const done = { ...clean, profileFinalized: true };
+    setEmployees(p => p.map(e => e.id === currentUser.id ? { ...e, ...done } : e));
+    setCurrentUser(p => ({ ...p, ...done }));
+    setNav("dashboard");
+  }, [currentUser]);
+
   const editRoster = useCallback((eid, mk, day, newCode) => {
     setEmployees(prev => prev.map(e => {
       if (e.id !== eid) return e;
@@ -781,6 +845,21 @@ function App() {
   // Enforced at render (not by scattered nav checks) so no route bypasses it.
   if (currentUser.initialPassword) {
     return <ChPw onCh={changePassword} forced={true} onOut={logout} />;
+  }
+
+  // First login with a password already set: send the user through profile
+  // setup before the dashboard. Rendered at the same level as the password
+  // gate so no route can bypass it. "Skip for now" defers it for this session
+  // only — nothing about the skip is persisted.
+  if (needsOnboarding(currentUser) && !onboardingSkipped && nav !== "changepw") {
+    return (
+      <Onboarding
+        emp={currentUser}
+        onSave={saveOwnProfile}
+        onFinalize={finalizeOwnProfile}
+        onSkip={() => setOnboardingSkipped(true)}
+      />
+    );
   }
 
   if (nav === "changepw") {
@@ -906,7 +985,7 @@ function App() {
             <div className="fade-in">
               <Bt onClick={() => setViewEmployee(null)} outline={true} small={true}>← Back</Bt>
               <div style={{ marginTop:12 }}>
-                <Prof emp={viewEmployee} canEdit={iM} isStaff={iM} isMgr={iMgr} onSave={saveProfile} onAdd={addEmployeeAction} onAddDoc={addDoc} onDelDoc={delDoc} />
+                <Prof emp={viewEmployee} actor={currentUser} canEdit={iM} isStaff={iM} isMgr={iMgr} onSave={saveProfile} onAdd={addEmployeeAction} onAddDoc={addDoc} onDelDoc={delDoc} />
               </div>
             </div>
           ) : (
@@ -914,7 +993,7 @@ function App() {
               {nav === "dashboard" && (iM
                 ? <MDash user={currentUser} employees={employees} leaveRequests={leaveRequests} announcements={announcements} pc={pc} onGoTo={setNav} />
                 : <EDash user={currentUser} announcements={announcements} onGoTo={setNav} />)}
-              {nav === "profile" && <Prof emp={currentUser} canEdit={iM || !currentUser.profileFinalized} isStaff={iM} isMgr={iMgr} onSave={saveProfile} onAdd={addEmployeeAction} onAddDoc={addDoc} onDelDoc={delDoc} />}
+              {nav === "profile" && <Prof emp={currentUser} actor={currentUser} canEdit={iM || !currentUser.profileFinalized} isStaff={iM} isMgr={iMgr} onSave={saveProfile} onAdd={addEmployeeAction} onAddDoc={addDoc} onDelDoc={delDoc} />}
               {nav === "team" && <Team employees={employees} onSel={setViewEmployee} isMgr={iMgr} isTL={isTL} onInvite={addInviteEmployee} onBulkInvite={addInviteEmployeesBulk} />}
               {nav === "performance" && iM && <Perf employees={employees} onSel={setViewEmployee} isMgr={iMgr} onSave={saveRating} />}
               {nav === "leave" && <LvPg user={currentUser} leaveRequests={leaveRequests} onSub={submitLeave} onAct={leaveAction} />}

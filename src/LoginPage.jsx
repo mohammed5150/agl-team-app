@@ -13,10 +13,14 @@ export function LoginPage({
   // __SHOW_DEMO__ is a compile-time define (build.js / npm run dev). Using it
   // directly (not via a variable) lets esbuild fold the condition and strip
   // every demo credential string out of production bundles entirely.
+  // Local-dev convenience only: prefills the email field for each role so a
+  // developer does not have to retype it. No password is carried here — every
+  // account, including these, sets its own via Supabase Auth. Compiled out of
+  // production builds by the __SHOW_DEMO__ define (build.js).
   const demoAccounts = (typeof __SHOW_DEMO__ !== "undefined" ? __SHOW_DEMO__ : true) ? [
-    { id:"amarnath.munderi@adbsafegate.ae", pw:"Adb@2026", l:"Employee (Amarnath)", i:"👷" },
-    { id:"mohammed.faheem@adbsafegate.ae", pw:"Adb@2026", l:"Team Leader (Faheem)", i:"👨‍💼" },
-    { id:"ragesh.menon@adbsafegate.ae", pw:"Adb@2026", l:"Manager (Ragesh)", i:"👔" }
+    { id:"amarnath.munderi@adbsafegate.com", l:"Employee (Amarnath)", i:"👷" },
+    { id:"mohammed.faheem@adbsafegate.com", l:"Team Leader (Faheem)", i:"👨‍💼" },
+    { id:"ragesh.menon@adbsafegate.com", l:"Manager (Ragesh)", i:"👔" }
   ] : [];
 
   return (
@@ -61,7 +65,7 @@ export function LoginPage({
                 autoComplete="username"
                 value={loginId}
                 onChange={e => setLoginId(e.target.value)}
-                placeholder="your.email@adbsafegate.ae"
+                placeholder="your.name@adbsafegate.com"
                 style={ib}
               />
             </div>
@@ -89,20 +93,19 @@ export function LoginPage({
               }}
             >{loginSubmitting ? "Signing in…" : "Sign In"}</button>
           </form>
-          {(typeof __SHOW_DEMO__ !== "undefined" ? __SHOW_DEMO__ : true) && (
-            <div style={{ textAlign:"center", marginTop:12, fontSize:11, color:theme.td }}>
-              Default password: <strong style={{ color:theme.or }}>Adb@2026</strong>
-            </div>
-          )}
+          <div style={{ textAlign:"center", marginTop:14, fontSize:11, color:theme.td, lineHeight:1.6 }}>
+            Sign in with your Team Mail ID. First time here? Enter your team email
+            and choose your own password — it becomes your permanent password.
+          </div>
         </div>
         {(typeof __SHOW_DEMO__ !== "undefined" ? __SHOW_DEMO__ : true) && (
         <div style={{
           marginTop:18, background:"rgba(17,31,48,0.6)", borderRadius:12,
           padding:14, border:`1px solid ${theme.bd}`
         }}>
-          <p style={{ color:theme.td, fontSize:10, fontWeight:700, letterSpacing:1, marginBottom:8 }}>🔑 DEMO ACCOUNTS</p>
+          <p style={{ color:theme.td, fontSize:10, fontWeight:700, letterSpacing:1, marginBottom:8 }}>👤 DEV: PREFILL EMAIL</p>
           {demoAccounts.map(a => (
-            <div key={a.id} onClick={() => { setLoginId(a.id); setLoginPassword(a.pw); }} style={{
+            <div key={a.id} onClick={() => setLoginId(a.id)} style={{
               display:"flex", justifyContent:"space-between", padding:"7px 8px",
               borderRadius:8, cursor:"pointer", fontSize:12
             }}>

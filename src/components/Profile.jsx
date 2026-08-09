@@ -1,7 +1,9 @@
 import { theme } from "../constants.js";
 import { TIERS_CAP, TIER_CAP_COLORS } from "../rating.js";
 import { certSt } from "../helpers.js";
-import { ib, Bd, Bt, Sec, Fd, Empty } from "../uiPrimitives.jsx";
+import { canUnlockProfile, canFinalizeProfile, missingRequired, FINALIZE_CONFIRM_MESSAGE } from "../onboarding.js";
+import { ProfileStatusBadge } from "./Onboarding.jsx";
+import { ib, Bd, Bt, Sec, Fd, Empty, Modal } from "../uiPrimitives.jsx";
 
 const { useState, useEffect } = React;
 
@@ -9,13 +11,19 @@ const { useState, useEffect } = React;
    PROFILE
    ============================================================ */
 
-export function Prof({ emp, canEdit, onSave, onAdd, isStaff, isMgr }) {
+export function Prof({ emp, canEdit, onSave, onAdd, isStaff, isMgr, actor }) {
   const [ed, setEd] = useState(false);
   const [fm, setFm] = useState({ ...emp });
   const up = k => v => setFm(p => ({ ...p, [k]:v }));
   const [saf, setSaf] = useState(false);
   const [af, setAf] = useState({ type:"achievement", title:"", desc:"" });
+  const [confirmFinal, setConfirmFinal] = useState(false);
   const finalized = !!emp.profileFinalized;
+  // Only a manager may reopen a locked profile — never the employee, and not
+  // a team lead. The database enforces the same rule.
+  const canUnlock   = canUnlockProfile(actor, emp);
+  const canFinalize = canFinalizeProfile(actor, emp);
+  const incomplete  = missingRequired(emp);
 
   // Reset the form only when switching to a different employee — depending on
   // the whole `emp` object would clobber in-progress edits on every save.
@@ -29,7 +37,7 @@ export function Prof({ emp, canEdit, onSave, onAdd, isStaff, isMgr }) {
           borderRadius:12, padding:"10px 14px", marginBottom:14, display:"flex", alignItems:"center", gap:8 }}>
           <span style={{ fontSize:16 }}>🔒</span>
           <span style={{ color:theme.gn, fontSize:13, fontWeight:600 }}>
-            Profile finalized — only Team Lead or Manager can make further edits
+            Profile finalized — corrections must go through your Manager
           </span>
         </div>
       )}
@@ -37,13 +45,22 @@ export function Prof({ emp, canEdit, onSave, onAdd, isStaff, isMgr }) {
         <div>
           <h2 style={{ fontSize:22, fontWeight:700, color:theme.tx, margin:0 }}>{emp.name}</h2>
           <p style={{ color:theme.ts, fontSize:13, margin:"4px 0 0" }}>{emp.designation} • {emp.section}</p>
+          <div style={{ marginTop:8 }}><ProfileStatusBadge emp={emp} /></div>
         </div>
         <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
           {canEdit && !ed && <Bt onClick={() => setEd(true)}>✏️ Edit</Bt>}
           {canEdit && <Bt onClick={() => setSaf(!saf)} bg={theme.or} small={true}>{saf ? "Cancel" : "📋 Add Record"}</Bt>}
-          {isStaff && !ed && (finalized
-            ? <Bt onClick={() => onSave({ ...emp, profileFinalized:false })} bg={theme.yl} small={true}>🔓 Unlock</Bt>
-            : <Bt onClick={() => onSave({ ...emp, profileFinalized:true })} bg={theme.gn} small={true}>🔒 Finalize</Bt>)}
+          {!ed && canUnlock && (
+            <Bt onClick={() => onSave({ ...emp, profileFinalized:false })} bg={theme.yl} small={true}>🔓 Unlock</Bt>
+          )}
+          {!ed && !finalized && canFinalize && (
+            <Bt onClick={() => setConfirmFinal(true)} bg={theme.gn} small={true}>🔒 Finalize</Bt>
+          )}
+          {!ed && !finalized && !canFinalize && incomplete.length > 0 && (
+            <span style={{ color:theme.td, fontSize:11 }}>
+              {incomplete.length} required field{incomplete.length === 1 ? "" : "s"} missing
+            </span>
+          )}
           {ed && <>
             <Bt onClick={() => { onSave(fm); setEd(false); }} bg={theme.gn}>💾 Save</Bt>
             <Bt onClick={() => { setFm({ ...emp }); setEd(false); }} outline={true}>Cancel</Bt>
@@ -99,11 +116,28 @@ export function Prof({ emp, canEdit, onSave, onAdd, isStaff, isMgr }) {
           <Fd label="Name" value={fm.name} editing={ed} onChange={up("name")} />
           <Fd label="Nationality" value={fm.nationality} editing={ed} onChange={up("nationality")} />
           <Fd label="Mobile" value={fm.mobile} editing={ed} onChange={up("mobile")} />
+          <Fd label="Date of Birth" value={fm.dob} editing={ed} onChange={up("dob")} type="date" />
+          <Fd label="Marital Status" value={fm.maritalStatus} editing={ed} onChange={up("maritalStatus")} />
+          <Fd label="Address" value={fm.address} editing={ed} onChange={up("address")} />
         </Sec>
+        {/* Employment data is management-controlled: editable by staff only,
+            and frozen for employees at the database level too. */}
         <Sec title="Employment" icon="🏢">
-          <Fd label="Employee No" value={fm.empNo} editing={ed} onChange={up("empNo")} />
-          <Fd label="Designation" value={fm.designation} editing={ed} onChange={up("designation")} />
-          <Fd label="Section" value={fm.section} editing={ed} onChange={up("section")} />
+          <Fd label="Employee No" value={fm.empNo} editing={ed && isStaff} onChange={up("empNo")} />
+          <Fd label="Designation" value={fm.designation} editing={ed && isStaff} onChange={up("designation")} />
+          <Fd label="Section" value={fm.section} editing={ed && isStaff} onChange={up("section")} />
+          <Fd label="Email (login ID)" value={fm.email} editing={false} onChange={() => {}} />
+        </Sec>
+        <Sec title="Emergency Contact" icon="🚨">
+          <Fd label="Contact Name" value={fm.emergencyName} editing={ed} onChange={up("emergencyName")} />
+          <Fd label="Contact Number" value={fm.emergencyContact} editing={ed} onChange={up("emergencyContact")} />
+        </Sec>
+        <Sec title="Documents" icon="📄">
+          <Fd label="Passport No" value={fm.passportNo} editing={ed} onChange={up("passportNo")} />
+          <Fd label="Passport Expiry" value={fm.passportExpiry} editing={ed} onChange={up("passportExpiry")} type="date" />
+          <Fd label="Visa Expiry" value={fm.visaExpiry} editing={ed} onChange={up("visaExpiry")} type="date" />
+          <Fd label="Emirates ID No" value={fm.eidNo} editing={ed} onChange={up("eidNo")} />
+          <Fd label="Emirates ID Expiry" value={fm.eidExpiry} editing={ed} onChange={up("eidExpiry")} type="date" />
         </Sec>
       </div>
 
@@ -171,6 +205,18 @@ export function Prof({ emp, canEdit, onSave, onAdd, isStaff, isMgr }) {
             </>}
         </Sec>
       </div>
+
+      {confirmFinal && (
+        <Modal title="Finalize this profile?" onClose={() => setConfirmFinal(false)} width={480}>
+          <p style={{ color:theme.ts, fontSize:13, lineHeight:1.6, marginBottom:18 }}>
+            {FINALIZE_CONFIRM_MESSAGE}
+          </p>
+          <div style={{ display:"flex", gap:8 }}>
+            <Bt onClick={() => { onSave({ ...emp, profileFinalized:true }); setConfirmFinal(false); }} bg={theme.gn}>Yes, finalize</Bt>
+            <Bt onClick={() => setConfirmFinal(false)} outline={true}>Cancel</Bt>
+          </div>
+        </Modal>
+      )}
 
       <Sec title="Training & Certifications" icon="🎓">
         {(!emp.training || !emp.training.length)
