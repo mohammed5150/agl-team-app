@@ -25,21 +25,45 @@
 // is "Bv4haris@gmail.com".
 
 export const APPROVED_TEAM_LOGINS = [
-  "muhammed.farhan.ext@adbsafegate.com",  // Farhan
-  "anurag.aikkal@adbsafegate.com",        // Anurag
-  "amarnath.munderi@adbsafegate.com",     // Amarnath
-  "gopakumar.gopinadhan@adbsafegate.com", // Gopa
-  "nisar.ahmed@adbsafegate.com",          // Nisar
+  "muhammed.farhan.ext@adbsafegate.com",  // Farhan — ADB-048
+  "anurag.aikkal@adbsafegate.com",        // Anurag — ADB-009
+  "amarnath.munderi@adbsafegate.com",     // Amarnath — ADB-001
+  "gopakumar.gopinadhan@adbsafegate.com", // Gopa — ADB-005
+  "nisar.ahmed@adbsafegate.com",          // Nisar — ADB-019
   "jjijosebastian311@gmail.com",          // Jiji — employee mapping UNRESOLVED
-  "nithin.kumar@adbsafegate.com",         // Nithin
+  "nithin.kumar@adbsafegate.com",         // Nithin — ADB-050
   "praveen6273@gmail.com",                // Praveen — employee mapping UNRESOLVED
   "jesudaskt22@gmail.com",                // Jesudas
-  "prajeshprabhakar002@gmail.com",        // Prajesh
-  "Bv4haris@gmail.com",                   // Haris
-  "ragesh.menon@adbsafegate.com",         // Ragesh
-  "sanoop.louis@adbsafegate.com",         // Sanoop
-  "mohammed.faheem@adbsafegate.com",      // Mohammed Faheem
+  "prajeshprabhakar002@gmail.com",        // Prajesh — ADB-049
+  "Bv4haris@gmail.com",                   // Haris — ADB-051
+  "ragesh.menon@adbsafegate.com",         // Ragesh — ADB-3001, manager
+  "sanoop.louis@adbsafegate.com",         // Sanoop — ADB-018
+  "mohammed.faheem@adbsafegate.com",      // Mohammed Faheem — team lead
+  // Second batch.
+  "tahseenkhan2332@gmail.com",            // Tahseen Khan — ADB-027
+  "vikrampal642@gmail.com",               // Vikram Pal — ADB-014
+  "midhunbabu1902@gmail.com",             // Midhun Babu — ADB-035
+  "vineethpatteri@gmail.com",             // Vineeth Patteri — ADB-032
+  "dhivakarangunasekaran@gmail.com",      // Divakar Gunasekaran — ADB-056
+  "yadunath.kaitheri@adbsafegate.com",    // Yadhunath Kaitheri — ADB-046
+  "srigajeg84@gmail.com",                 // employee mapping UNRESOLVED
+  "rajumottammal276@gmail.com",           // employee mapping UNRESOLVED
+  "ganesh2842014@gmail.com",              // employee mapping UNRESOLVED
+  "thomas2937@gmail.com",                 // employee mapping UNRESOLVED
+  "abubaker.ab151@gmail.com",             // employee mapping UNRESOLVED
+  "Mepeese@gmail.com",                    // employee mapping UNRESOLVED
+  "muhammed.talhalateef@adbsafegate.com", // employee mapping UNRESOLVED
 ];
+
+// Four addresses from the second batch are deliberately absent, because they
+// are unusable as supplied:
+//   "abhishe kabhi0280@gmail.com"  contains a space, and is ambiguous between
+//                                  Abhishek Aramban ADB-055 and Abhishekh Pujari ADB-028
+//   "sandeepse lvan1999@gmail.com" contains a space; likely sandeepselvan1999@gmail.com
+//   "syedmuzaffar7869@gmsil.com"   "gmsil.com" is not a Gmail domain
+//   "danisn.khan7556@gmail.com"    "danisn" looks like a typo for Danish Khan ADB-037
+// Approving a mistyped address is not a harmless no-op — whoever really owns
+// it could then create an account. Each needs confirming first.
 
 // Approved to sign in, but not yet mapped to an employee row. They will pass
 // the login gate and then be stopped by loadPortalData with the "no employee
@@ -49,6 +73,13 @@ export const APPROVED_TEAM_LOGINS = [
 export const UNRESOLVED_TEAM_LOGINS = [
   "praveen6273@gmail.com",
   "jjijosebastian311@gmail.com",
+  "srigajeg84@gmail.com",
+  "rajumottammal276@gmail.com",
+  "ganesh2842014@gmail.com",
+  "thomas2937@gmail.com",
+  "abubaker.ab151@gmail.com",
+  "Mepeese@gmail.com",
+  "muhammed.talhalateef@adbsafegate.com",
 ];
 
 const APPROVED_SET = new Set(APPROVED_TEAM_LOGINS.map(e => e.toLowerCase()));

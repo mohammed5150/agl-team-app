@@ -273,23 +273,57 @@ comment on table public.approved_team_logins is
   'Authoritative list of Team Mail IDs permitted to onboard. Not readable '
   'by anon or authenticated roles — query via is_approved_team_login().';
 
--- The 14 approved Team Mail IDs, stored verbatim.
+-- The 27 approved Team Mail IDs, stored verbatim.
+--
+-- Addresses labelled "employee mapping unresolved" are approved to SIGN IN but
+-- match no employees row. That is deliberate, not an oversight: they reach the
+-- portal and are then stopped by loadPortalData with the "no employee record"
+-- message. Guessing which roster entry each belongs to would hand one person
+-- another person's leave, appraisal and attendance history, so each stays
+-- unmapped until an administrator confirms the identity.
 insert into public.approved_team_logins (email, label) values
-  ('muhammed.farhan.ext@adbsafegate.com',  'Farhan'),
-  ('anurag.aikkal@adbsafegate.com',        'Anurag'),
-  ('amarnath.munderi@adbsafegate.com',     'Amarnath'),
-  ('gopakumar.gopinadhan@adbsafegate.com', 'Gopa'),
-  ('nisar.ahmed@adbsafegate.com',          'Nisar'),
+  ('muhammed.farhan.ext@adbsafegate.com',  'Farhan — ADB-048'),
+  ('anurag.aikkal@adbsafegate.com',        'Anurag — ADB-009'),
+  ('amarnath.munderi@adbsafegate.com',     'Amarnath — ADB-001'),
+  ('gopakumar.gopinadhan@adbsafegate.com', 'Gopa — ADB-005'),
+  ('nisar.ahmed@adbsafegate.com',          'Nisar — ADB-019'),
   ('jjijosebastian311@gmail.com',          'Jiji — employee mapping unresolved'),
-  ('nithin.kumar@adbsafegate.com',         'Nithin'),
+  ('nithin.kumar@adbsafegate.com',         'Nithin — ADB-050'),
   ('praveen6273@gmail.com',                'Praveen — employee mapping unresolved'),
   ('jesudaskt22@gmail.com',                'Jesudas'),
-  ('prajeshprabhakar002@gmail.com',        'Prajesh'),
-  ('Bv4haris@gmail.com',                   'Haris'),
-  ('ragesh.menon@adbsafegate.com',         'Ragesh'),
-  ('sanoop.louis@adbsafegate.com',         'Sanoop'),
-  ('mohammed.faheem@adbsafegate.com',      'Mohammed Faheem')
+  ('prajeshprabhakar002@gmail.com',        'Prajesh — ADB-049'),
+  ('Bv4haris@gmail.com',                   'Haris — ADB-051'),
+  ('ragesh.menon@adbsafegate.com',         'Ragesh — ADB-3001, manager'),
+  ('sanoop.louis@adbsafegate.com',         'Sanoop — ADB-018'),
+  ('mohammed.faheem@adbsafegate.com',      'Mohammed Faheem — team lead'),
+  -- second batch
+  ('tahseenkhan2332@gmail.com',            'Tahseen Khan — ADB-027'),
+  ('vikrampal642@gmail.com',               'Vikram Pal — ADB-014'),
+  ('midhunbabu1902@gmail.com',             'Midhun Babu — ADB-035'),
+  ('vineethpatteri@gmail.com',             'Vineeth Patteri — ADB-032'),
+  ('dhivakarangunasekaran@gmail.com',      'Divakar Gunasekaran — ADB-056'),
+  ('yadunath.kaitheri@adbsafegate.com',    'Yadhunath Kaitheri — ADB-046'),
+  ('srigajeg84@gmail.com',                 'employee mapping unresolved — no confident roster match'),
+  ('rajumottammal276@gmail.com',           'employee mapping unresolved — Raju Kolavayal ADB-040? surname differs'),
+  ('ganesh2842014@gmail.com',              'employee mapping unresolved — Ganesan Subramanian ADB-025?'),
+  ('thomas2937@gmail.com',                 'employee mapping unresolved — Thomas Padipurakkal ADB-016?'),
+  ('abubaker.ab151@gmail.com',             'employee mapping unresolved — Abubaker Irshad ADB-004 or Abu Bakar?'),
+  ('Mepeese@gmail.com',                    'employee mapping unresolved — no roster match'),
+  ('muhammed.talhalateef@adbsafegate.com', 'employee mapping unresolved — no roster row for Talha Lateef')
 on conflict (email) do nothing;
+
+-- DELIBERATELY NOT SEEDED. Four addresses supplied with the second batch are
+-- unusable as given and would either be dead on arrival or, worse, let someone
+-- outside the team create an account:
+--   abhishe kabhi0280@gmail.com   contains a space; also ambiguous between
+--                                 Abhishek Aramban ADB-055 and Abhishekh Pujari ADB-028
+--   sandeepse lvan1999@gmail.com  contains a space; likely sandeepselvan1999@gmail.com
+--                                 (Sandeep Selvan ADB-036)
+--   syedmuzaffar7869@gmsil.com    "gmsil.com" is not a Gmail domain
+--   danisn.khan7556@gmail.com     "danisn" looks like a typo for the roster's
+--                                 Danish Khan ADB-037
+-- Approving a mistyped address is not harmless: whoever actually owns it could
+-- then create a Team Portal account. Each needs confirming before it is added.
 
 -- Locked down: no anon or authenticated access at all. Managers read it
 -- through the RPC below, or via the SQL editor / service_role.
