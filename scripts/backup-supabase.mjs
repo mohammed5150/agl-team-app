@@ -36,6 +36,13 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 // Order matters on restore: employees before anything referencing emp_id.
+//
+// This list must cover every table the migrations create. It drifted once
+// already — client_errors was added by supabase_monitoring.sql after this
+// script was written, and was silently absent from the backup until a
+// cross-check against production caught it. tests/backup.test.js now derives
+// the expected set from the `create table` statements in supabase_*.sql, so
+// the next table added to a migration fails the suite until it is listed here.
 export const TABLES = [
   "employees",
   "leave_requests",
@@ -46,6 +53,7 @@ export const TABLES = [
   "approved_team_logins",
   "profile_unlock_audit",
   "audit_log",
+  "client_errors",
 ];
 
 /** Tables whose absence is normal — optional migrations, not an error. */
@@ -55,6 +63,7 @@ const OPTIONAL = new Set([
   "approved_team_logins",
   "profile_unlock_audit",
   "audit_log",
+  "client_errors",
 ]);
 
 const PAGE_SIZE = 1000;

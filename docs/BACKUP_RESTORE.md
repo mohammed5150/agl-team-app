@@ -56,6 +56,14 @@ round.
   `notifications`
 - `push_subscriptions`, `approved_team_logins`
 - `audit_log`, `profile_unlock_audit`
+- `client_errors`
+
+The list is checked against the `create table` statements in `supabase_*.sql`
+by `tests/backup.test.js`, so a table added by a future migration fails the
+suite until it is backed up. That check exists because the list drifted once:
+`client_errors` was added by `supabase_monitoring.sql` after the script was
+written and went unbacked-up until a manual cross-check against production
+found it.
 
 **Not included, and why**
 
@@ -166,6 +174,13 @@ restore point is chosen from evidence rather than guessed.
 
    Do not grant `INSERT` to any role to make this easier. The whole value of
    the log is that it cannot be written from the API.
+
+   `client_errors` is skipped too, for a different reason: it *is* writable,
+   but `trg_stamp_client_error` overwrites `emp_id`, `email`, `role` and
+   `occurred_at` from the current session on every insert. Replaying a backup
+   through it would stamp every historical error with today's date and the
+   restoring operator's identity — confident fiction rather than telemetry.
+   Let it start empty; it is operational data, not a record anyone must keep.
 
 5. **Point the front end at the new project.** Edit `SUPABASE_URL` and
    `SUPABASE_KEY` in `src/supabasePortal.js`, then `npm run build` and deploy.
