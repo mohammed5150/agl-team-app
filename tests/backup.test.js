@@ -10,15 +10,27 @@ const NOW = new Date("2026-08-10T01:00:00.000Z");
 
 let out;
 let realFetch;
+let realEnv;
+
+// The suite must not read the ambient environment. Both of these are set on a
+// GitHub Actions runner, so a test that only overrode one of them passed
+// locally and failed in CI against the runner's real commit SHA.
+const REVISION_VARS = ["GITHUB_SHA", "GIT_REVISION"];
 
 beforeEach(() => {
   out = mkdtempSync(join(tmpdir(), "agl-backup-"));
   realFetch = globalThis.fetch;
+  realEnv = Object.fromEntries(REVISION_VARS.map(k => [k, process.env[k]]));
+  for (const k of REVISION_VARS) delete process.env[k];
   vi.spyOn(console, "log").mockImplementation(() => {});
 });
 
 afterEach(() => {
   globalThis.fetch = realFetch;
+  for (const [k, v] of Object.entries(realEnv)) {
+    if (v === undefined) delete process.env[k];
+    else process.env[k] = v;
+  }
   rmSync(out, { recursive: true, force: true });
   vi.restoreAllMocks();
 });
@@ -79,14 +91,41 @@ describe("a backup writes every table it finds", () => {
     expect(dir).toContain("2026-08-10T01-00-00-000Z");
   });
 
-  it("records the source project and schema revision, so a restore knows what it holds", async () => {
+  it("records the source project and when it was taken", async () => {
     stubFetch(oneRow("employees"), absentOptional());
-    process.env.GIT_REVISION = "abc1234";
     const { manifest } = await backup({ url: URL_, key: KEY, out, now: NOW });
     expect(manifest.source).toBe(URL_);
-    expect(manifest.gitRevision).toBe("abc1234");
     expect(manifest.takenAt).toBe(NOW.toISOString());
-    delete process.env.GIT_REVISION;
+  });
+
+  describe("the schema revision, so a restore knows which migrations the data came from", () => {
+    it("takes GITHUB_SHA when the backup runs in CI", async () => {
+      stubFetch(oneRow("employees"), absentOptional());
+      process.env.GITHUB_SHA = "ci1234";
+      const { manifest } = await backup({ url: URL_, key: KEY, out, now: NOW });
+      expect(manifest.gitRevision).toBe("ci1234");
+    });
+
+    it("falls back to GIT_REVISION for a manual run", async () => {
+      stubFetch(oneRow("employees"), absentOptional());
+      process.env.GIT_REVISION = "abc1234";
+      const { manifest } = await backup({ url: URL_, key: KEY, out, now: NOW });
+      expect(manifest.gitRevision).toBe("abc1234");
+    });
+
+    it("prefers GITHUB_SHA when both are set", async () => {
+      stubFetch(oneRow("employees"), absentOptional());
+      process.env.GITHUB_SHA = "ci1234";
+      process.env.GIT_REVISION = "abc1234";
+      const { manifest } = await backup({ url: URL_, key: KEY, out, now: NOW });
+      expect(manifest.gitRevision).toBe("ci1234");
+    });
+
+    it("records null rather than guessing when neither is set", async () => {
+      stubFetch(oneRow("employees"), absentOptional());
+      const { manifest } = await backup({ url: URL_, key: KEY, out, now: NOW });
+      expect(manifest.gitRevision).toBeNull();
+    });
   });
 
   it("writes readable JSON, not a single line", async () => {
