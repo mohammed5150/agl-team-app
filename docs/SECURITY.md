@@ -133,6 +133,12 @@ or new project starts without them.
 - **Auth → Policies → Minimum password length: 12.** Match
   `src/passwordPolicy.js`. Without this, the real minimum is Supabase's default
   of 6 and the client policy is decorative.
+- **Auth → Policies → Leaked password protection: ON.** Checks the chosen
+  password against HaveIBeenPwned. This is the one control `passwordPolicy.js`
+  fundamentally cannot provide: a password can satisfy every character rule
+  and still appear in a breach corpus, and `BANNED_BASES` is a short
+  hand-written list, not a corpus. Flagged as disabled by the Supabase
+  security advisor.
 - **Auth → Providers → Email:** enabled, "Confirm email" **on**.
 - **Auth → URL Configuration:** Site URL set to the deployed portal URL, and
   that URL in Redirect URLs. **Password reset links do not work without this.**
