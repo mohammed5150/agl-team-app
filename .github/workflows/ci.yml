@@ -24,3 +24,11 @@ jobs:
         run: SHOW_DEMO_LOGIN=false npm run build
       - name: Verify dist
         run: npm run verify-dist
+      # Everything above this line passed while the portal was crashing on
+      # every render for every user: the fault only exists once a browser
+      # evaluates the bundle. This step opens the build we just made and
+      # insists it actually comes up. See scripts/smoke.mjs.
+      - name: Install Chromium for the smoke test
+        run: npx playwright install --with-deps chromium
+      - name: Smoke test the built app in a browser
+        run: npm run smoke
