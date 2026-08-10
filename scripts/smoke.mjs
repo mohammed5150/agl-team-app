@@ -140,7 +140,7 @@ function serve({ omit = [] } = {}) {
  * Open the app in the browser and collect everything that went wrong.
  * Serves dist/ locally, unless `url` points at a deployed site.
  */
-async function load({ omit = [], url = null } = {}) {
+async function load({ omit = [], url = null, hash = "" } = {}) {
   const server = url ? null : await serve({ omit });
   const target = url || `http://127.0.0.1:${server.address().port}/`;
   const page = await browser.newPage();
@@ -149,7 +149,7 @@ async function load({ omit = [], url = null } = {}) {
   page.on("pageerror", e => pageErrors.push(e.message));
   page.on("requestfailed", r => missing.push(r.url()));
   page.on("response", r => { if (r.status() >= 400) missing.push(`${r.status()} ${r.url()}`); });
-  await page.goto(target, { waitUntil: "load" });
+  await page.goto(target + (hash || ""), { waitUntil: "load" });
   if (url) {
     // Against a live site the app first asks Supabase whether there is a
     // stored session, and a cold backend can take a few seconds. Wait for the
@@ -176,9 +176,16 @@ async function load({ omit = [], url = null } = {}) {
   const stuckDelay = await page.locator(".boot-stuck").first()
     .evaluate(el => el.ownerDocument.defaultView.getComputedStyle(el).animationDelay)
     .catch(() => null);
+  // Any button inside a form that would submit it. Bt used to render these by
+  // omission, which double-fired the primary action — see src/uiPrimitives.jsx.
+  const submitButtonsInForms = await page.evaluate(() =>
+    [...globalThis.document.querySelectorAll("form button")]
+      .filter(b => (b.getAttribute("type") || "submit") === "submit")
+      .map(b => b.textContent.trim().slice(0, 40))
+  ).catch(() => []);
   await page.close();
   if (server) await new Promise(r => server.close(r));
-  return { text, pageErrors, missing, bootFallbackStillShowing, stuckDelay };
+  return { text, pageErrors, missing, bootFallbackStillShowing, stuckDelay, submitButtonsInForms };
 }
 
 // ---------------------------------------------------------------------------
@@ -237,7 +244,40 @@ if (TARGET_URL) {
 }
 
 // ---------------------------------------------------------------------------
-// 2. A broken deploy must SAY so, not go blank
+// 2. The password-reset link must land on the reset screen
+// ---------------------------------------------------------------------------
+// This is the screen someone reaches when they are ALREADY locked out, so it
+// is the worst one to have broken — and it is only reachable with a recovery
+// token in the URL, which means no ordinary page load ever exercises it. It
+// was reported as "the emailed link opens 'Something went wrong'": the same
+// render crash, but nothing here would have told us the reset path had also
+// stopped working.
+
+{
+  const r = await load({
+    hash: "#access_token=eyJfake.fake.fake&expires_in=3600&refresh_token=fake"
+        + "&token_type=bearer&type=recovery",
+  });
+
+  if (/Something went wrong/i.test(r.text)) {
+    fail("the reset link lands on the ErrorBoundary: " + r.text.slice(0, 160));
+  } else if (!/new password/i.test(r.text)) {
+    fail("the reset link did not reach the reset screen; got: " + r.text.slice(0, 160));
+  }
+
+  // A submit-type button in this form makes the primary action fire twice —
+  // once from onClick, once from onSubmit — which sent the password update
+  // twice and could report "should be different from the old password" for a
+  // reset that had just succeeded.
+  if (r.submitButtonsInForms.length) {
+    fail("buttons in the reset form would submit it: " + r.submitButtonsInForms.join(", "));
+  }
+
+  if (!process.exitCode) console.log("[smoke] ok — the reset link reaches the set-a-new-password screen");
+}
+
+// ---------------------------------------------------------------------------
+// 3. A broken deploy must SAY so, not go blank
 // ---------------------------------------------------------------------------
 // index.html is published without its bundle (a wrong publish directory, a
 // failed upload). The CSP forbids inline script, so the fallback is CSS-only

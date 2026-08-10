@@ -25,8 +25,26 @@ export const Bd = ({ text, color }) => (
   }}>{text}</span>
 );
 
-export const Bt = ({ children, onClick, bg=theme.pl, color="#fff", outline=false, small=false, disabled=false }) => (
-  <button onClick={onClick} disabled={disabled} style={{
+// `type` defaults to "button", NOT to the HTML default of "submit".
+//
+// A <button> with no type inside a <form> submits it. Bt is used everywhere,
+// including inside the reset-password and change-password forms, and that
+// caused two distinct faults on the two screens people reach when they are
+// already locked out:
+//
+//   * "Cancel" (and "Logout") submitted the form on their way out, so the
+//     handler they were trying to escape ran anyway.
+//   * The primary button ran its work TWICE — once from onClick, once from the
+//     form's onSubmit. The `if (busy) return` guard cannot catch it: both fire
+//     in the same tick, before setBusy(true) has applied. So a password reset
+//     sent updateUser twice, and the second call could come back "should be
+//     different from the old password" — an error reported for a reset that
+//     had in fact just succeeded.
+//
+// Enter-to-submit still works: that goes through the form's onSubmit, which is
+// exactly what it is for.
+export const Bt = ({ children, onClick, bg=theme.pl, color="#fff", outline=false, small=false, disabled=false, type="button" }) => (
+  <button type={type} onClick={onClick} disabled={disabled} style={{
     padding: small ? "6px 14px" : "10px 20px",
     borderRadius:10,
     border: outline ? `1px solid ${theme.bl}` : "none",
