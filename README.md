@@ -99,6 +99,9 @@ supabase_*.sql        database migrations (apply in numerical / dependency order
    - **Minimum password length → 12**, matching `src/passwordPolicy.js`.
      Without this the real minimum is Supabase's default of 6 and the
      client-side policy is decorative.
+   - **Leaked password protection → on.** Checks the password against
+     HaveIBeenPwned — the one thing `passwordPolicy.js` cannot do, since a
+     password can satisfy every character rule and still be in a breach corpus.
    - **URL Configuration** → Site URL set to the deployed URL and added to
      Redirect URLs. *Password reset links do not work without this.*
    - Email provider enabled with "Confirm email" on.

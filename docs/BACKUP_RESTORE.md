@@ -192,8 +192,8 @@ starts without them. Set them **before** re-inviting anyone.
   deployed URL, and that URL added to Redirect URLs — **password reset links
   do not work without this**.
 - **Authentication → Policies**: minimum password length raised to **12** to
-  match `src/passwordPolicy.js`. The client-side policy is a usability
-  feature; this is the one that binds.
+  match `src/passwordPolicy.js`, and leaked-password protection turned **on**.
+  The client-side policy is a usability feature; these are the ones that bind.
 - **Rate limits**: leave at the defaults unless there is a reason.
 
 ---
