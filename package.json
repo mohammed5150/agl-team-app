@@ -6,7 +6,8 @@
     "verify-dist": "node scripts/verify-dist.js",
     "test": "vitest run",
     "lint": "eslint .",
-    "ci": "eslint . && vitest run && node build.js && node scripts/verify-dist.js",
+    "smoke": "node scripts/smoke.mjs",
+    "ci": "eslint . && vitest run && node build.js && node scripts/verify-dist.js && node scripts/smoke.mjs",
     "dev": "esbuild app.jsx --bundle --outfile=app.js --loader:.jsx=jsx --watch --jsx-factory=React.createElement --jsx-fragment=React.Fragment --define:__SHOW_DEMO__=true --define:__EMBED_TEAM_DIRECTORY__=true --define:__APP_VERSION__=\"dev\"",
     "start": "serve dist -l 8080",
     "preflight": "node scripts/preflight.mjs"
@@ -24,6 +25,7 @@
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^7.1.1",
     "globals": "^17.7.0",
+    "playwright": "^1.50.0",
     "serve": "^14.2.6",
     "vitest": "^4.1.10"
   }

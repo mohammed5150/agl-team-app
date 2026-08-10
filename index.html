@@ -58,10 +58,58 @@ button:active{transform:scale(0.98)}
 .modal-panel{animation:mp .25s cubic-bezier(.2,.9,.3,1.2)}
 @keyframes mp{from{opacity:0;transform:scale(.95) translateY(10px)}to{opacity:1;transform:none}}
 @media(max-width:768px){.hide-md{display:none!important}}
+
+/* ------------------------------------------------------------------
+   BOOT FALLBACK
+   Markup inside #root that React replaces the moment it mounts. If it is
+   still on screen, the app never started — a missing/!404 app.js, a vendor
+   script that failed, a CSP refusal, or a crash before the first render.
+   Every one of those used to produce an empty dark-blue page with nothing
+   to report but "it isn't opening".
+
+   It has to be CSS-only: the page's CSP is `script-src 'self'` with no
+   'unsafe-inline', so an inline <script> watchdog would itself be blocked.
+   So the "still here" message is revealed on a delay by an animation
+   instead — no JS, nothing to block.
+   ------------------------------------------------------------------ */
+.boot{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center;color:#94a3b8;font-size:13px}
+.boot-mark{width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,#e8702a,#f5923e);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:900;font-size:13px;letter-spacing:1px;margin-bottom:16px}
+.boot-title{color:#f0f4f8;font-size:15px;font-weight:700;margin-bottom:6px}
+.boot-wait{animation:bootpulse 1.4s ease-in-out infinite}
+@keyframes bootpulse{0%,100%{opacity:.45}50%{opacity:1}}
+/* Hidden until the app has had ten seconds to mount. By then "loading" is
+   no longer a true statement, so say the useful thing instead. */
+.boot-stuck{max-width:420px;margin-top:22px;padding:14px 16px;border-radius:12px;
+  background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.28);
+  color:#fecaca;line-height:1.6;opacity:0;animation:bootstuck 0s linear 10s forwards}
+@keyframes bootstuck{to{opacity:1}}
+.boot-stuck b{color:#fff}
+@media(prefers-reduced-motion:reduce){.boot-wait{animation:none}}
 </style>
 </head>
 <body>
-<div id="root"></div>
+<div id="root">
+  <div class="boot">
+    <div class="boot-mark">AS</div>
+    <div class="boot-title">ADB SAFEGATE — Team Portal</div>
+    <div class="boot-wait">Loading the portal…</div>
+    <div class="boot-stuck">
+      <b>The portal could not start.</b><br>
+      Its application files did not load. This is a problem with the site,
+      not with your account or your password.<br><br>
+      Try a hard refresh (Ctrl&#8209;F5, or pull down to refresh on mobile).
+      If this message comes back, please report it — the deployment needs
+      re-checking.
+    </div>
+    <noscript>
+      <div class="boot-stuck" style="opacity:1;animation:none">
+        <b>JavaScript is turned off.</b><br>
+        The Team Portal cannot run without it. Enable JavaScript for this
+        site and reload the page.
+      </div>
+    </noscript>
+  </div>
+</div>
 <script src="app.js" defer></script>
 </body>
 </html>
