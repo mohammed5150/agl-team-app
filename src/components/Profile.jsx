@@ -4,6 +4,7 @@ import { certSt } from "../helpers.js";
 import { canUnlockProfile, canFinalizeProfile, missingRequired, FINALIZE_CONFIRM_MESSAGE } from "../onboarding.js";
 import { ProfileStatusBadge } from "./Onboarding.jsx";
 import { ib, Bd, Bt, Sec, Fd, Empty, Modal } from "../uiPrimitives.jsx";
+import { AdminActions, EmploymentBadge } from "./AdminActions.jsx";
 
 const { useState, useEffect } = React;
 
@@ -11,7 +12,7 @@ const { useState, useEffect } = React;
    PROFILE
    ============================================================ */
 
-export function Prof({ emp, canEdit, onSave, onAdd, isStaff, isMgr, actor }) {
+export function Prof({ emp, canEdit, onSave, onAdd, isStaff, isMgr, actor, onSendReset, onSetEmploymentStatus }) {
   const [ed, setEd] = useState(false);
   const [fm, setFm] = useState({ ...emp });
   const up = k => v => setFm(p => ({ ...p, [k]:v }));
@@ -45,7 +46,10 @@ export function Prof({ emp, canEdit, onSave, onAdd, isStaff, isMgr, actor }) {
         <div>
           <h2 style={{ fontSize:22, fontWeight:700, color:theme.tx, margin:0 }}>{emp.name}</h2>
           <p style={{ color:theme.ts, fontSize:13, margin:"4px 0 0" }}>{emp.designation} • {emp.section}</p>
-          <div style={{ marginTop:8 }}><ProfileStatusBadge emp={emp} /></div>
+          <div style={{ marginTop:8, display:"flex", gap:6, flexWrap:"wrap" }}>
+            <ProfileStatusBadge emp={emp} />
+            <EmploymentBadge employee={emp} />
+          </div>
         </div>
         <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
           {canEdit && !ed && <Bt onClick={() => setEd(true)}>✏️ Edit</Bt>}
@@ -216,6 +220,15 @@ export function Prof({ emp, canEdit, onSave, onAdd, isStaff, isMgr, actor }) {
             <Bt onClick={() => setConfirmFinal(false)} outline={true}>Cancel</Bt>
           </div>
         </Modal>
+      )}
+
+      {onSetEmploymentStatus && onSendReset && (
+        <AdminActions
+          employee={emp}
+          actor={actor}
+          onSendReset={onSendReset}
+          onSetEmploymentStatus={onSetEmploymentStatus}
+        />
       )}
 
       <Sec title="Training & Certifications" icon="🎓">

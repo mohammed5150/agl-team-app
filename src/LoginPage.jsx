@@ -1,15 +1,103 @@
 import { theme } from "./constants.js";
 import { Logo, ib } from "./uiPrimitives.jsx";
+import { POLICY_SUMMARY } from "./passwordPolicy.js";
 
-const { useId } = React;
+const { useId, useState } = React;
+
+/**
+ * Password-reset request, shown in place of the sign-in form.
+ *
+ * The outcome message is deliberately identical whether or not the address has
+ * an account (see requestPasswordReset in src/authFlows.js) — the one thing
+ * this form must not become is a way to find out who is registered.
+ */
+function ForgotPassword({ initialEmail, onRequest, onBack }) {
+  const [email, setEmail] = useState(initialEmail || "");
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState("");
+  const [error, setError] = useState("");
+  const emailId = useId();
+
+  const submit = async () => {
+    if (busy) return;
+    setError(""); setNotice("");
+    setBusy(true);
+    try {
+      const r = await onRequest(email);
+      if (r.ok) setNotice(r.message);
+      else setError(r.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <>
+      <h2 style={{ color:theme.tx, fontSize:17, fontWeight:700, marginBottom:8, textAlign:"center" }}>
+        Reset your password
+      </h2>
+      <p style={{ color:theme.td, fontSize:12, lineHeight:1.6, marginBottom:18, textAlign:"center" }}>
+        Enter your Team Mail ID and we'll email you a link to set a new password.
+      </p>
+
+      {error && (
+        <div role="alert" aria-live="assertive" style={{
+          background:"rgba(239,68,68,0.1)", border:"1px solid rgba(239,68,68,0.3)",
+          borderRadius:10, padding:"8px 12px", marginBottom:14, color:theme.rd, fontSize:12
+        }}>⚠️ {error}</div>
+      )}
+      {notice && (
+        <div role="status" aria-live="polite" style={{
+          background:"rgba(16,185,129,0.1)", border:"1px solid rgba(16,185,129,0.3)",
+          borderRadius:10, padding:"10px 12px", marginBottom:14, color:theme.gn,
+          fontSize:12, lineHeight:1.6
+        }}>✉️ {notice}</div>
+      )}
+
+      <form onSubmit={e => { e.preventDefault(); submit(); }} aria-busy={busy}>
+        <div style={{ marginBottom:18 }}>
+          <label htmlFor={emailId} style={{ display:"block", color:theme.td, fontSize:10, fontWeight:700, marginBottom:5, letterSpacing:1 }}>EMAIL ADDRESS</label>
+          <input
+            id={emailId} name="email" type="email" autoComplete="username"
+            value={email} onChange={e => setEmail(e.target.value)}
+            placeholder="your.name@adbsafegate.com"
+            style={ib}
+          />
+        </div>
+        <button
+          type="submit"
+          disabled={busy}
+          style={{
+            width:"100%", padding:"12px", borderRadius:10, border:"none",
+            background:theme.ga, color:"#fff", fontSize:14, fontWeight:700,
+            cursor: busy ? "wait" : "pointer", opacity: busy ? 0.75 : 1,
+            boxShadow:"0 4px 20px rgba(232,112,42,0.3)"
+          }}
+        >{busy ? "Sending…" : "Email me a reset link"}</button>
+      </form>
+
+      <div style={{ textAlign:"center", marginTop:16 }}>
+        <button
+          type="button"
+          onClick={onBack}
+          style={{
+            background:"none", border:"none", color:theme.bu,
+            fontSize:12, cursor:"pointer", padding:4, textDecoration:"underline"
+          }}
+        >← Back to sign in</button>
+      </div>
+    </>
+  );
+}
 
 /** Gated off in production builds when SHOW_DEMO_LOGIN=false (see build.js). */
 export function LoginPage({
   loginId, loginPassword, loginError, loginSubmitting,
-  setLoginId, setLoginPassword, login,
+  setLoginId, setLoginPassword, login, onRequestReset,
 }) {
   const emailId = useId();
   const passwordId = useId();
+  const [mode, setMode] = useState("signin"); // "signin" | "forgot"
   // __SHOW_DEMO__ is a compile-time define (build.js / npm run dev). Using it
   // directly (not via a variable) lets esbuild fold the condition and strip
   // every demo credential string out of production bundles entirely.
@@ -41,6 +129,14 @@ export function LoginPage({
           borderRadius:18, padding:28, border:`1px solid ${theme.bl}`,
           boxShadow:"0 24px 80px rgba(0,0,0,0.5)"
         }}>
+          {mode === "forgot" ? (
+            <ForgotPassword
+              initialEmail={loginId}
+              onRequest={onRequestReset}
+              onBack={() => setMode("signin")}
+            />
+          ) : (
+          <>
           <h2 style={{ color:theme.tx, fontSize:17, fontWeight:700, marginBottom:20, textAlign:"center" }}>Sign In to Portal</h2>
           {loginError && (
             <div
@@ -93,10 +189,23 @@ export function LoginPage({
               }}
             >{loginSubmitting ? "Signing in…" : "Sign In"}</button>
           </form>
-          <div style={{ textAlign:"center", marginTop:14, fontSize:11, color:theme.td, lineHeight:1.6 }}>
+          <div style={{ textAlign:"center", marginTop:12 }}>
+            <button
+              type="button"
+              onClick={() => setMode("forgot")}
+              style={{
+                background:"none", border:"none", color:theme.bu,
+                fontSize:12, cursor:"pointer", padding:4, textDecoration:"underline"
+              }}
+            >Forgot your password?</button>
+          </div>
+          <div style={{ textAlign:"center", marginTop:8, fontSize:11, color:theme.td, lineHeight:1.6 }}>
             Sign in with your Team Mail ID. First time here? Enter your team email
             and choose your own password — it becomes your permanent password.
+            <div style={{ marginTop:6, color:theme.td, opacity:0.85 }}>{POLICY_SUMMARY}</div>
           </div>
+          </>
+          )}
         </div>
         {(typeof __SHOW_DEMO__ !== "undefined" ? __SHOW_DEMO__ : true) && (
         <div style={{

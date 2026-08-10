@@ -1,4 +1,5 @@
 import { theme } from "./constants.js";
+import { reportError } from "./errorReporter.js";
 
 export class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -9,7 +10,16 @@ export class ErrorBoundary extends React.Component {
     return { hasError: true, err };
   }
   componentDidCatch(err, info) {
-    console.error("[portal] UI error:", err, info);
+    // A crash that only reaches console.error is a crash nobody hears about:
+    // an operations team on shift works around it rather than reporting it.
+    // reportError swallows its own failures, so this cannot make the crash
+    // worse, and it logs to the console either way.
+    reportError({
+      kind: "render",
+      message: err?.message || String(err),
+      stack: err?.stack,
+      component: info?.componentStack?.trim().split("\n")[0]?.trim(),
+    });
   }
   render() {
     if (this.state.hasError) {

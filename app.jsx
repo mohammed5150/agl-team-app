@@ -6,7 +6,15 @@ import { nextEmpId } from "./src/helpers.js";
 import { applyLeaveAction, newRequestRecipients } from "./src/leaveWorkflow.js";
 import { applyOvertimeAction, newOvertimeRecipients } from "./src/overtimeWorkflow.js";
 import { needsOnboarding, sanitizeEmployeeEdit, canFinalizeProfile, isEmailTaken, normalizeLoginId } from "./src/onboarding.js";
-import { isApprovedTeamLogin, checkApprovedTeamLogin, NOT_REGISTERED_MESSAGE } from "./src/teamDirectory.js";
+import { checkApprovedTeamLogin, NOT_REGISTERED_MESSAGE } from "./src/teamDirectory.js";
+import { checkPassword } from "./src/passwordPolicy.js";
+import {
+  requestPasswordReset, completePasswordReset, isRecoveryLanding,
+  createLoginThrottle, throttleMessage, sendResetForEmployee,
+} from "./src/authFlows.js";
+import { canSetRatingTier, canViewAuditLog, canOffboardEmployee } from "./src/authz.js";
+import { auditFromDb } from "./src/auditLog.js";
+import { installErrorReporting, setRoute, reportError } from "./src/errorReporter.js";
 import { supa, subscribePush, unsubscribePush, sendPush, diffFieldsById, empToDb, empFromDb, lrToDb, lrFromDb, otToDb, otFromDb, annToDb, annFromDb, nfToDb, nfFromDb, diffById, pushSupported } from "./src/supabasePortal.js";
 import { Logo, Bd, Bt } from "./src/uiPrimitives.jsx";
 import { LoginPage } from "./src/LoginPage.jsx";
@@ -14,6 +22,7 @@ import { ErrorBoundary } from "./src/ErrorBoundary.jsx";
 import { AnnPg } from "./src/components/AnnouncementsPage.jsx";
 import { AttPg, MyAtt } from "./src/components/AttendancePage.jsx";
 import { ChPw } from "./src/components/ChangePassword.jsx";
+import { ResetPassword } from "./src/components/ResetPassword.jsx";
 import { EDash } from "./src/components/DashboardEmployee.jsx";
 import { MDash } from "./src/components/DashboardManager.jsx";
 import { MyDocs, DocsMgmt } from "./src/components/DocumentsPage.jsx";
@@ -25,6 +34,7 @@ import { Perf } from "./src/components/PerformancePage.jsx";
 import { Prof } from "./src/components/Profile.jsx";
 import { Onboarding } from "./src/components/Onboarding.jsx";
 import { Team } from "./src/components/TeamPage.jsx";
+import { AuditPage } from "./src/components/AuditPage.jsx";
 import { MyTr, TrMgmt } from "./src/components/TrainingPage.jsx";
 
 const { useState, useCallback, useEffect, useRef } = React;
@@ -51,6 +61,18 @@ function App() {
   const [syncError, setSyncError] = useState("");
   // "Skip for now" only defers onboarding for this session; it is never persisted.
   const [onboardingSkipped, setOnboardingSkipped] = useState(false);
+  // Audit entries are fetched on demand rather than with the rest of the
+  // portal: the table grows without bound, only managers can read it, and most
+  // sessions never open the page.
+  const [auditEntries, setAuditEntries] = useState([]);
+  const [auditLoading, setAuditLoading] = useState(false);
+  const [auditError, setAuditError] = useState("");
+  // Set while a password-recovery session from an emailed link is live. The
+  // reset screen renders ahead of everything else, so a half-finished reset
+  // cannot leak into the portal.
+  const [recovery, setRecovery] = useState(
+    () => (isRecoveryLanding() ? { email: "" } : null)
+  );
 
   // --- Persistence: Supabase Auth + Supabase DB (tables RLS-protected)
   //   Data is only loaded once the user has an authenticated session.
@@ -62,6 +84,14 @@ function App() {
   const prevAnnouncementsRef = useRef([]);
   const prevNotificationsRef = useRef([]);
   const loadingRef = useRef(false);
+  // Failed sign-in counter per address. A ref, not state: it must survive
+  // re-renders without causing one, and it is deliberately per-tab — the
+  // durable limit is Supabase's own, this only stops a person (or a script in
+  // this tab) hammering a half-remembered password.
+  const loginThrottleRef = useRef(createLoginThrottle());
+  // True once a recovery session has been seen, so the auth listener does not
+  // treat the sign-in Supabase performs as part of the reset as a normal login.
+  const recoveryRef = useRef(isRecoveryLanding());
   // Set once the user clears their initial password, so a concurrent data
   // refetch (triggered by the change-password re-auth) can't re-flag them.
   const pwClearedRef = useRef(false);
@@ -230,6 +260,15 @@ function App() {
 
     const handle = async (session) => {
       if (!mounted) return;
+      // A recovery session authorises exactly one thing: setting a new
+      // password. Loading the portal from it would sign the user in on the
+      // strength of a mailbox link alone and leave the reset half-done, so the
+      // reset screen holds the session until updateUser succeeds.
+      if (recoveryRef.current) {
+        setRecovery({ email: session?.user?.email || "" });
+        hydrated.current = true;
+        return;
+      }
       if (session?.user?.email) {
         await loadPortalData(session.user.email);
       } else {
@@ -243,7 +282,13 @@ function App() {
     };
 
     supa.auth.getSession().then(({ data }) => handle(data.session));
-    const { data: { subscription } } = supa.auth.onAuthStateChange((_event, session) => handle(session));
+    const { data: { subscription } } = supa.auth.onAuthStateChange((event, session) => {
+      // supabase-js consumes the recovery token from the URL before React
+      // mounts, so the hash check in useState can miss it. This event is the
+      // reliable signal; latch it so the sign-in that follows is also held.
+      if (event === "PASSWORD_RECOVERY") recoveryRef.current = true;
+      handle(session);
+    });
     return () => { mounted = false; subscription.unsubscribe(); };
   }, [loadPortalData]);
 
@@ -360,14 +405,33 @@ function App() {
     return () => clearTimeout(t);
   }, [notifications]);
 
+  // Fetch the audit trail the first time a manager opens the page, and on
+  // every subsequent visit so it does not go stale behind them.
+  useEffect(() => {
+    if (nav !== "audit" || !canViewAuditLog(currentUser)) return;
+    loadAudit();
+  }, [nav, currentUser, loadAudit]);
+
+  // Global error handlers. Installed once, as early as possible, so a fault
+  // during the first render is still reported. Reporting is fire-and-forget
+  // and swallows its own failures — it can never make a fault worse.
+  useEffect(() => installErrorReporting(supa), []);
+
+  // Tell the reporter which page a fault happened on. The app's own nav key,
+  // never the URL — the hash carries employee ids.
+  useEffect(() => { setRoute(nav); }, [nav]);
+
   // Expose currentUser.id for the realtime callback to check incoming notifs
   useEffect(() => {
     if (typeof window !== "undefined") window.__currentUserId = currentUser?.id || null;
   }, [currentUser]);
 
-  // Sync-failure toast auto-dismisses after a few seconds
+  // Sync-failure toast auto-dismisses after a few seconds. The failure is
+  // also reported: a save that silently did not land is the most damaging
+  // fault this app has, and the toast is seen by one person for six seconds.
   useEffect(() => {
     if (!syncError) return;
+    reportError({ kind: "sync", message: syncError });
     const t = setTimeout(() => setSyncError(""), 6000);
     return () => clearTimeout(t);
   }, [syncError]);
@@ -421,6 +485,10 @@ function App() {
     if (!email.includes("@")) { setLoginError("Please enter your email"); return; }
     if (!loginPassword) { setLoginError("Enter your password"); return; }
 
+    const throttle = loginThrottleRef.current;
+    const wait = throttle.retryAfter(email);
+    if (wait > 0) { setLoginError(throttleMessage(wait)); return; }
+
     setLoginSubmitting(true);
     setLoginError("");
     try {
@@ -429,8 +497,14 @@ function App() {
       // This is the courteous refusal; the real enforcement is the
       // BEFORE INSERT trigger on auth.users, which refuses the account even
       // if this check is bypassed entirely.
+      //
+      // `approved` is three-valued: null means the check could not be made
+      // (production bundles carry no local directory — see teamDirectory.js).
+      // Only a definite `false` refuses here; on null we continue and let the
+      // auth.users trigger give the real answer, rather than locking the team
+      // out whenever the RPC hiccups.
       const { approved } = await checkApprovedTeamLogin(supa, email);
-      if (!approved) {
+      if (approved === false) {
         setLoginError(NOT_REGISTERED_MESSAGE);
         return;
       }
@@ -446,9 +520,24 @@ function App() {
         // signing in for the first time. Account creation is reachable only for
         // addresses that passed the gate above, so this can no longer mint an
         // account for an arbitrary address.
+        //
+        // This branch SETS the account's permanent password, so it is the most
+        // important place for the strength policy — and it was the one place
+        // that had none. Check before signUp, because afterwards the weak
+        // password is already live and only a reset can dislodge it.
+        const strength = checkPassword(loginPassword, { email });
+        if (!strength.ok) {
+          setLoginError(
+            "First time signing in? " + strength.error
+            + ". This becomes your permanent password, so it has to be a strong one."
+          );
+          throttle.recordFailure(email);
+          return;
+        }
         const s = await supa.auth.signUp({ email, password: loginPassword });
         if (s.error) {
           setLoginError(s.error.message || "Invalid email or password");
+          throttle.recordFailure(email);
           return;
         }
         // If a session came back, email-confirmation is OFF → onAuthStateChange handles it.
@@ -458,12 +547,73 @@ function App() {
           return;
         }
       }
+      throttle.recordSuccess(email);
       setLoginError("");
       // onAuthStateChange will load data and set currentUser
     } finally {
       setLoginSubmitting(false);
     }
   }, [loginId, loginPassword]);
+
+  // Ask Supabase to email a recovery link. Wired to the login page's
+  // "Forgot your password?" link.
+  const requestReset = useCallback(email => requestPasswordReset(supa, email), []);
+
+  // Finish a reset started from an emailed link. On success the recovery
+  // latch is released so the normal sign-in path takes over and loads the
+  // portal with the session Supabase has already established.
+  const submitReset = useCallback(async (newPassword) => {
+    const res = await completePasswordReset(supa, newPassword, { email: recovery?.email });
+    if (!res.ok) return res;
+    recoveryRef.current = false;
+    // The employee's forced-change flag is satisfied by a completed reset —
+    // they have just chosen a password that meets the policy.
+    pwClearedRef.current = true;
+    const { data } = await supa.auth.getSession();
+    setRecovery(null);
+    if (data?.session?.user?.email) await loadPortalData(data.session.user.email);
+    return res;
+  }, [recovery, loadPortalData]);
+
+  // Load the audit trail. Capped at 500 entries — enough to answer "what
+  // happened recently" without pulling a table that only grows; the CSV export
+  // and the SQL editor are the right tools for a full historical review.
+  const loadAudit = useCallback(async () => {
+    if (!supa) return;
+    setAuditLoading(true);
+    setAuditError("");
+    try {
+      const { data, error } = await supa
+        .from("audit_log")
+        .select("*")
+        .order("occurred_at", { ascending: false })
+        .limit(500);
+      if (error) {
+        console.error("[audit] load:", error);
+        // A missing table means the migration has not been applied yet, which
+        // is a different problem from a permission refusal — say which.
+        setAuditError(
+          /does not exist|relation/i.test(error.message || "")
+            ? "The audit_log table is missing. Apply supabase_audit_log.sql to enable the audit trail."
+            : "Could not load the audit trail: " + (error.message || "unknown error")
+        );
+        setAuditEntries([]);
+        return;
+      }
+      setAuditEntries((data || []).map(auditFromDb));
+    } catch (e) {
+      console.error("[audit] load error:", e);
+      setAuditError("Could not load the audit trail. Check your connection.");
+    } finally {
+      setAuditLoading(false);
+    }
+  }, []);
+
+  const cancelReset = useCallback(async () => {
+    recoveryRef.current = false;
+    setRecovery(null);
+    if (supa) { try { await supa.auth.signOut(); } catch (e) { console.warn("[reset] signOut:", e); } }
+  }, []);
 
   const logout = useCallback(async () => {
     // Unsubscribe push first so this device stops receiving for the previous user
@@ -478,12 +628,20 @@ function App() {
   }, []);
 
   const changePassword = useCallback(async (oldPw, newPw) => {
-    if (!supa) return false;
+    if (!supa) return { ok: false, error: "Backend unavailable — try again shortly" };
+    // Belt and braces: ChPw already checks, but changePassword is also the
+    // seam anything else would call, and the policy must not depend on which
+    // screen you came through.
+    const strength = checkPassword(newPw, { email: currentUser.email, name: currentUser.name });
+    if (!strength.ok) return { ok: false, error: strength.error };
     // Verify the old password first by re-authenticating
     const { error } = await supa.auth.signInWithPassword({ email: currentUser.email, password: oldPw });
-    if (error) return false;
+    if (error) return { ok: false, error: "Wrong current password" };
     const upd = await supa.auth.updateUser({ password: newPw });
-    if (upd.error) { console.error(upd.error); return false; }
+    if (upd.error) {
+      console.error(upd.error);
+      return { ok: false, error: upd.error.message || "Could not update your password" };
+    }
     // Persist the cleared flag directly. The re-auth above fires an auth event
     // that refetches employees; relying on the debounced upsert would lose the
     // race (the refetch resets the diff baseline before it runs). The ref makes
@@ -494,8 +652,44 @@ function App() {
     setEmployees(p => p.map(e => e.id === currentUser.id ? { ...e, initialPassword: false } : e));
     setCurrentUser(p => ({ ...p, initialPassword: false }));
     setNav("dashboard");
-    return true;
+    return { ok: true };
   }, [currentUser]);
+
+  // Manager sends a reset link for someone else. Goes through the same public
+  // endpoint the user could have used themselves — the service_role key the
+  // admin API needs must never reach a browser.
+  const sendResetFor = useCallback(emp => sendResetForEmployee(supa, emp), []);
+
+  // Offboard, suspend or reactivate. The reason is stamped into the audit
+  // entry for this transaction via app.audit_reason, so the trail says WHY
+  // and not just what — which is the whole difference between an audit log
+  // and a change log. offboarded_at is set by the database trigger.
+  const setEmploymentStatus = useCallback(async (emp, status, reason) => {
+    if (!supa) return { ok: false, message: "Backend unavailable — try again shortly" };
+    if (!canOffboardEmployee(currentUser)) {
+      return { ok: false, message: "Only a manager can change employment status" };
+    }
+    if (emp.id === currentUser.id) {
+      return { ok: false, message: "You cannot change your own employment status" };
+    }
+    // One RPC rather than set_config + update: set_config(..., true) is
+    // transaction-local and PostgREST runs each request in its own
+    // transaction, so two calls would lose the reason before the trigger
+    // could read it. set_employment_status does both in one.
+    const { error } = await supa.rpc("set_employment_status", {
+      p_emp_id: emp.id,
+      p_status: status,
+      p_reason: reason || null,
+    });
+    if (error) {
+      console.error("[admin] employment status:", error);
+      return { ok: false, message: error.message || "Could not change the status" };
+    }
+    setEmployees(p => p.map(e => e.id === emp.id ? { ...e, employmentStatus: status } : e));
+    if (viewEmployee?.id === emp.id) setViewEmployee(p => ({ ...p, employmentStatus: status }));
+    const verb = status === "active" ? "reactivated" : status;
+    return { ok: true, message: `${emp.name} is now ${verb}.` };
+  }, [currentUser, viewEmployee]);
 
   const saveProfile = useCallback(u => {
     setEmployees(p => p.map(e => e.id === u.id ? { ...e, ...u } : e));
@@ -505,7 +699,11 @@ function App() {
 
   // Manager creates an "invite" row. The employee will sign up with this email
   // via Supabase auth and be matched to the row by email in loadPortalData.
-  const addInviteEmployee = useCallback(({ email, name, section, designation, role, tier }) => {
+  // Async because the approved-address check is now a database round trip:
+  // production bundles no longer embed the Team Mail ID list (see
+  // src/teamDirectory.js — it was leaking 35 personal addresses into a public
+  // bundle), so the answer has to come from the is_approved_team_login RPC.
+  const addInviteEmployee = useCallback(async ({ email, name, section, designation, role, tier }) => {
     const trimmedEmail = (email || "").trim().toLowerCase();
     if (!trimmedEmail || !name?.trim()) {
       return { ok: false, error: "Email and name are required" };
@@ -516,11 +714,16 @@ function App() {
     // The login gate only admits approved Team Mail IDs, so creating a row for
     // any other address would produce an employee who can never sign in. Refuse
     // it here rather than leave a locked-out record behind.
-    if (!isApprovedTeamLogin(trimmedEmail)) {
+    //
+    // Only a definite `false` refuses. On null (RPC unreachable) we proceed:
+    // trg_guard_employee_email_approved refuses the INSERT server-side, so the
+    // worst case is a rejected write rather than a silently blocked manager.
+    const { approved } = await checkApprovedTeamLogin(supa, trimmedEmail);
+    if (approved === false) {
       return {
         ok: false,
         error: "That email is not on the approved Team Mail ID list, so it could "
-             + "not sign in. Add it to src/teamDirectory.js first.",
+             + "not sign in. Add it to approved_team_logins first.",
       };
     }
     const id = nextEmpId(employees, role);
@@ -548,12 +751,24 @@ function App() {
 
   // Bulk invite from a parsed CSV. rows: [{ email, name, section, designation, role, tier }]
   // Returns counts + a per-row outcome list so the UI can show what happened.
-  const addInviteEmployeesBulk = useCallback((rows) => {
+  const addInviteEmployeesBulk = useCallback(async (rows) => {
     const existingByEmail = new Map(
       employees.filter(e => e.email).map(e => [e.email.toLowerCase(), e])
     );
     const acc = [...employees];
     const outcomes = [];
+
+    // One RPC per distinct address, all in flight together — a 60-row import
+    // should not be 60 sequential round trips.
+    const addresses = [...new Set(
+      rows.map(r => (r.email || "").trim().toLowerCase()).filter(e => e.includes("@"))
+    )];
+    const approvals = new Map(
+      await Promise.all(addresses.map(async a => {
+        const { approved } = await checkApprovedTeamLogin(supa, a);
+        return [a, approved];
+      }))
+    );
 
     rows.forEach((row, i) => {
       const email = (row.email || "").trim().toLowerCase();
@@ -570,7 +785,8 @@ function App() {
         outcomes.push({ line: i + 1, email, status: "skipped", reason: "email already exists" });
         return;
       }
-      if (!isApprovedTeamLogin(email)) {
+      // As in addInviteEmployee: only a definite refusal stops the row.
+      if (approvals.get(email) === false) {
         outcomes.push({ line: i + 1, email, status: "error", reason: "not an approved Team Mail ID" });
         return;
       }
@@ -805,6 +1021,18 @@ function App() {
       : currentUser.role === "manager" ? leaveRequests.filter(r => r.status === "tl_approved").length : 0)
     : 0;
 
+  // PASSWORD RECOVERY — rendered ahead of the login page and the dashboard
+  // alike. Supabase has a live session at this point (the emailed token
+  // established one), so this must come first or the user would land in the
+  // portal with the reset abandoned half-way.
+  if (recovery) return (
+    <ResetPassword
+      email={recovery.email}
+      onSubmit={submitReset}
+      onCancel={cancelReset}
+    />
+  );
+
   // LOGIN PAGE
   if (!currentUser) return (
     <LoginPage
@@ -815,6 +1043,7 @@ function App() {
       setLoginId={setLoginId}
       setLoginPassword={setLoginPassword}
       login={login}
+      onRequestReset={requestReset}
     />
   );
 
@@ -829,7 +1058,7 @@ function App() {
     const apply = e => {
       const prev = e.rating || {};
       const next = { ...prev, ...patch, updatedAt: new Date().toISOString(), updatedBy: currentUser.name };
-      if (!iMgr) delete next.tier; // non-managers can't set tier
+      if (!canSetRatingTier(currentUser)) delete next.tier;
       return { ...e, rating: next };
     };
     setEmployees(p => p.map(e => e.id === empId ? apply(e) : e));
@@ -844,7 +1073,7 @@ function App() {
   // Force a password change on first login before anything else is reachable.
   // Enforced at render (not by scattered nav checks) so no route bypasses it.
   if (currentUser.initialPassword) {
-    return <ChPw onCh={changePassword} forced={true} onOut={logout} />;
+    return <ChPw onCh={changePassword} forced={true} onOut={logout} user={currentUser} />;
   }
 
   // First login with a password already set: send the user through profile
@@ -863,7 +1092,7 @@ function App() {
   }
 
   if (nav === "changepw") {
-    return <ChPw onCh={changePassword} forced={currentUser.initialPassword} onOut={logout} />;
+    return <ChPw onCh={changePassword} forced={currentUser.initialPassword} onOut={logout} user={currentUser} />;
   }
 
   return (
@@ -985,7 +1214,8 @@ function App() {
             <div className="fade-in">
               <Bt onClick={() => setViewEmployee(null)} outline={true} small={true}>← Back</Bt>
               <div style={{ marginTop:12 }}>
-                <Prof emp={viewEmployee} actor={currentUser} canEdit={iM} isStaff={iM} isMgr={iMgr} onSave={saveProfile} onAdd={addEmployeeAction} onAddDoc={addDoc} onDelDoc={delDoc} />
+                <Prof emp={viewEmployee} actor={currentUser} canEdit={iM} isStaff={iM} isMgr={iMgr} onSave={saveProfile} onAdd={addEmployeeAction} onAddDoc={addDoc} onDelDoc={delDoc}
+                  onSendReset={sendResetFor} onSetEmploymentStatus={setEmploymentStatus} />
               </div>
             </div>
           ) : (
@@ -997,7 +1227,7 @@ function App() {
               {nav === "team" && <Team employees={employees} onSel={setViewEmployee} isMgr={iMgr} isTL={isTL} onInvite={addInviteEmployee} onBulkInvite={addInviteEmployeesBulk} />}
               {nav === "performance" && iM && <Perf employees={employees} onSel={setViewEmployee} isMgr={iMgr} onSave={saveRating} />}
               {nav === "leave" && <LvPg user={currentUser} leaveRequests={leaveRequests} onSub={submitLeave} onAct={leaveAction} />}
-              {nav === "overtime" && <OtPg user={currentUser} overtimeRequests={overtimeRequests} onSub={submitOvertime} onAct={overtimeAction} />}
+              {nav === "overtime" && <OtPg user={currentUser} overtimeRequests={overtimeRequests} leaveRequests={leaveRequests} onSub={submitOvertime} onAct={overtimeAction} />}
               {nav === "approvals" && <ApPg user={currentUser} leaveRequests={leaveRequests} onAct={leaveAction} />}
               {nav === "calendar" && <LeaveCalendar leaveRequests={leaveRequests} />}
               {nav === "attendance" && !iMgr && (iM
@@ -1006,6 +1236,15 @@ function App() {
               {nav === "training" && (iM ? <TrMgmt employees={employees} /> : <MyTr emp={currentUser} />)}
               {nav === "documents" && (iM ? <DocsMgmt employees={employees} onSel={setViewEmployee} /> : <MyDocs emp={currentUser} onAdd={addDoc} onDel={delDoc} />)}
               {nav === "announcements" && <AnnPg user={currentUser} announcements={announcements} onAdd={addAnn} onDel={delAnn} />}
+              {nav === "audit" && canViewAuditLog(currentUser) && (
+                <AuditPage
+                  entries={auditEntries}
+                  employees={employees}
+                  loading={auditLoading}
+                  error={auditError}
+                  onReload={loadAudit}
+                />
+              )}
             </div>
           )}
         </div>

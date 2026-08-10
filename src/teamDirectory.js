@@ -1,14 +1,30 @@
-// Approved Team Mail IDs — the source of truth for onboarding eligibility.
+// Approved Team Mail IDs — the record of who onboarding admits.
 //
-// WHY THIS LIST EXISTS CLIENT-SIDE
+// ⚠️ THIS LIST IS NEVER SHIPPED TO PRODUCTION. See "PII" below.
+//
+// WHY A CLIENT-SIDE COPY EXISTED
 // The eligibility check has to run BEFORE any Supabase call, because the old
 // flow called auth.signUp() on any failed sign-in and so minted an auth user
 // for whatever address was typed. At that point there is no session, so the
 // employees table cannot be read (RLS denies anonymous select). A static list
-// is the only thing available at that moment.
+// was the only thing available at that moment.
+//
+// PII — WHY IT IS NOW COMPILED OUT
+// That reasoning made the list a build-time constant in a PUBLIC bundle. A
+// production build served 35 addresses — over half of them team members'
+// PERSONAL Gmail accounts — to anyone who fetched /app.js unauthenticated.
+// That is a standing disclosure of staff contact details and a ready-made
+// phishing target list, in exchange for saving one round trip on a form the
+// user is about to wait on anyway.
+//
+// So the array below is gated on the __EMBED_TEAM_DIRECTORY__ compile-time
+// define, which build.js sets FALSE for every production build (see
+// scripts/verify-dist.js, which fails the build if an address survives into
+// dist/app.js). Tests and `npm run dev` see the real list; the deployed
+// bundle sees an empty one and asks the database instead.
 //
 // WHAT THIS IS AND IS NOT
-// This list is UX only. The authority lives in the database
+// This list was always UX only. The authority lives in the database
 // (supabase_team_onboarding.sql section f):
 //   - approved_team_logins       the authoritative list, unreadable by
 //                                anon/authenticated so it cannot be enumerated
@@ -18,13 +34,18 @@
 //                                by calling Supabase directly
 //   - trg_guard_employee_email_approved   blocks a roster row for one
 // Bypassing the JavaScript therefore achieves nothing: the writes themselves
-// are refused. This copy exists so the form can answer instantly and so the
-// check still degrades safely if the RPC is unreachable.
+// are refused. Removing the list from the bundle costs no security at all —
+// it only means the browser has to ask.
 //
 // Addresses are stored verbatim and compared case-insensitively — one real ID
 // is "Bv4haris@gmail.com".
 
-export const APPROVED_TEAM_LOGINS = [
+// True in tests and `npm run dev`; false in every production bundle.
+const EMBED = typeof __EMBED_TEAM_DIRECTORY__ !== "undefined"
+  ? __EMBED_TEAM_DIRECTORY__
+  : true;
+
+const TEAM_LOGINS_SOURCE = [
   "muhammed.farhan.ext@adbsafegate.com",  // Farhan — ADB-048
   "anurag.aikkal@adbsafegate.com",        // Anurag — ADB-009
   "amarnath.munderi@adbsafegate.com",     // Amarnath — ADB-001
@@ -78,7 +99,7 @@ export const APPROVED_TEAM_LOGINS = [
 // record" message — which is the correct outcome until an admin confirms which
 // roster entry each belongs to. Listed here so the gap is explicit rather than
 // looking like an oversight.
-export const UNRESOLVED_TEAM_LOGINS = [
+const UNRESOLVED_LOGINS_SOURCE = [
   "praveen6273@gmail.com",
   "jjijosebastian311@gmail.com",
   "srigajeg84@gmail.com",
@@ -90,13 +111,30 @@ export const UNRESOLVED_TEAM_LOGINS = [
   "muhammed.talhalateef@adbsafegate.com",
 ];
 
+// Empty in a production bundle — esbuild folds `EMBED` to false and drops both
+// arrays, so no address reaches dist/app.js.
+export const APPROVED_TEAM_LOGINS   = EMBED ? TEAM_LOGINS_SOURCE : [];
+export const UNRESOLVED_TEAM_LOGINS = EMBED ? UNRESOLVED_LOGINS_SOURCE : [];
+
+/** Does this build carry the directory at all? False in production. */
+export const HAS_EMBEDDED_DIRECTORY = EMBED;
+
 const APPROVED_SET = new Set(APPROVED_TEAM_LOGINS.map(e => e.toLowerCase()));
 
 export const NOT_REGISTERED_MESSAGE =
   "This email address is not registered for the Team Portal. " +
   "Please contact your administrator.";
 
-/** Is this address approved to create or access a Team Portal account? */
+export const APPROVAL_UNAVAILABLE_MESSAGE =
+  "We could not check your address just now. Try again in a moment.";
+
+/**
+ * Is this address on the LOCAL copy of the approved list?
+ *
+ * Only meaningful when HAS_EMBEDDED_DIRECTORY is true. A production bundle has
+ * no list, so this answers false for everyone — which is why nothing that
+ * decides access may call it directly. Use checkApprovedTeamLogin instead.
+ */
 export function isApprovedTeamLogin(email) {
   if (typeof email !== "string") return false;
   const norm = email.trim().toLowerCase();
@@ -114,15 +152,24 @@ export function isUnresolvedTeamLogin(email) {
 /**
  * Authoritative eligibility check — asks the database.
  *
- * Returns the RPC's boolean when it answers. If the RPC is unreachable (not
- * yet migrated, offline, network error) it falls back to the local list, which
- * is a strict subset of the same rule and still denies unknown addresses.
- * Either way the database triggers remain the actual boundary, so a wrong
- * answer here cannot grant access — only delay a correct refusal.
+ * `approved` is deliberately THREE-VALUED:
+ *   true   the RPC confirmed the address, or the embedded list did
+ *   false  a definite refusal — show NOT_REGISTERED_MESSAGE
+ *   null   no answer available (RPC unreachable AND no embedded directory)
+ *
+ * The null case matters because production bundles no longer carry the list.
+ * Refusing on "don't know" would lock out the entire team the moment the RPC
+ * hiccups, for no gain: an unapproved address that gets past this check is
+ * still refused by trg_guard_auth_user_approved when Supabase tries to create
+ * the account. Callers must therefore branch on `=== false`, never on falsy.
  */
 export async function checkApprovedTeamLogin(supa, email) {
   const local = isApprovedTeamLogin(email);
-  if (!supa) return { approved: local, source: "local" };
+  if (!supa) {
+    return EMBED
+      ? { approved: local, source: "local" }
+      : { approved: null, source: "unavailable" };
+  }
   try {
     const { data, error } = await supa.rpc("is_approved_team_login", {
       p_email: (email || "").trim(),
@@ -130,7 +177,11 @@ export async function checkApprovedTeamLogin(supa, email) {
     if (error) throw error;
     return { approved: data === true, source: "database" };
   } catch (e) {
-    console.warn("[auth] approval RPC unavailable, using local list:", e?.message || e);
-    return { approved: local, source: "local-fallback" };
+    console.warn("[auth] approval RPC unavailable:", e?.message || e);
+    // With a directory compiled in (dev/tests) the local list is a safe
+    // stand-in. Without one, say so rather than inventing a refusal.
+    return EMBED
+      ? { approved: local, source: "local-fallback" }
+      : { approved: null, source: "unavailable" };
   }
 }

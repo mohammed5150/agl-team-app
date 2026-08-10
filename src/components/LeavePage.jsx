@@ -1,32 +1,61 @@
 import { LEAVE_TYPES, STATUS_COLORS, STATUS_LABELS, theme } from "../constants.js";
 import { ib, Bd, Bt, SC2, Empty } from "../uiPrimitives.jsx";
+import { validateLeaveRequest, remainingBalance, BALANCE_FIELDS } from "../validation.js";
 
-const { useState } = React;
+const { useState, useMemo } = React;
 
 /* ============================================================
    LEAVE FORM / CARD / PAGE / APPROVALS
    ============================================================ */
 
-export function LvFm({ onSub, onCan }) {
+export function LvFm({ onSub, onCan, user, leaveRequests }) {
   const [f, setF] = useState({ type:"Annual Leave", startDate:"", endDate:"", reason:"" });
-  const [er, setEr] = useState("");
+  const [errors, setErrors] = useState([]);
   const days = f.startDate && f.endDate
     ? Math.max(1, Math.ceil((new Date(f.endDate) - new Date(f.startDate)) / 864e5) + 1)
     : 0;
 
+  // Warnings are computed live so the user sees "this overlaps LR-004" while
+  // picking dates, not after pressing Submit. Errors stay on submit, because
+  // shouting at a half-typed form is worse than useless.
+  const live = useMemo(
+    () => validateLeaveRequest(
+      { ...f, days },
+      { employee: user, requests: leaveRequests }
+    ),
+    [f, days, user, leaveRequests]
+  );
+  const balance = remainingBalance(user, f.type);
+
+  const submit = () => {
+    const res = validateLeaveRequest({ ...f, days }, { employee: user, requests: leaveRequests });
+    if (!res.ok) { setErrors(res.errors); return; }
+    setErrors([]);
+    onSub({ ...f, days });
+  };
+
   return (
     <div style={{ background:theme.cs, borderRadius:14, padding:22, border:`1px solid ${theme.bl}`, maxWidth:520 }}>
       <h3 style={{ fontSize:16, fontWeight:700, color:theme.tx, marginBottom:18 }}>📝 Apply for Leave</h3>
-      {er && <div style={{
-        background:"rgba(239,68,68,0.1)", borderRadius:8, padding:"8px 12px",
-        marginBottom:12, color:theme.rd, fontSize:12
-      }}>{er}</div>}
+      {errors.length > 0 && (
+        <div role="alert" aria-live="assertive" style={{
+          background:"rgba(239,68,68,0.1)", border:"1px solid rgba(239,68,68,0.3)",
+          borderRadius:8, padding:"8px 12px", marginBottom:12, color:theme.rd, fontSize:12
+        }}>
+          {errors.map((e, i) => <div key={i} style={{ marginTop: i ? 4 : 0 }}>⚠️ {e}</div>)}
+        </div>
+      )}
       <div style={{ marginBottom:14 }}>
         <label style={{ display:"block", fontSize:10, color:theme.td, fontWeight:700, marginBottom:5 }}>TYPE</label>
         <select value={f.type} onChange={e => setF(p => ({ ...p, type:e.target.value }))}
           style={{ ...ib, background:theme.cs }}>
           {LEAVE_TYPES.map(tp => <option key={tp} value={tp}>{tp}</option>)}
         </select>
+        {balance !== null && (
+          <div style={{ fontSize:11, color: balance > 0 ? theme.td : theme.yl, marginTop:5 }}>
+            {Math.max(0, balance)} days of {BALANCE_FIELDS[f.type].label} remaining
+          </div>
+        )}
       </div>
       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:14 }}>
         <div>
@@ -49,12 +78,17 @@ export function LvFm({ onSub, onCan }) {
         <textarea value={f.reason} onChange={e => setF(p => ({ ...p, reason:e.target.value }))}
           rows={3} placeholder="Reason..." style={{ ...ib, resize:"vertical", fontFamily:"inherit" }} />
       </div>
+      {live.warnings.length > 0 && (
+        <div role="status" aria-live="polite" style={{
+          background:`${theme.yl}12`, border:`1px solid ${theme.yl}35`,
+          borderRadius:8, padding:"8px 12px", marginBottom:14,
+          color:theme.yl, fontSize:12, lineHeight:1.6
+        }}>
+          {live.warnings.map((w, i) => <div key={i} style={{ marginTop: i ? 4 : 0 }}>ℹ️ {w}</div>)}
+        </div>
+      )}
       <div style={{ display:"flex", gap:8 }}>
-        <Bt onClick={() => {
-          if (!f.startDate || !f.endDate || !f.reason.trim()) return setEr("Fill all fields");
-          if (new Date(f.endDate) < new Date(f.startDate)) return setEr("Invalid dates");
-          onSub({ ...f, days });
-        }} bg={theme.gn}>📤 Submit</Bt>
+        <Bt onClick={submit} bg={theme.gn}>📤 Submit</Bt>
         <Bt onClick={onCan} outline={true}>Cancel</Bt>
       </div>
     </div>
@@ -137,7 +171,8 @@ export function LvPg({ user, leaveRequests, onSub, onAct }) {
       )}
       {sf && (
         <div style={{ marginBottom:18 }}>
-          <LvFm onSub={f => { onSub(f); setSf(false); }} onCan={() => setSf(false)} />
+          <LvFm onSub={f => { onSub(f); setSf(false); }} onCan={() => setSf(false)}
+            user={user} leaveRequests={leaveRequests} />
         </div>
       )}
       <div style={{ display:"flex", gap:6, marginBottom:14, flexWrap:"wrap" }}>

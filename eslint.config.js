@@ -20,6 +20,8 @@ module.exports = [
         ReactDOM: "readonly",
         // compile-time define injected by build.js / npm run dev
         __SHOW_DEMO__: "readonly",
+        __EMBED_TEAM_DIRECTORY__: "readonly",
+        __APP_VERSION__: "readonly",
       },
     },
     settings: { react: { version: "18.2" } },

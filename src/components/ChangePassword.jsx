@@ -1,25 +1,56 @@
 import { theme } from "../constants.js";
 import { ib, Bt } from "../uiPrimitives.jsx";
+import { checkPassword, POLICY_SUMMARY } from "../passwordPolicy.js";
+import { PasswordRequirements } from "./PasswordRequirements.jsx";
 
-const { useState } = React;
+const { useState, useId } = React;
 
-export function ChPw({ onCh, forced, onOut }) {
+/**
+ * Change password.
+ *
+ * `forced` is set when the user still holds an initial password — app.jsx
+ * renders this screen ahead of every route in that case, so it is the only way
+ * into the portal.
+ *
+ * Strength rules come from src/passwordPolicy.js, shared with the first
+ * sign-in and reset-link paths. They used to be spelled out here (six
+ * characters, one capital, one digit) and nowhere else, which meant the
+ * sign-up path — the one that actually SET most passwords — enforced nothing.
+ */
+export function ChPw({ onCh, forced, onOut, user }) {
   const [o, setO] = useState("");
   const [n, setN] = useState("");
   const [c2, setC2] = useState("");
   const [er, setEr] = useState("");
   const [ok, setOk] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const curId = useId();
+  const newId = useId();
+  const confirmId = useId();
+
+  const identity = { email: user?.email, name: user?.name };
 
   const submit = async () => {
+    if (busy) return;
     setEr("");
     if (!o || !n || !c2) return setEr("Fill all fields");
-    if (n.length < 6) return setEr("Min 6 characters");
-    if (n === o) return setEr("Must differ from current");
+    if (n === o) return setEr("Your new password must differ from your current one");
     if (n !== c2) return setEr("New passwords don't match");
-    if (!/[A-Z]/.test(n) || !/[0-9]/.test(n)) return setEr("Need 1 uppercase + 1 number");
-    const ok2 = await onCh(o, n);
-    if (!ok2) return setEr("Wrong current password");
-    setOk(true);
+    const check = checkPassword(n, identity);
+    if (!check.ok) return setEr(check.error);
+
+    setBusy(true);
+    try {
+      const res = await onCh(o, n);
+      // onCh returns true, or { ok, error } when it can say what went wrong.
+      if (res === true || res?.ok) { setOk(true); return; }
+      setEr(res?.error || "Wrong current password");
+    } catch (e) {
+      console.error("[pw] change failed:", e);
+      setEr("Could not change your password. Check your connection and try again.");
+    } finally {
+      setBusy(false);
+    }
   };
 
   if (ok) return (
@@ -27,7 +58,7 @@ export function ChPw({ onCh, forced, onOut }) {
       display:"flex", flexDirection:"column", alignItems:"center",
       justifyContent:"center", height:"100vh", background:theme.bg
     }}>
-      <div style={{ fontSize:56, marginBottom:12 }}>✅</div>
+      <div style={{ fontSize:56, marginBottom:12 }} aria-hidden="true">✅</div>
       <h2 style={{ color:theme.gn, fontSize:20 }}>Password Changed!</h2>
       <p style={{ color:theme.ts, fontSize:13, marginTop:8 }}>Redirecting...</p>
     </div>
@@ -44,33 +75,37 @@ export function ChPw({ onCh, forced, onOut }) {
               borderRadius:10, padding:12, margin:"12px 0 16px", fontSize:13, color:theme.or
             }}>⚠️ Please change your initial password</div>
           )}
-          <p style={{ color:theme.td, fontSize:12, marginBottom:20 }}>Min 6 chars, 1 uppercase, 1 number</p>
+          <p style={{ color:theme.td, fontSize:12, marginBottom:20 }}>{POLICY_SUMMARY}</p>
           {er && (
-            <div style={{
+            <div role="alert" aria-live="assertive" style={{
               background:"rgba(239,68,68,0.1)", borderRadius:10, padding:"8px 12px",
               marginBottom:14, color:theme.rd, fontSize:12
             }}>{er}</div>
           )}
-          <div style={{ marginBottom:14 }}>
-            <label style={{ display:"block", fontSize:10, color:theme.td, fontWeight:700, marginBottom:5 }}>CURRENT</label>
-            <input type="password" value={o} onChange={e => setO(e.target.value)} style={ib} />
-          </div>
-          <div style={{ marginBottom:14 }}>
-            <label style={{ display:"block", fontSize:10, color:theme.td, fontWeight:700, marginBottom:5 }}>NEW</label>
-            <input type="password" value={n} onChange={e => setN(e.target.value)} style={ib} />
-          </div>
-          <div style={{ marginBottom:20 }}>
-            <label style={{ display:"block", fontSize:10, color:theme.td, fontWeight:700, marginBottom:5 }}>CONFIRM</label>
-            <input type="password" value={c2} onChange={e => setC2(e.target.value)}
-              onKeyDown={e => e.key === "Enter" && submit()} style={ib} />
-          </div>
-          <div style={{ display:"flex", gap:8 }}>
-            <Bt onClick={submit} bg={theme.or}>Update</Bt>
-            <Bt onClick={onOut} outline={true}>Logout</Bt>
-          </div>
+          <form onSubmit={e => { e.preventDefault(); submit(); }} aria-busy={busy}>
+            <div style={{ marginBottom:14 }}>
+              <label htmlFor={curId} style={{ display:"block", fontSize:10, color:theme.td, fontWeight:700, marginBottom:5 }}>CURRENT</label>
+              <input id={curId} name="current-password" type="password" autoComplete="current-password"
+                value={o} onChange={e => setO(e.target.value)} style={ib} />
+            </div>
+            <div style={{ marginBottom:14 }}>
+              <label htmlFor={newId} style={{ display:"block", fontSize:10, color:theme.td, fontWeight:700, marginBottom:5 }}>NEW</label>
+              <input id={newId} name="new-password" type="password" autoComplete="new-password"
+                value={n} onChange={e => setN(e.target.value)} style={ib} />
+            </div>
+            <PasswordRequirements password={n} identity={identity} />
+            <div style={{ marginBottom:20 }}>
+              <label htmlFor={confirmId} style={{ display:"block", fontSize:10, color:theme.td, fontWeight:700, marginBottom:5 }}>CONFIRM</label>
+              <input id={confirmId} name="confirm-password" type="password" autoComplete="new-password"
+                value={c2} onChange={e => setC2(e.target.value)} style={ib} />
+            </div>
+            <div style={{ display:"flex", gap:8 }}>
+              <Bt onClick={submit} bg={theme.or} disabled={busy}>{busy ? "Updating…" : "Update"}</Bt>
+              <Bt onClick={onOut} outline={true}>Logout</Bt>
+            </div>
+          </form>
         </div>
       </div>
     </div>
   );
 }
-
