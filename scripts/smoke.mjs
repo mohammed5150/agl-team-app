@@ -22,7 +22,16 @@
 // asserting on copy that a designer will reword. It answers one question, the
 // one nobody was asking: does the app come up at all?
 //
-// Usage:  node scripts/smoke.mjs        (expects dist/ to exist — run build first)
+// Usage:
+//   node scripts/smoke.mjs                     the local build (expects dist/)
+//   node scripts/smoke.mjs --url https://…     a deployed site (uptime.yml)
+//
+// The --url mode exists because uptime.yml had the SAME blind spot in
+// production: it checks that index.html contains id="root" and that app.js
+// returns 200, so it reported the portal healthy for as long as the crash was
+// live. Both modes share the assertions below deliberately — two definitions of
+// "the app came up" would drift, and the one that drifts is the one watching
+// production.
 //
 // Needs a Chromium. In CI the workflow installs one and a missing browser is a
 // hard failure. Locally it skips with instructions rather than blocking a
@@ -37,9 +46,16 @@ const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const DIST = path.join(ROOT, "dist");
 const IS_CI = process.env.CI === "true" || process.env.CI === "1";
 
+const urlFlag = process.argv.indexOf("--url");
+const TARGET_URL = urlFlag !== -1 ? process.argv[urlFlag + 1] : null;
+if (urlFlag !== -1 && !/^https?:\/\//.test(TARGET_URL || "")) {
+  console.error("[smoke] --url needs an http(s) URL");
+  process.exit(1);
+}
+
 const fail = msg => { console.error("[smoke] FAIL — " + msg); process.exitCode = 1; };
 
-if (!fs.existsSync(path.join(DIST, "app.js"))) {
+if (!TARGET_URL && !fs.existsSync(path.join(DIST, "app.js"))) {
   console.error("[smoke] dist/app.js is missing; run `npm run build` first.");
   process.exit(1);
 }
@@ -94,9 +110,10 @@ try {
 // Read the CSP out of netlify.toml rather than restating it, so the smoke test
 // exercises whatever policy is actually deployed. A policy tightened into
 // blocking the app's own scripts should fail here, not in front of the team.
-const CSP = (fs.readFileSync(path.join(ROOT, "netlify.toml"), "utf8")
+// (Only for the local server — a deployed site sends its own.)
+const CSP = TARGET_URL ? null : (fs.readFileSync(path.join(ROOT, "netlify.toml"), "utf8")
   .match(/^\s*Content-Security-Policy\s*=\s*"([^"]*)"/m) || [])[1];
-if (!CSP) fail("could not read Content-Security-Policy out of netlify.toml");
+if (!TARGET_URL && !CSP) fail("could not read Content-Security-Policy out of netlify.toml");
 
 const MIME = {
   ".html": "text/html", ".js": "text/javascript", ".json": "application/json",
@@ -119,20 +136,38 @@ function serve({ omit = [] } = {}) {
   return new Promise(resolve => server.listen(0, "127.0.0.1", () => resolve(server)));
 }
 
-/** Open dist/ in the browser and collect everything that went wrong. */
-async function load({ omit = [] } = {}) {
-  const server = await serve({ omit });
-  const { port } = server.address();
+/**
+ * Open the app in the browser and collect everything that went wrong.
+ * Serves dist/ locally, unless `url` points at a deployed site.
+ */
+async function load({ omit = [], url = null } = {}) {
+  const server = url ? null : await serve({ omit });
+  const target = url || `http://127.0.0.1:${server.address().port}/`;
   const page = await browser.newPage();
   const pageErrors = [];
   const missing = [];
   page.on("pageerror", e => pageErrors.push(e.message));
   page.on("requestfailed", r => missing.push(r.url()));
   page.on("response", r => { if (r.status() >= 400) missing.push(`${r.status()} ${r.url()}`); });
-  await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: "load" });
-  // The app mounts from a `defer`red script and then runs an effect or two.
-  // Half a second is far more than it needs and keeps this gate quick.
-  await page.waitForTimeout(500);
+  await page.goto(target, { waitUntil: "load" });
+  if (url) {
+    // Against a live site the app first asks Supabase whether there is a
+    // stored session, and a cold backend can take a few seconds. Wait for the
+    // app to settle into a real screen rather than timing it — a slow start is
+    // not an outage, and calling one would get this monitor muted.
+    // globalThis.document, not the bare global: this callback is serialised
+    // and run in the PAGE, but this file is linted as Node.
+    await page.waitForFunction(() => {
+      const r = globalThis.document.getElementById("root");
+      if (!r) return false;
+      if (r.querySelector(".boot")) return false;      // still the static shell
+      return r.innerText.trim().length > 0;
+    }, null, { timeout: 25000 }).catch(() => {});
+  } else {
+    // The app mounts from a `defer`red script and then runs an effect or two.
+    // Half a second is far more than it needs and keeps this gate quick.
+    await page.waitForTimeout(500);
+  }
   const text = (await page.locator("#root").innerText().catch(() => "")).replace(/\s+/g, " ").trim();
   const bootFallbackStillShowing = await page.locator("#root .boot").count() > 0;
   // Reached through the element rather than the bare global: this callback is
@@ -142,17 +177,15 @@ async function load({ omit = [] } = {}) {
     .evaluate(el => el.ownerDocument.defaultView.getComputedStyle(el).animationDelay)
     .catch(() => null);
   await page.close();
-  await new Promise(r => server.close(r));
+  if (server) await new Promise(r => server.close(r));
   return { text, pageErrors, missing, bootFallbackStillShowing, stuckDelay };
 }
 
 // ---------------------------------------------------------------------------
-// 1. The healthy build must actually come up
+// The app must actually come up. Shared by both modes on purpose.
 // ---------------------------------------------------------------------------
 
-{
-  const r = await load();
-
+function assertAppCameUp(r) {
   // THE ASSERTION THAT WOULD HAVE CAUGHT THE OUTAGE. Any uncaught exception
   // during evaluation or render lands here.
   if (r.pageErrors.length) fail("the app threw on load: " + r.pageErrors[0]);
@@ -163,7 +196,7 @@ async function load({ omit = [] } = {}) {
   // fallback means it never did.
   if (r.bootFallbackStillShowing) fail("React never mounted — the boot fallback is still on screen");
 
-  if (!r.text) fail("#root rendered nothing");
+  if (!r.text) fail("#root rendered nothing — a blank page");
 
   // The ErrorBoundary rendering IS the failure mode we shipped: the page looks
   // alive, so "did anything render" alone would have passed.
@@ -171,12 +204,35 @@ async function load({ omit = [] } = {}) {
     fail("the ErrorBoundary rendered instead of the app: " + r.text.slice(0, 160));
   }
 
-  // Signed out is the only state reachable without a backend, so the sign-in
-  // form is what a healthy boot looks like here.
+  // Signed out is the only state reachable without credentials, so the sign-in
+  // form is what a healthy boot looks like.
   if (!/Sign In/i.test(r.text)) {
     fail("expected the sign-in screen; got: " + r.text.slice(0, 160));
   }
+}
 
+// ---------------------------------------------------------------------------
+// URL mode — watch a DEPLOYED site (uptime.yml)
+// ---------------------------------------------------------------------------
+
+if (TARGET_URL) {
+  const r = await load({ url: TARGET_URL });
+  assertAppCameUp(r);
+  await browser.close();
+  if (process.exitCode) {
+    console.error(`[smoke] ${TARGET_URL} is serving a portal that does not run.`);
+  } else {
+    console.log(`[smoke] ok — ${TARGET_URL} mounted, no errors, sign-in screen rendered`);
+  }
+  process.exit(process.exitCode || 0);
+}
+
+// ---------------------------------------------------------------------------
+// 1. The healthy build must actually come up
+// ---------------------------------------------------------------------------
+
+{
+  assertAppCameUp(await load());
   if (!process.exitCode) console.log("[smoke] ok — app mounted, no errors, sign-in screen rendered");
 }
 

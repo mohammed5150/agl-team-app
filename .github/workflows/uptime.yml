@@ -15,6 +15,10 @@ on:
     # Every 15 minutes. GitHub's scheduler is best-effort and can run late
     # under load, so treat this as "roughly quarter-hourly", not a guarantee.
     - cron: "*/15 * * * *"
+    # Hourly, and deliberately at :07 so it never lands on the same tick as the
+    # quarter-hourly one. This is the run that also opens the portal in a real
+    # browser — see "the deep check" below.
+    - cron: "7 * * * *"
   workflow_dispatch:
 
 permissions:
@@ -67,6 +71,65 @@ jobs:
             exit 1
           fi
 
+      # -------------------------------------------------------------------
+      # THE DEEP CHECK — does the portal actually RUN?
+      #
+      # Everything above this point passed for the entire time the portal was
+      # crashing on every render for every user (the loadAudit temporal-dead-
+      # zone fault). It had to: the shell WAS served, it DID contain id="root",
+      # app.js DID return 200. The bundle arrived intact and threw the instant
+      # the browser evaluated it, and this workflow went on reporting the site
+      # healthy while nobody could use it. A monitor that cannot tell "serving
+      # files" from "working" is a monitor that will miss the next one too.
+      #
+      # So this opens the real page in a real browser and insists the app
+      # mounted — same assertions CI runs against the build, from
+      # scripts/smoke.mjs, so the two cannot drift.
+      #
+      # Hourly, not quarter-hourly, on purpose. It needs a checkout, node and a
+      # ~115MB Chromium (cached between runs), which is perhaps 30s of runner
+      # time against ~10s for the curl checks. At every 15 minutes that is a
+      # few thousand billable minutes a month for a class of fault that only
+      # appears at deploy time. Hourly is a sane trade; raise it if you'd
+      # rather pay for the tighter loop.
+      # -------------------------------------------------------------------
+      - name: Is this a deep-check run?
+        id: mode
+        run: |
+          if [ "${{ github.event.schedule }}" = "7 * * * *" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "deep=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "deep=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout (deep check)
+        if: steps.mode.outputs.deep == 'true'
+        uses: actions/checkout@v4
+
+      - name: Node (deep check)
+        if: steps.mode.outputs.deep == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Cache the browser (deep check)
+        if: steps.mode.outputs.deep == 'true'
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+      - name: Install (deep check)
+        if: steps.mode.outputs.deep == 'true'
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Open the portal in a browser
+        if: steps.mode.outputs.deep == 'true'
+        run: node scripts/smoke.mjs --url "$PORTAL_URL"
+
       - name: Check Supabase is answering
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -109,9 +172,13 @@ jobs:
               `- Portal: ${process.env.PORTAL_URL}`,
               "",
               "**First things to check**",
-              "1. Is the Supabase project paused? (billing, or 7-day inactivity on free tier)",
-              "2. Did the last Netlify deploy fail?",
-              "3. Is Supabase or Netlify reporting an incident?",
+              "1. Read the run log above — it says WHICH check failed, and they mean different things.",
+              "   A `[smoke]` failure means the site is serving files correctly but the app does not",
+              "   run: open the portal yourself and look at the browser console. That is a code fault",
+              "   in the last deploy, not an infrastructure problem, and a rollback is the fast fix.",
+              "2. Is the Supabase project paused? (billing, or 7-day inactivity on free tier)",
+              "3. Did the last Netlify deploy fail?",
+              "4. Is Supabase or Netlify reporting an incident?",
               "",
               "Recovery steps: `docs/BACKUP_RESTORE.md`. Monitoring: `docs/MONITORING.md`.",
             ].join("\n");
