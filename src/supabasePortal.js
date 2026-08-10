@@ -100,6 +100,9 @@ export const empToDb = e => ({
   rating: e.rating || {},
   profile_finalized: !!e.profileFinalized,
   initial_password: !!e.initialPassword,
+  // Offboarding deactivates rather than deleting (supabase_security_v2.sql).
+  // offboarded_at is derived by the database trigger, never sent from here.
+  employment_status: e.employmentStatus || "active",
   tier: e.tier || null,
   // Grading metadata from the salary standardisation exercise. Manager-only
   // at the database level (trg_guard_employee_grading).
@@ -125,6 +128,8 @@ export const empFromDb = r => ({
   rating: r.rating || {},
   profileFinalized: !!r.profile_finalized,
   initialPassword: !!r.initial_password,
+  employmentStatus: r.employment_status || "active",
+  offboardedAt: r.offboarded_at || "",
   tier: r.tier || "",
   band: r.band || null,
   airport: r.airport || null,

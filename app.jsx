@@ -10,9 +10,9 @@ import { checkApprovedTeamLogin, NOT_REGISTERED_MESSAGE } from "./src/teamDirect
 import { checkPassword } from "./src/passwordPolicy.js";
 import {
   requestPasswordReset, completePasswordReset, isRecoveryLanding,
-  createLoginThrottle, throttleMessage,
+  createLoginThrottle, throttleMessage, sendResetForEmployee,
 } from "./src/authFlows.js";
-import { canSetRatingTier, canViewAuditLog } from "./src/authz.js";
+import { canSetRatingTier, canViewAuditLog, canOffboardEmployee } from "./src/authz.js";
 import { auditFromDb } from "./src/auditLog.js";
 import { installErrorReporting, setRoute, reportError } from "./src/errorReporter.js";
 import { supa, subscribePush, unsubscribePush, sendPush, diffFieldsById, empToDb, empFromDb, lrToDb, lrFromDb, otToDb, otFromDb, annToDb, annFromDb, nfToDb, nfFromDb, diffById, pushSupported } from "./src/supabasePortal.js";
@@ -655,6 +655,42 @@ function App() {
     return { ok: true };
   }, [currentUser]);
 
+  // Manager sends a reset link for someone else. Goes through the same public
+  // endpoint the user could have used themselves — the service_role key the
+  // admin API needs must never reach a browser.
+  const sendResetFor = useCallback(emp => sendResetForEmployee(supa, emp), []);
+
+  // Offboard, suspend or reactivate. The reason is stamped into the audit
+  // entry for this transaction via app.audit_reason, so the trail says WHY
+  // and not just what — which is the whole difference between an audit log
+  // and a change log. offboarded_at is set by the database trigger.
+  const setEmploymentStatus = useCallback(async (emp, status, reason) => {
+    if (!supa) return { ok: false, message: "Backend unavailable — try again shortly" };
+    if (!canOffboardEmployee(currentUser)) {
+      return { ok: false, message: "Only a manager can change employment status" };
+    }
+    if (emp.id === currentUser.id) {
+      return { ok: false, message: "You cannot change your own employment status" };
+    }
+    // One RPC rather than set_config + update: set_config(..., true) is
+    // transaction-local and PostgREST runs each request in its own
+    // transaction, so two calls would lose the reason before the trigger
+    // could read it. set_employment_status does both in one.
+    const { error } = await supa.rpc("set_employment_status", {
+      p_emp_id: emp.id,
+      p_status: status,
+      p_reason: reason || null,
+    });
+    if (error) {
+      console.error("[admin] employment status:", error);
+      return { ok: false, message: error.message || "Could not change the status" };
+    }
+    setEmployees(p => p.map(e => e.id === emp.id ? { ...e, employmentStatus: status } : e));
+    if (viewEmployee?.id === emp.id) setViewEmployee(p => ({ ...p, employmentStatus: status }));
+    const verb = status === "active" ? "reactivated" : status;
+    return { ok: true, message: `${emp.name} is now ${verb}.` };
+  }, [currentUser, viewEmployee]);
+
   const saveProfile = useCallback(u => {
     setEmployees(p => p.map(e => e.id === u.id ? { ...e, ...u } : e));
     if (viewEmployee?.id === u.id) setViewEmployee(p => ({ ...p, ...u }));
@@ -1178,7 +1214,8 @@ function App() {
             <div className="fade-in">
               <Bt onClick={() => setViewEmployee(null)} outline={true} small={true}>← Back</Bt>
               <div style={{ marginTop:12 }}>
-                <Prof emp={viewEmployee} actor={currentUser} canEdit={iM} isStaff={iM} isMgr={iMgr} onSave={saveProfile} onAdd={addEmployeeAction} onAddDoc={addDoc} onDelDoc={delDoc} />
+                <Prof emp={viewEmployee} actor={currentUser} canEdit={iM} isStaff={iM} isMgr={iMgr} onSave={saveProfile} onAdd={addEmployeeAction} onAddDoc={addDoc} onDelDoc={delDoc}
+                  onSendReset={sendResetFor} onSetEmploymentStatus={setEmploymentStatus} />
               </div>
             </div>
           ) : (

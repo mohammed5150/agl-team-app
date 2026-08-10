@@ -302,10 +302,13 @@ select
   a.reason
 from public.audit_log a
 where a.table_name = 'employees'
+  -- employment_status is added by supabase_security_v2.sql; naming it here is
+  -- safe either way, because these are plain strings compared against
+  -- changed_cols, not references to columns that must exist.
   and a.changed_cols && array[
     'role', 'tier', 'band', 'airport', 'supplier',
     'annual_leave', 'used_annual', 'sick_leave', 'used_sick', 'comp_off',
-    'rating', 'warnings', 'profile_finalized', 'status'
+    'rating', 'warnings', 'profile_finalized', 'employment_status'
   ]
 order by a.occurred_at desc;
 
