@@ -1,8 +1,9 @@
 import { STATUS_COLORS, OT_STATUS_LABELS, theme } from "../constants.js";
 import { approvedHours } from "../overtimeWorkflow.js";
 import { ib, Bd, Bt, SC2, Empty } from "../uiPrimitives.jsx";
+import { validateOvertimeRequest, claimedHoursOn } from "../validation.js";
 
-const { useState } = React;
+const { useState, useMemo } = React;
 
 /* ============================================================
    OVERTIME FORM / CARD / PAGE
@@ -10,18 +11,43 @@ const { useState } = React;
    approves it, so no manager tab or action controls exist here.
    ============================================================ */
 
-export function OtFm({ onSub, onCan }) {
+export function OtFm({ onSub, onCan, user, overtimeRequests, leaveRequests }) {
   const [f, setF] = useState({ workDate: "", hours: "", reason: "" });
-  const [er, setEr] = useState("");
+  const [errors, setErrors] = useState([]);
   const hours = Number(f.hours) || 0;
+
+  // Live warnings while the date is being picked — "you already claimed 4h on
+  // this date", "you were on leave that day" — rather than after Submit.
+  const live = useMemo(
+    () => validateOvertimeRequest(f, {
+      employee: user, requests: overtimeRequests, leaveRequests,
+    }),
+    [f, user, overtimeRequests, leaveRequests]
+  );
+  const already = user && f.workDate
+    ? claimedHoursOn(overtimeRequests, user.id, f.workDate)
+    : 0;
+
+  const submit = () => {
+    const res = validateOvertimeRequest(f, {
+      employee: user, requests: overtimeRequests, leaveRequests,
+    });
+    if (!res.ok) { setErrors(res.errors); return; }
+    setErrors([]);
+    onSub({ workDate: f.workDate, hours, reason: f.reason });
+  };
 
   return (
     <div style={{ background:theme.cs, borderRadius:14, padding:22, border:`1px solid ${theme.bl}`, maxWidth:520 }}>
       <h3 style={{ fontSize:16, fontWeight:700, color:theme.tx, marginBottom:18 }}>⏰ Claim Overtime</h3>
-      {er && <div style={{
-        background:"rgba(239,68,68,0.1)", borderRadius:8, padding:"8px 12px",
-        marginBottom:12, color:theme.rd, fontSize:12
-      }}>{er}</div>}
+      {errors.length > 0 && (
+        <div role="alert" aria-live="assertive" style={{
+          background:"rgba(239,68,68,0.1)", border:"1px solid rgba(239,68,68,0.3)",
+          borderRadius:8, padding:"8px 12px", marginBottom:12, color:theme.rd, fontSize:12
+        }}>
+          {errors.map((e, i) => <div key={i} style={{ marginTop: i ? 4 : 0 }}>⚠️ {e}</div>)}
+        </div>
+      )}
       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:14 }}>
         <div>
           <label style={{ display:"block", fontSize:10, color:theme.td, fontWeight:700, marginBottom:5 }}>WORK DATE</label>
@@ -38,21 +64,27 @@ export function OtFm({ onSub, onCan }) {
         <div style={{
           background:`${theme.or}15`, borderRadius:8, padding:"8px 12px",
           marginBottom:14, fontSize:13, color:theme.or
-        }}>{hours} hour{hours === 1 ? "" : "s"} — approved by your team lead</div>
+        }}>
+          {hours} hour{hours === 1 ? "" : "s"} — approved by your team lead
+          {already > 0 && <> · {already}h already claimed on this date</>}
+        </div>
       )}
       <div style={{ marginBottom:18 }}>
         <label style={{ display:"block", fontSize:10, color:theme.td, fontWeight:700, marginBottom:5 }}>REASON</label>
         <textarea value={f.reason} onChange={e => setF(p => ({ ...p, reason:e.target.value }))}
           rows={3} placeholder="What was the work?" style={{ ...ib, resize:"vertical", fontFamily:"inherit" }} />
       </div>
+      {live.warnings.length > 0 && (
+        <div role="status" aria-live="polite" style={{
+          background:`${theme.yl}12`, border:`1px solid ${theme.yl}35`,
+          borderRadius:8, padding:"8px 12px", marginBottom:14,
+          color:theme.yl, fontSize:12, lineHeight:1.6
+        }}>
+          {live.warnings.map((w, i) => <div key={i} style={{ marginTop: i ? 4 : 0 }}>ℹ️ {w}</div>)}
+        </div>
+      )}
       <div style={{ display:"flex", gap:8 }}>
-        <Bt onClick={() => {
-          if (!f.workDate || !f.reason.trim()) return setEr("Fill all fields");
-          if (!(hours > 0)) return setEr("Enter the hours worked");
-          if (hours > 12) return setEr("Maximum 12 hours per claim");
-          if (new Date(f.workDate) > new Date()) return setEr("Work date cannot be in the future");
-          onSub({ workDate:f.workDate, hours, reason:f.reason });
-        }} bg={theme.gn}>📤 Submit</Bt>
+        <Bt onClick={submit} bg={theme.gn}>📤 Submit</Bt>
         <Bt onClick={onCan} outline={true}>Cancel</Bt>
       </div>
     </div>
@@ -106,7 +138,7 @@ export const OtCd = React.memo(function OtCd({ req, role, viewerId, onAct }) {
   );
 });
 
-export function OtPg({ user, overtimeRequests, onSub, onAct }) {
+export function OtPg({ user, overtimeRequests, leaveRequests, onSub, onAct }) {
   const isE = user.role === "employee";
   const isTL = user.role === "teamlead";
   const [tab, setTab] = useState(isE ? "my" : "all");
@@ -137,7 +169,8 @@ export function OtPg({ user, overtimeRequests, onSub, onAct }) {
       )}
       {sf && (
         <div style={{ marginBottom:18 }}>
-          <OtFm onSub={f => { onSub(f); setSf(false); }} onCan={() => setSf(false)} />
+          <OtFm onSub={f => { onSub(f); setSf(false); }} onCan={() => setSf(false)}
+            user={user} overtimeRequests={overtimeRequests} leaveRequests={leaveRequests} />
         </div>
       )}
       <div style={{ display:"flex", gap:6, marginBottom:14, flexWrap:"wrap" }}>

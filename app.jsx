@@ -1177,7 +1177,7 @@ function App() {
               {nav === "team" && <Team employees={employees} onSel={setViewEmployee} isMgr={iMgr} isTL={isTL} onInvite={addInviteEmployee} onBulkInvite={addInviteEmployeesBulk} />}
               {nav === "performance" && iM && <Perf employees={employees} onSel={setViewEmployee} isMgr={iMgr} onSave={saveRating} />}
               {nav === "leave" && <LvPg user={currentUser} leaveRequests={leaveRequests} onSub={submitLeave} onAct={leaveAction} />}
-              {nav === "overtime" && <OtPg user={currentUser} overtimeRequests={overtimeRequests} onSub={submitOvertime} onAct={overtimeAction} />}
+              {nav === "overtime" && <OtPg user={currentUser} overtimeRequests={overtimeRequests} leaveRequests={leaveRequests} onSub={submitOvertime} onAct={overtimeAction} />}
               {nav === "approvals" && <ApPg user={currentUser} leaveRequests={leaveRequests} onAct={leaveAction} />}
               {nav === "calendar" && <LeaveCalendar leaveRequests={leaveRequests} />}
               {nav === "attendance" && !iMgr && (iM
