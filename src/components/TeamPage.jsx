@@ -9,21 +9,49 @@ const { useState } = React;
    TEAM LIST
    ============================================================ */
 
-export function InviteForm({ onInvite, onClose }) {
+export function InviteForm({ onInvite, onApproveLogin, onClose }) {
   const [fm, setFm] = useState({
     email: "", name: "", section: SECTIONS[0] || "",
     designation: "", role: "employee", tier: ""
   });
   const [err, setErr] = useState("");
+  const [notice, setNotice] = useState("");
+  // Set when the invite was refused because the address is not an approved
+  // Team Mail ID. A manager can approve it here rather than needing a
+  // developer with SQL access, which was the only route before.
+  const [needsApproval, setNeedsApproval] = useState(false);
   const [busy, setBusy] = useState(false);
-  const up = k => v => setFm(p => ({ ...p, [k]: v }));
+  const up = k => v => setFm(p => ({ ...p, [k]: v, ...(k === "email" ? {} : {}) }));
   // onInvite is async: the approved-address check is a database round trip
   // now that production bundles carry no local Team Mail ID list.
   const submit = async () => {
     if (busy) return;
-    setErr("");
+    setErr(""); setNotice("");
     setBusy(true);
     try {
+      const res = await onInvite(fm);
+      if (!res.ok) {
+        setErr(res.error || "Failed to invite");
+        setNeedsApproval(!!res.notApproved && !!onApproveLogin);
+        return;
+      }
+      onClose(res.id);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // Approve the address, then immediately retry the invite — the manager
+  // asked to invite this person, not to perform two separate operations.
+  const approveThenInvite = async () => {
+    if (busy) return;
+    setErr(""); setNotice("");
+    setBusy(true);
+    try {
+      const appr = await onApproveLogin(fm.email, fm.name);
+      if (!appr.ok) { setErr(appr.message); return; }
+      setNotice(appr.message);
+      setNeedsApproval(false);
       const res = await onInvite(fm);
       if (!res.ok) { setErr(res.error || "Failed to invite"); return; }
       onClose(res.id);
@@ -87,7 +115,34 @@ export function InviteForm({ onInvite, onClose }) {
           </div>
         </div>
       </div>
-      {err && <div style={{ color:theme.rd, fontSize:12, marginTop:12 }}>{err}</div>}
+      {err && (
+        <div role="alert" style={{
+          background:"rgba(239,68,68,0.1)", border:"1px solid rgba(239,68,68,0.3)",
+          borderRadius:8, padding:"8px 12px", marginTop:12, color:theme.rd, fontSize:12, lineHeight:1.6
+        }}>⚠️ {err}</div>
+      )}
+      {notice && (
+        <div role="status" style={{
+          background:"rgba(16,185,129,0.1)", border:"1px solid rgba(16,185,129,0.3)",
+          borderRadius:8, padding:"8px 12px", marginTop:12, color:theme.gn, fontSize:12
+        }}>✓ {notice}</div>
+      )}
+      {needsApproval && (
+        <div style={{
+          background:`${theme.yl}12`, border:`1px solid ${theme.yl}35`,
+          borderRadius:8, padding:"10px 12px", marginTop:10, fontSize:12,
+          color:theme.ts, lineHeight:1.6
+        }}>
+          You can add this address to the approved Team Mail ID list yourself.
+          Check the spelling first — approving a mistyped address would let
+          whoever really owns it create a Team Portal account.
+          <div style={{ marginTop:8 }}>
+            <Bt onClick={approveThenInvite} bg={theme.yl} small={true} disabled={busy}>
+              {busy ? "Working…" : `Approve ${fm.email} and invite`}
+            </Bt>
+          </div>
+        </div>
+      )}
       <div style={{ display:"flex", gap:10, justifyContent:"flex-end", marginTop:16 }}>
         <Bt onClick={() => onClose(null)} outline={true}>Cancel</Bt>
         <Bt onClick={submit} bg={theme.gn} disabled={busy}>{busy ? "Checking…" : "Send invite"}</Bt>
@@ -248,7 +303,7 @@ export function BulkInviteForm({ onBulkInvite, onClose }) {
   );
 }
 
-export function Team({ employees, onSel, isMgr, isTL, onInvite, onBulkInvite }) {
+export function Team({ employees, onSel, isMgr, isTL, onInvite, onBulkInvite, onApproveLogin }) {
   const [f, setF] = useState("All");
   const [tierF, setTierF] = useState("all");
   const [s, setS] = useState("");
@@ -381,7 +436,7 @@ export function Team({ employees, onSel, isMgr, isTL, onInvite, onBulkInvite }) 
         </div>
       </div>
       {showInvite && isMgr && onInvite && (
-        <InviteForm onInvite={onInvite}
+        <InviteForm onInvite={onInvite} onApproveLogin={onApproveLogin}
           onClose={() => setShowInvite(false)} />
       )}
       {showBulk && isMgr && onBulkInvite && (

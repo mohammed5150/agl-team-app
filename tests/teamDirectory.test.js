@@ -5,7 +5,7 @@ import { dirname, join } from "node:path";
 import {
   APPROVED_TEAM_LOGINS, UNRESOLVED_TEAM_LOGINS, HAS_EMBEDDED_DIRECTORY,
   isApprovedTeamLogin, isUnresolvedTeamLogin, NOT_REGISTERED_MESSAGE,
-  checkApprovedTeamLogin,
+  checkApprovedTeamLogin, approveTeamLogin,
 } from "../src/teamDirectory.js";
 import { isEmailTaken } from "../src/onboarding.js";
 
@@ -334,5 +334,98 @@ describe("the directory is never shipped to production", () => {
   it("reports whether this build carries the directory", () => {
     // True under vitest (no define), false in a production bundle.
     expect(HAS_EMBEDDED_DIRECTORY).toBe(true);
+  });
+});
+
+describe("a manager can approve a new joiner without a developer", () => {
+  // Verifying the deployment surfaced an operational dead end: a manager
+  // could not onboard a new hire at all. trg_guard_employee_email_approved
+  // refuses a roster row for an unapproved address, and nothing outside the
+  // SQL editor could add one — so every new joiner needed a developer, or
+  // somebody was handed the service-role key. Both are worse than an audited
+  // action by the manager who already sets roles and pay bands.
+  const rpc = (result, calls = []) => ({
+    rpc: async (fn, args) => { calls.push({ fn, args }); return { data: result, error: null }; },
+  });
+
+  it("calls approve_team_login with a normalised address", async () => {
+    const calls = [];
+    await approveTeamLogin(rpc("approved", calls), "  New.Joiner@AdbSafegate.com ", "Aug intake");
+    expect(calls).toEqual([
+      { fn: "approve_team_login", args: { p_email: "new.joiner@adbsafegate.com", p_label: "Aug intake" } },
+    ]);
+  });
+
+  it("reports success in words the manager can act on", async () => {
+    const r = await approveTeamLogin(rpc("approved"), "new.joiner@adbsafegate.com");
+    expect(r.ok).toBe(true);
+    expect(r.alreadyApproved).toBe(false);
+    expect(r.message).toMatch(/can now be invited/);
+  });
+
+  it("treats an already-approved address as success, not an error", async () => {
+    // Re-approving is harmless and the manager's intent is satisfied either
+    // way; surfacing it as a failure would just make them wonder.
+    const r = await approveTeamLogin(rpc("already approved"), "nisar.ahmed@adbsafegate.com");
+    expect(r.ok).toBe(true);
+    expect(r.alreadyApproved).toBe(true);
+  });
+
+  it("explains a permission refusal in plain words", async () => {
+    const denied = {
+      rpc: async () => ({ data: null, error: { message: "insufficient_privilege: Only a manager may approve a Team Mail ID" } }),
+    };
+    const r = await approveTeamLogin(denied, "x@y.com");
+    expect(r.ok).toBe(false);
+    expect(r.message).toBe("Only a manager can approve a Team Mail ID");
+  });
+
+  it("refuses obviously invalid input before the round trip", async () => {
+    const calls = [];
+    const client = rpc("approved", calls);
+    for (const bad of ["", "   ", "not-an-email", null, undefined]) {
+      const r = await approveTeamLogin(client, bad);
+      expect(r.ok).toBe(false);
+    }
+    expect(calls).toEqual([]);
+  });
+
+  it("does not throw when the backend is missing or broken", async () => {
+    expect((await approveTeamLogin(null, "a@b.com")).ok).toBe(false);
+    const throwing = { rpc: async () => { throw new Error("offline"); } };
+    expect((await approveTeamLogin(throwing, "a@b.com")).ok).toBe(false);
+  });
+});
+
+describe("the self-service migration keeps the list unenumerable", () => {
+  const ROOT2 = join(dirname(fileURLToPath(import.meta.url)), "..");
+  const sql = readFileSync(join(ROOT2, "supabase_onboarding_selfservice.sql"), "utf8").toLowerCase();
+
+  it("checks is_manager() inside every function rather than trusting the caller", () => {
+    for (const fn of ["approve_team_login", "revoke_team_login"]) {
+      const body = sql.slice(sql.indexOf(`function public.${fn}`));
+      expect(body).toMatch(/if not public\.is_manager\(\) then/);
+    }
+    expect(sql).toMatch(/where public\.is_manager\(\)/); // list_team_logins
+  });
+
+  it("still grants no SELECT on the table, so the list cannot be enumerated", () => {
+    // supabase_team_onboarding.sql deliberately withheld this; a convenience
+    // grant here would undo it.
+    expect(sql).not.toMatch(/grant select on (table )?public\.approved_team_logins/);
+  });
+
+  it("validates the address, because a typo hands the account to a stranger", () => {
+    expect(sql).toMatch(/is not a valid email address/);
+    expect(sql).toMatch(/\[:space:\]/);
+  });
+
+  it("refuses to revoke an address that still has an employee", () => {
+    expect(sql).toMatch(/offboard them instead/);
+  });
+
+  it("records who approved each address", () => {
+    expect(sql).toMatch(/add column if not exists approved_by_id/);
+    expect(sql).toMatch(/add column if not exists approved_by_email/);
   });
 });

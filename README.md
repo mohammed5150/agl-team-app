@@ -64,6 +64,8 @@ supabase_*.sql        database migrations (apply in numerical / dependency order
 15. `supabase_security_v2.sql` — **required before go-live**: scopes who a
     notification may be addressed to, adds `employment_status` so offboarding
     deactivates instead of deleting, and removes the employee DELETE policy
+16. `supabase_onboarding_selfservice.sql` — lets a manager approve a new
+    joiner's Team Mail ID from the portal instead of needing SQL access
 
 ## Roles
 
@@ -72,6 +74,12 @@ supabase_*.sql        database migrations (apply in numerical / dependency order
 - `employee` — own profile, own leave requests, own notifications
 
 ## Onboarding flow
+
+A new joiner's address must be on the approved Team Mail ID list before they
+can be invited or sign in — `trg_guard_auth_user_approved` enforces it at the
+database, so this is not skippable. A manager can add it from the invite form
+itself: if the address is not yet approved, the form offers to approve it and
+retry. No SQL access needed.
 
 1. Manager opens Team page → **+ Invite Employee** (or **📋 Bulk Import (CSV)**)
 2. Employee gets a placeholder row keyed by their email
@@ -123,7 +131,14 @@ supabase_*.sql        database migrations (apply in numerical / dependency order
    `SUPABASE_SERVICE_ROLE_KEY` repository secrets so the nightly backup and
    uptime workflows run, and create the `uptime` label. See
    `docs/BACKUP_RESTORE.md` §4 and `docs/MONITORING.md` §4.
-7. **Verify** — CI (`npm run ci`) runs lint + unit tests + build + dist
+7. **Preflight** — `npm run preflight` checks the deployment from outside:
+   that the project is awake, that an anonymous caller is refused by RLS on
+   every table, that the login gate answers, and that the schema is at the
+   revision the code expects. It aborts rather than reporting passes if it
+   cannot reach the database, because "refused" and "never arrived" look
+   identical from the outside. It also prints the four items it cannot check
+   — see step 2 — every run.
+8. **Verify** — CI (`npm run ci`) runs lint + unit tests + build + dist
    verification. `verify-dist` is a gate, not a formality: it fails the build
    if any email address, employee number, Emirates ID or UAE mobile reaches
    the bundle. Smoke-test login, password reset, leave approval and push
