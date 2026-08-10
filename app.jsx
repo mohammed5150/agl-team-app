@@ -14,6 +14,7 @@ import {
 } from "./src/authFlows.js";
 import { canSetRatingTier, canViewAuditLog, canOffboardEmployee } from "./src/authz.js";
 import { auditFromDb } from "./src/auditLog.js";
+import { classifyPortalLoad, degradedMessage, LOAD_FAILED_MESSAGE } from "./src/portalLoad.js";
 import { installErrorReporting, setRoute, reportError } from "./src/errorReporter.js";
 import { supa, subscribePush, unsubscribePush, sendPush, diffFieldsById, empToDb, empFromDb, lrToDb, lrFromDb, otToDb, otFromDb, annToDb, annFromDb, nfToDb, nfFromDb, diffById, pushSupported } from "./src/supabasePortal.js";
 import { Logo, Bd, Bt } from "./src/uiPrimitives.jsx";
@@ -67,12 +68,29 @@ function App() {
   const [auditEntries, setAuditEntries] = useState([]);
   const [auditLoading, setAuditLoading] = useState(false);
   const [auditError, setAuditError] = useState("");
+  // Non-blocking notice for a PARTIAL load — the roster arrived but one of the
+  // secondary tables did not. The portal opens; the banner stops an empty
+  // Leave page from reading as "you have no leave requests".
+  const [loadNotice, setLoadNotice] = useState("");
   // Set while a password-recovery session from an emailed link is live. The
   // reset screen renders ahead of everything else, so a half-finished reset
   // cannot leak into the portal.
   const [recovery, setRecovery] = useState(
     () => (isRecoveryLanding() ? { email: "" } : null)
   );
+  // True from first paint until the stored session has been checked and, if
+  // there is one, the portal data has loaded. Without it the app rendered the
+  // SIGN-IN FORM during that window: every returning user saw a flash of the
+  // login page, and anyone whose load was slow or failed was left sitting on
+  // it — typing a correct password, watching "Signing in…", and landing back
+  // on the same form with nothing said. That is what "it isn't opening" looks
+  // like from the far side of the screen.
+  const [booting, setBooting] = useState(() => !!supa);
+  // A load that failed for system reasons (not a credentials problem). Held
+  // separately from loginError because the session is still valid and the
+  // right offer is Retry, not Sign in again.
+  const [bootError, setBootError] = useState("");
+  const [bootRetrying, setBootRetrying] = useState(false);
 
   // --- Persistence: Supabase Auth + Supabase DB (tables RLS-protected)
   //   Data is only loaded once the user has an authenticated session.
@@ -84,6 +102,11 @@ function App() {
   const prevAnnouncementsRef = useRef([]);
   const prevNotificationsRef = useRef([]);
   const loadingRef = useRef(false);
+  // Monotonic load counter. A load that was overtaken (the user signed out, or
+  // signed in as someone else, while five selects were in flight) must not
+  // write its results over the newer state — that put a signed-out user back
+  // into the portal.
+  const loadSeqRef = useRef(0);
   // Failed sign-in counter per address. A ref, not state: it must survive
   // re-renders without causing one, and it is deliberately per-tab — the
   // durable limit is Supabase's own, this only stops a person (or a script in
@@ -119,6 +142,7 @@ function App() {
   const loadPortalData = useCallback(async (authEmail) => {
     if (loadingRef.current) return;
     loadingRef.current = true;
+    const seq = ++loadSeqRef.current;
     try {
       const [empsR, lrsR, otsR, annsR, nfsR] = await Promise.all([
         supa.from("employees").select("*").order("id"),
@@ -127,6 +151,11 @@ function App() {
         supa.from("announcements").select("*").order("date", { ascending: false }),
         supa.from("notifications").select("*").order("date", { ascending: false }),
       ]);
+      // A load that has been overtaken (sign-out, or a different user signing
+      // in, while these five selects were in flight) must not write its
+      // results over the newer state.
+      if (seq !== loadSeqRef.current) return;
+
       if (empsR.error) console.error("[portal] employees load:", empsR.error);
       if (lrsR.error)  console.error("[portal] leaves load:",    lrsR.error);
       if (otsR.error)  console.error("[portal] overtime load:",  otsR.error);
@@ -134,23 +163,41 @@ function App() {
       if (nfsR.error)  console.error("[portal] notifs load:",    nfsR.error);
 
       const emps = (empsR.data || []).map(empFromDb);
-      const matches = emps.filter(e => e.email?.toLowerCase() === authEmail?.toLowerCase());
-      const me = matches[0];
+      // "No matching row" and "the read failed" are not the same finding, and
+      // conflating them is what told the whole team they were not registered
+      // employees whenever the backend hiccuped. See src/portalLoad.js.
+      const verdict = classifyPortalLoad({
+        employeesResult: { data: empsR.error ? null : emps, error: empsR.error },
+        authEmail,
+        secondary: { leave: lrsR, overtime: otsR, announcements: annsR, notifications: nfsR },
+      });
+
+      if (verdict.status === "load-failed") {
+        console.error("[portal] roster unreadable; not treating as unregistered user");
+        reportError({ kind: "sync", message: "portal load failed: " + (empsR.error?.message || "no rows") });
+        // Keep the session. The credentials were fine — making the user sign
+        // in again cannot fix a server-side fault, and signing them out is
+        // what turned a brief outage into a queue at the admin's desk.
+        setBootError(verdict.message);
+        return;
+      }
+      if (verdict.status === "not-registered") {
+        console.warn("[portal] authenticated email has no employee record:", authEmail);
+        setLoginError(verdict.message);
+        await supa.auth.signOut();
+        return;
+      }
+
+      const me = verdict.me;
       // If this session just cleared its initial password, don't let a stale
       // DB read (this refetch can race the change) re-flag the user.
-      if (me && pwClearedRef.current) {
+      if (pwClearedRef.current) {
         me.initialPassword = false;
         const mi = emps.findIndex(e => e.id === me.id);
         if (mi >= 0) emps[mi] = me;
       }
-      if (!me) {
-        console.warn("[portal] authenticated email has no employee record:", authEmail);
-        setLoginError(
-          "Your email (" + authEmail + ") is not registered as an employee. Please contact your admin."
-        );
-        await supa.auth.signOut();
-        return;
-      }
+      setBootError("");
+      setLoadNotice(degradedMessage(verdict.degraded));
       const lrs  = (lrsR.data  || []).map(lrFromDb);
       const ots  = (otsR.data  || []).map(otFromDb);
       const anns = (annsR.data || []).map(annFromDb);
@@ -248,10 +295,34 @@ function App() {
       }
     } catch (e) {
       console.error("[portal] loadPortalData error:", e);
+      reportError({ kind: "sync", message: "portal load threw: " + (e?.message || String(e)), stack: e?.stack });
+      // Previously this was swallowed, which left the user on the sign-in
+      // form with no explanation — the exact "I enter my password and nothing
+      // happens" report. Say what happened and offer a retry.
+      if (seq === loadSeqRef.current) setBootError(LOAD_FAILED_MESSAGE);
     } finally {
       loadingRef.current = false;
     }
   }, [setLoginError]);
+
+  // Retry after a failed load, without making the user sign in again — the
+  // session is still valid, only the fetch failed.
+  const retryBoot = useCallback(async () => {
+    if (!supa || bootRetrying) return;
+    setBootRetrying(true);
+    try {
+      const { data } = await supa.auth.getSession();
+      const email = data?.session?.user?.email;
+      if (!email) { setBootError(""); return; }   // session really is gone → login page
+      setBootError("");
+      await loadPortalData(email);
+    } catch (e) {
+      console.error("[portal] retry failed:", e);
+      setBootError(LOAD_FAILED_MESSAGE);
+    } finally {
+      setBootRetrying(false);
+    }
+  }, [bootRetrying, loadPortalData]);
 
   // Session management: restore existing session on mount, react to sign-in/out
   useEffect(() => {
@@ -267,21 +338,43 @@ function App() {
       if (recoveryRef.current) {
         setRecovery({ email: session?.user?.email || "" });
         hydrated.current = true;
+        setBooting(false);
         return;
       }
-      if (session?.user?.email) {
-        await loadPortalData(session.user.email);
-      } else {
-        setCurrentUser(null);
-        setEmployees([]);
-        setLeaveRequests([]);
-        setOvertimeRequests([]);
-        setAnnouncements([]);
+      try {
+        if (session?.user?.email) {
+          await loadPortalData(session.user.email);
+        } else {
+          setCurrentUser(null);
+          setEmployees([]);
+          setLeaveRequests([]);
+          setOvertimeRequests([]);
+          setAnnouncements([]);
+          // No session is a perfectly good answer, not a failure — clear any
+          // stale boot error so the user gets the sign-in form, not a retry
+          // screen for a session that no longer exists.
+          setBootError("");
+        }
+      } finally {
+        hydrated.current = true;
+        // Whatever happened, the first paint is over. Leaving this set is how
+        // a spinner becomes the permanent state of the app.
+        setBooting(false);
       }
-      hydrated.current = true;
     };
 
-    supa.auth.getSession().then(({ data }) => handle(data.session));
+    // A rejection here used to be unhandled, which left `booting` set and the
+    // app on its loading screen for good — the worst possible outcome for the
+    // fault it is meant to explain. Fail to the sign-in form instead.
+    supa.auth.getSession()
+      .then(({ data }) => handle(data?.session || null))
+      .catch(e => {
+        console.error("[portal] getSession failed:", e);
+        if (!mounted) return;
+        hydrated.current = true;
+        setBooting(false);
+        setBootError(LOAD_FAILED_MESSAGE);
+      });
     const { data: { subscription } } = supa.auth.onAuthStateChange((event, session) => {
       // supabase-js consumes the recovery token from the URL before React
       // mounts, so the hash check in useState can miss it. This event is the
@@ -404,6 +497,51 @@ function App() {
     }, 400);
     return () => clearTimeout(t);
   }, [notifications]);
+
+  // Load the audit trail. Capped at 500 entries — enough to answer "what
+  // happened recently" without pulling a table that only grows; the CSV export
+  // and the SQL editor are the right tools for a full historical review.
+  //
+  // MUST STAY ABOVE THE EFFECT BELOW. A dependency array is evaluated during
+  // render, at the point the useEffect call is reached. This was declared 170
+  // lines further down, so reaching `[nav, currentUser, loadAudit]` touched a
+  // `const` still in its temporal dead zone and threw
+  //   ReferenceError: Cannot access 'loadAudit' before initialization
+  // on EVERY render — the whole portal died at the first paint and the
+  // ErrorBoundary's "Something went wrong" was all anyone ever saw. Nothing
+  // caught it: no test mounts App, and the crash needs a browser to happen.
+  // eslint's no-use-before-define now fails the build on a repeat (see
+  // eslint.config.js).
+  const loadAudit = useCallback(async () => {
+    if (!supa) return;
+    setAuditLoading(true);
+    setAuditError("");
+    try {
+      const { data, error } = await supa
+        .from("audit_log")
+        .select("*")
+        .order("occurred_at", { ascending: false })
+        .limit(500);
+      if (error) {
+        console.error("[audit] load:", error);
+        // A missing table means the migration has not been applied yet, which
+        // is a different problem from a permission refusal — say which.
+        setAuditError(
+          /does not exist|relation/i.test(error.message || "")
+            ? "The audit_log table is missing. Apply supabase_audit_log.sql to enable the audit trail."
+            : "Could not load the audit trail: " + (error.message || "unknown error")
+        );
+        setAuditEntries([]);
+        return;
+      }
+      setAuditEntries((data || []).map(auditFromDb));
+    } catch (e) {
+      console.error("[audit] load error:", e);
+      setAuditError("Could not load the audit trail. Check your connection.");
+    } finally {
+      setAuditLoading(false);
+    }
+  }, []);
 
   // Fetch the audit trail the first time a manager opens the page, and on
   // every subsequent visit so it does not go stale behind them.
@@ -575,40 +713,6 @@ function App() {
     return res;
   }, [recovery, loadPortalData]);
 
-  // Load the audit trail. Capped at 500 entries — enough to answer "what
-  // happened recently" without pulling a table that only grows; the CSV export
-  // and the SQL editor are the right tools for a full historical review.
-  const loadAudit = useCallback(async () => {
-    if (!supa) return;
-    setAuditLoading(true);
-    setAuditError("");
-    try {
-      const { data, error } = await supa
-        .from("audit_log")
-        .select("*")
-        .order("occurred_at", { ascending: false })
-        .limit(500);
-      if (error) {
-        console.error("[audit] load:", error);
-        // A missing table means the migration has not been applied yet, which
-        // is a different problem from a permission refusal — say which.
-        setAuditError(
-          /does not exist|relation/i.test(error.message || "")
-            ? "The audit_log table is missing. Apply supabase_audit_log.sql to enable the audit trail."
-            : "Could not load the audit trail: " + (error.message || "unknown error")
-        );
-        setAuditEntries([]);
-        return;
-      }
-      setAuditEntries((data || []).map(auditFromDb));
-    } catch (e) {
-      console.error("[audit] load error:", e);
-      setAuditError("Could not load the audit trail. Check your connection.");
-    } finally {
-      setAuditLoading(false);
-    }
-  }, []);
-
   const cancelReset = useCallback(async () => {
     recoveryRef.current = false;
     setRecovery(null);
@@ -622,6 +726,9 @@ function App() {
     if (window.__portalChannel) { try { window.__portalChannel.unsubscribe(); } catch (e) { console.warn("[logout] channel unsubscribe:", e); } window.__portalChannel = null; }
     setLoginId(""); setLoginPassword(""); setLoginError(""); setLoginSubmitting(false);
     setNav("dashboard"); setViewEmployee(null);
+    // Boot diagnostics belong to the session that produced them; carrying them
+    // across a sign-out would greet the next user with the last one's error.
+    setBootError(""); setLoadNotice(""); setBooting(false);
     // Clear the route hash so the next user on this device starts on the
     // dashboard instead of inheriting the previous user’s view.
     window.history.replaceState(null, "", window.location.pathname + window.location.search);
@@ -1041,6 +1148,46 @@ function App() {
     />
   );
 
+  // BOOTING — the stored session is still being checked, or its data is still
+  // loading. Anything rendered here is rendered INSTEAD of the sign-in form,
+  // which is the point: showing "Sign In" to somebody who is already signed in
+  // is what made a slow load look like a broken app.
+  if (booting) return (
+    <div style={{
+      minHeight:"100vh", display:"flex", flexDirection:"column", alignItems:"center",
+      justifyContent:"center", background:theme.bg, gap:18
+    }}>
+      <Logo size={150} w={true} />
+      <p role="status" aria-live="polite" style={{ color:theme.ts, fontSize:13 }}>
+        Loading your portal…
+      </p>
+    </div>
+  );
+
+  // BOOT FAILED — the session is valid but the data would not load. Blocking,
+  // because there is nothing behind it to show; but it keeps the session and
+  // offers a retry rather than dumping the user back at a sign-in form that
+  // cannot fix a server-side fault.
+  if (bootError && !currentUser) return (
+    <div style={{
+      minHeight:"100vh", display:"flex", flexDirection:"column", alignItems:"center",
+      justifyContent:"center", background:theme.bg, padding:24, textAlign:"center"
+    }}>
+      <Logo size={150} w={true} />
+      <div role="alert" style={{
+        maxWidth:440, marginTop:24, background:"rgba(239,68,68,0.08)",
+        border:"1px solid rgba(239,68,68,0.28)", borderRadius:14, padding:"16px 18px",
+        color:"#fecaca", fontSize:13, lineHeight:1.65
+      }}>{bootError}</div>
+      <div style={{ display:"flex", gap:10, marginTop:20 }}>
+        <Bt onClick={retryBoot} disabled={bootRetrying}>
+          {bootRetrying ? "Retrying…" : "Try again"}
+        </Bt>
+        <Bt onClick={logout} outline={true}>Sign out</Bt>
+      </div>
+    </div>
+  );
+
   // LOGIN PAGE
   if (!currentUser) return (
     <LoginPage
@@ -1257,6 +1404,21 @@ function App() {
           )}
         </div>
       </main>
+
+      {loadNotice && (
+        <div role="status" aria-live="polite" style={{
+          position:"fixed", bottom:syncError ? 74 : 20, left:"50%", transform:"translateX(-50%)", zIndex:99,
+          background:"rgba(10,25,40,0.96)", border:`1px solid ${theme.bl}`,
+          color:theme.ts, padding:"10px 16px", borderRadius:12, fontSize:12,
+          display:"flex", gap:10, alignItems:"center", maxWidth:"90vw",
+          boxShadow:"0 8px 30px rgba(0,0,0,0.5)"
+        }}>
+          ⚠️ {loadNotice}
+          <button onClick={() => setLoadNotice("")} aria-label="Dismiss" style={{
+            background:"none", border:"none", color:theme.ts, cursor:"pointer", fontSize:14, fontWeight:700
+          }}>✕</button>
+        </div>
+      )}
 
       {syncError && (
         <div role="alert" style={{

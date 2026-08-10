@@ -10,17 +10,6 @@ export const NE = [
   { key:"changepw", label:"Settings", icon:"⚙️" }
 ];
 
-// Single source of truth for which nav items a role sees. Managers don't see
-// the raw Working Hours roster (a TL concern), and only managers see the audit
-// trail — audit_log's only policy is audit_select_manager, so the page would
-// read empty for anyone else. Used by both the sidebar and the hash-routing
-// validator so deep-link keys and visible pages never drift.
-export function navItemsForRole(role) {
-  if (role === "manager") return NM.filter(n => n.key !== "attendance");
-  if (role === "teamlead") return NM.filter(n => n.key !== "audit");
-  return NE;
-}
-
 export const NM = [
   { key:"dashboard", label:"Dashboard", icon:"📊" },
   { key:"team", label:"Employees", icon:"👥" },
@@ -36,3 +25,19 @@ export const NM = [
   { key:"audit", label:"Audit Trail", icon:"🧾" },
   { key:"changepw", label:"Settings", icon:"⚙️" }
 ];
+
+// Single source of truth for which nav items a role sees. Managers don't see
+// the raw Working Hours roster (a TL concern), and only managers see the audit
+// trail — audit_log's only policy is audit_select_manager, so the page would
+// read empty for anyone else. Used by both the sidebar and the hash-routing
+// validator so deep-link keys and visible pages never drift.
+//
+// Declared after the two tables it reads. This was safe as it stood (the
+// function only runs once the module has finished evaluating), but it is the
+// same shape as the temporal-dead-zone crash that took the portal down from
+// app.jsx, so it reads in dependency order like everything else.
+export function navItemsForRole(role) {
+  if (role === "manager") return NM.filter(n => n.key !== "attendance");
+  if (role === "teamlead") return NM.filter(n => n.key !== "audit");
+  return NE;
+}

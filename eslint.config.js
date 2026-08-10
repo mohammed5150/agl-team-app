@@ -31,6 +31,27 @@ module.exports = [
       "react-hooks/exhaustive-deps": "warn",
       "no-unused-vars": ["error", { argsIgnorePattern: "^_", varsIgnorePattern: "^_" }],
       "no-empty": ["error", { allowEmptyCatch: true }],
+      // THE RULE THAT WOULD HAVE CAUGHT THE OUTAGE.
+      //
+      // A hook's dependency array is evaluated during render, where the
+      // enclosing function's `const`s are still in their temporal dead zone
+      // until execution reaches them. app.jsx had
+      //     useEffect(() => { loadAudit(); }, [nav, currentUser, loadAudit]);
+      // 170 lines ABOVE `const loadAudit = useCallback(...)`, so every render
+      // threw "Cannot access 'loadAudit' before initialization" and the whole
+      // portal showed the ErrorBoundary instead of itself. It shipped because
+      // nothing here objected: the tests exercise src/ modules and never mount
+      // App, and the crash only happens in a browser.
+      //
+      // functions:false keeps hoisted `function` declarations legal (they are
+      // genuinely safe, and the file relies on it); variables and classes are
+      // the ones that throw.
+      "no-use-before-define": ["error", {
+        functions: false,
+        variables: true,
+        classes: true,
+        allowNamedExports: false,
+      }],
     },
   },
   {
