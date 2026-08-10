@@ -25,6 +25,13 @@ const showDemoLogin =
   process.env.SHOW_DEMO_LOGIN === "1" ||
   process.env.SHOW_DEMO_LOGIN === "true";
 
+// The approved Team Mail ID list is personal data — mostly private Gmail
+// addresses — and a bundle is public. It rides along with demo mode so a
+// production build never carries it; the login form asks the
+// is_approved_team_login RPC instead, and the auth.users trigger is the real
+// gate either way. scripts/verify-dist.js fails the build if an address leaks.
+const embedTeamDirectory = showDemoLogin;
+
 // 1. Wipe dist
 fs.rmSync(DIST, { recursive: true, force: true });
 fs.mkdirSync(DIST, { recursive: true });
@@ -58,7 +65,10 @@ esb.buildSync({
   jsx:         "transform",
   jsxFactory:  "React.createElement",
   jsxFragment: "React.Fragment",
-  define:      { __SHOW_DEMO__: JSON.stringify(!!showDemoLogin) },
+  define:      {
+    __SHOW_DEMO__:             JSON.stringify(!!showDemoLogin),
+    __EMBED_TEAM_DIRECTORY__:  JSON.stringify(!!embedTeamDirectory),
+  },
 });
 
 // 4. Done

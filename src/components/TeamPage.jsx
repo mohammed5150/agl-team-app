@@ -15,12 +15,21 @@ export function InviteForm({ onInvite, onClose }) {
     designation: "", role: "employee", tier: ""
   });
   const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(false);
   const up = k => v => setFm(p => ({ ...p, [k]: v }));
-  const submit = () => {
+  // onInvite is async: the approved-address check is a database round trip
+  // now that production bundles carry no local Team Mail ID list.
+  const submit = async () => {
+    if (busy) return;
     setErr("");
-    const res = onInvite(fm);
-    if (!res.ok) { setErr(res.error || "Failed to invite"); return; }
-    onClose(res.id);
+    setBusy(true);
+    try {
+      const res = await onInvite(fm);
+      if (!res.ok) { setErr(res.error || "Failed to invite"); return; }
+      onClose(res.id);
+    } finally {
+      setBusy(false);
+    }
   };
   return (
     <Modal title="Invite Employee" onClose={() => onClose(null)} width={520}>
@@ -81,7 +90,7 @@ export function InviteForm({ onInvite, onClose }) {
       {err && <div style={{ color:theme.rd, fontSize:12, marginTop:12 }}>{err}</div>}
       <div style={{ display:"flex", gap:10, justifyContent:"flex-end", marginTop:16 }}>
         <Bt onClick={() => onClose(null)} outline={true}>Cancel</Bt>
-        <Bt onClick={submit} bg={theme.gn}>Send invite</Bt>
+        <Bt onClick={submit} bg={theme.gn} disabled={busy}>{busy ? "Checking…" : "Send invite"}</Bt>
       </div>
     </Modal>
   );
@@ -112,10 +121,17 @@ export function BulkInviteForm({ onBulkInvite, onClose }) {
     setResult(null);
   };
 
-  const importNow = () => {
-    if (!preview?.rows?.length) return;
-    const r = onBulkInvite(preview.rows);
-    setResult(r);
+  const [busy, setBusy] = useState(false);
+
+  const importNow = async () => {
+    if (!preview?.rows?.length || busy) return;
+    setBusy(true);
+    try {
+      const r = await onBulkInvite(preview.rows);
+      setResult(r);
+    } finally {
+      setBusy(false);
+    }
   };
 
   const headers = ["email","name","section","designation","role","tier"];
@@ -178,7 +194,7 @@ export function BulkInviteForm({ onBulkInvite, onClose }) {
               </div>
               <div style={{ display:"flex", gap:8, justifyContent:"flex-end", marginTop:12 }}>
                 <Bt onClick={() => { setPreview(null); setCsv(""); }} outline={true}>Clear</Bt>
-                <Bt onClick={importNow} bg={theme.gn}>Import {preview.rows.length} rows</Bt>
+                <Bt onClick={importNow} bg={theme.gn} disabled={busy}>{busy ? "Importing…" : `Import ${preview.rows.length} rows`}</Bt>
               </div>
             </div>
           )}

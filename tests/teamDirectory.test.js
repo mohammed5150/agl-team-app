@@ -1,6 +1,9 @@
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
 import {
-  APPROVED_TEAM_LOGINS, UNRESOLVED_TEAM_LOGINS,
+  APPROVED_TEAM_LOGINS, UNRESOLVED_TEAM_LOGINS, HAS_EMBEDDED_DIRECTORY,
   isApprovedTeamLogin, isUnresolvedTeamLogin, NOT_REGISTERED_MESSAGE,
   checkApprovedTeamLogin,
 } from "../src/teamDirectory.js";
@@ -286,5 +289,50 @@ describe("the authoritative check asks the database", () => {
   it("works without a client at all", async () => {
     expect(await checkApprovedTeamLogin(null, "nisar.ahmed@adbsafegate.com"))
       .toEqual({ approved: true, source: "local" });
+  });
+
+  it("answers true, false or null — never a bare falsy for 'don't know'", async () => {
+    // Callers must branch on `=== false`. A production bundle carries no local
+    // directory, so an unreachable RPC yields null; treating that as a refusal
+    // would lock out the whole team whenever the RPC hiccups, and treating it
+    // as approval is safe because trg_guard_auth_user_approved still refuses
+    // the account server-side.
+    for (const client of [rpcReturning(true), rpcReturning(false), null]) {
+      const { approved } = await checkApprovedTeamLogin(client, "nisar.ahmed@adbsafegate.com");
+      expect([true, false, null]).toContain(approved);
+    }
+  });
+});
+
+describe("the directory is never shipped to production", () => {
+  // The list is personal data — most of it private Gmail accounts — and a
+  // bundle is public. build.js compiles it out unless SHOW_DEMO_LOGIN is set,
+  // and scripts/verify-dist.js fails the build if an address survives. These
+  // assertions pin the mechanism the same way securityHeaders.test.js pins the
+  // response headers: the check is worthless if it can be quietly removed.
+  const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
+
+  it("gates both arrays on the __EMBED_TEAM_DIRECTORY__ define", () => {
+    const src = readFileSync(join(ROOT, "src/teamDirectory.js"), "utf8");
+    expect(src).toMatch(/__EMBED_TEAM_DIRECTORY__/);
+    expect(src).toMatch(/APPROVED_TEAM_LOGINS\s*=\s*EMBED\s*\?/);
+    expect(src).toMatch(/UNRESOLVED_TEAM_LOGINS\s*=\s*EMBED\s*\?/);
+  });
+
+  it("ties the define to demo mode in build.js, so production never sets it", () => {
+    const build = readFileSync(join(ROOT, "build.js"), "utf8");
+    expect(build).toMatch(/const\s+embedTeamDirectory\s*=\s*showDemoLogin/);
+    expect(build).toMatch(/__EMBED_TEAM_DIRECTORY__:\s*JSON\.stringify\(!!embedTeamDirectory\)/);
+  });
+
+  it("keeps a build-time check that refuses a bundle with any address in it", () => {
+    const verify = readFileSync(join(ROOT, "scripts/verify-dist.js"), "utf8");
+    expect(verify).toMatch(/EMAIL_RE/);
+    expect(verify).toMatch(/process\.exit\(1\)/);
+  });
+
+  it("reports whether this build carries the directory", () => {
+    // True under vitest (no define), false in a production bundle.
+    expect(HAS_EMBEDDED_DIRECTORY).toBe(true);
   });
 });
