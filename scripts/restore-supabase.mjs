@@ -40,13 +40,27 @@ const CONFLICT_TARGET = {
   approved_team_logins: "email",
 };
 
+// Tables this script deliberately does not write back.
+//
 // audit_log and profile_unlock_audit are append-only by design: no role holds
 // INSERT on them, and the SECURITY DEFINER triggers are the only writers. A
 // restore therefore cannot repopulate them through PostgREST even with the
 // service role, because the grant does not exist. They are backed up (so the
 // history survives), and restoring them is a documented manual step using the
 // SQL editor. Attempting it here would fail confusingly mid-run.
-const NOT_RESTORABLE = new Set(["audit_log", "profile_unlock_audit"]);
+//
+// client_errors is restorable in principle but must not be restored this way:
+// trg_stamp_client_error fires BEFORE INSERT and overwrites emp_id, email,
+// role and occurred_at from the *current* session. Replaying a backup through
+// it would stamp every historical error with today's timestamp and the
+// restoring operator's identity — turning the telemetry into confident
+// fiction. It is telemetry, not a record anyone is required to keep (see
+// docs/MONITORING.md §5), so the right call is to let it start empty.
+const NOT_RESTORABLE = new Set([
+  "audit_log",
+  "profile_unlock_audit",
+  "client_errors",
+]);
 
 function parseArgs(argv) {
   const args = { dir: null, execute: false, replace: false, confirmTarget: null };

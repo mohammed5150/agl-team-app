@@ -1,8 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { mkdtempSync, readFileSync, existsSync, rmSync, readdirSync } from "node:fs";
+import { mkdtempSync, readFileSync, existsSync, rmSync, readdirSync, readdirSync as _rd } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 import { backup, TABLES } from "../scripts/backup-supabase.mjs";
+
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 
 const URL_ = "https://proj.supabase.co";
 const KEY = "service-role-key";
@@ -253,6 +256,37 @@ describe("table coverage", () => {
 
   it("puts employees first, since everything else references emp_id", () => {
     expect(TABLES[0]).toBe("employees");
+  });
+
+  it("covers every table the migrations create", () => {
+    // This is the check that was missing. client_errors was added by
+    // supabase_monitoring.sql after backup-supabase.mjs was written, and was
+    // silently absent from the backup — a gap only found by cross-checking
+    // the live database by hand. Deriving the expected set from the migrations
+    // means the next table added fails here instead.
+    const declared = new Set();
+    for (const f of readdirSync(ROOT).filter(n => /^supabase_.*\.sql$/.test(n))) {
+      const sql = readFileSync(join(ROOT, f), "utf8");
+      for (const m of sql.matchAll(/create table if not exists (?:public\.)?([a-z_]+)/gi)) {
+        declared.add(m[1].toLowerCase());
+      }
+    }
+
+    expect(declared.size).toBeGreaterThan(5); // the scan actually found something
+    const notBackedUp = [...declared].filter(t => !TABLES.includes(t)).sort();
+    expect(notBackedUp).toEqual([]);
+  });
+
+  it("lists no table the migrations do not create", () => {
+    const declared = new Set();
+    for (const f of readdirSync(ROOT).filter(n => /^supabase_.*\.sql$/.test(n))) {
+      const sql = readFileSync(join(ROOT, f), "utf8");
+      for (const m of sql.matchAll(/create table if not exists (?:public\.)?([a-z_]+)/gi)) {
+        declared.add(m[1].toLowerCase());
+      }
+    }
+    const phantom = TABLES.filter(t => !declared.has(t)).sort();
+    expect(phantom).toEqual([]);
   });
 
   it("lets a caller narrow the set", async () => {
