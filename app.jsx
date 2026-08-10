@@ -6,7 +6,7 @@ import { nextEmpId } from "./src/helpers.js";
 import { applyLeaveAction, newRequestRecipients } from "./src/leaveWorkflow.js";
 import { applyOvertimeAction, newOvertimeRecipients } from "./src/overtimeWorkflow.js";
 import { needsOnboarding, sanitizeEmployeeEdit, canFinalizeProfile, isEmailTaken, normalizeLoginId } from "./src/onboarding.js";
-import { checkApprovedTeamLogin, NOT_REGISTERED_MESSAGE } from "./src/teamDirectory.js";
+import { checkApprovedTeamLogin, approveTeamLogin, NOT_REGISTERED_MESSAGE } from "./src/teamDirectory.js";
 import { checkPassword } from "./src/passwordPolicy.js";
 import {
   requestPasswordReset, completePasswordReset, isRecoveryLanding,
@@ -660,6 +660,10 @@ function App() {
   // admin API needs must never reach a browser.
   const sendResetFor = useCallback(emp => sendResetForEmployee(supa, emp), []);
 
+  // Approve a Team Mail ID. Manager-only, enforced by the RPC itself.
+  const approveLogin = useCallback(
+    (email, label) => approveTeamLogin(supa, email, label), []);
+
   // Offboard, suspend or reactivate. The reason is stamped into the audit
   // entry for this transaction via app.audit_reason, so the trail says WHY
   // and not just what — which is the whole difference between an audit log
@@ -720,10 +724,14 @@ function App() {
     // worst case is a rejected write rather than a silently blocked manager.
     const { approved } = await checkApprovedTeamLogin(supa, trimmedEmail);
     if (approved === false) {
+      // notApproved lets the invite form offer to approve it in place — a
+      // manager should not need a developer with SQL access to onboard a
+      // new joiner.
       return {
         ok: false,
-        error: "That email is not on the approved Team Mail ID list, so it could "
-             + "not sign in. Add it to approved_team_logins first.",
+        notApproved: true,
+        error: "That email is not on the approved Team Mail ID list yet, so it "
+             + "could not sign in.",
       };
     }
     const id = nextEmpId(employees, role);
@@ -1224,7 +1232,7 @@ function App() {
                 ? <MDash user={currentUser} employees={employees} leaveRequests={leaveRequests} announcements={announcements} pc={pc} onGoTo={setNav} />
                 : <EDash user={currentUser} announcements={announcements} onGoTo={setNav} />)}
               {nav === "profile" && <Prof emp={currentUser} actor={currentUser} canEdit={iM || !currentUser.profileFinalized} isStaff={iM} isMgr={iMgr} onSave={saveProfile} onAdd={addEmployeeAction} onAddDoc={addDoc} onDelDoc={delDoc} />}
-              {nav === "team" && <Team employees={employees} onSel={setViewEmployee} isMgr={iMgr} isTL={isTL} onInvite={addInviteEmployee} onBulkInvite={addInviteEmployeesBulk} />}
+              {nav === "team" && <Team employees={employees} onSel={setViewEmployee} isMgr={iMgr} isTL={isTL} onInvite={addInviteEmployee} onBulkInvite={addInviteEmployeesBulk} onApproveLogin={iMgr ? approveLogin : null} />}
               {nav === "performance" && iM && <Perf employees={employees} onSel={setViewEmployee} isMgr={iMgr} onSave={saveRating} />}
               {nav === "leave" && <LvPg user={currentUser} leaveRequests={leaveRequests} onSub={submitLeave} onAct={leaveAction} />}
               {nav === "overtime" && <OtPg user={currentUser} overtimeRequests={overtimeRequests} leaveRequests={leaveRequests} onSub={submitOvertime} onAct={overtimeAction} />}

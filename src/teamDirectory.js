@@ -129,6 +129,45 @@ export const APPROVAL_UNAVAILABLE_MESSAGE =
   "We could not check your address just now. Try again in a moment.";
 
 /**
+ * Approve a Team Mail ID so a new joiner can be invited and can sign in.
+ *
+ * Manager-only, enforced by the RPC itself (approve_team_login checks
+ * is_manager()). Before this existed the only way to add an address was the
+ * SQL editor, which meant every new hire needed a developer — or somebody was
+ * handed the service-role key. Both are worse than an audited action by the
+ * manager who already sets roles and pay bands.
+ */
+export async function approveTeamLogin(supa, email, label) {
+  if (!supa) return { ok: false, message: "Backend unavailable — try again shortly" };
+  const addr = (email || "").trim().toLowerCase();
+  if (!addr.includes("@")) return { ok: false, message: "Enter a valid email address" };
+  try {
+    const { data, error } = await supa.rpc("approve_team_login", {
+      p_email: addr,
+      p_label: label || null,
+    });
+    if (error) {
+      return {
+        ok: false,
+        message: /insufficient_privilege|Only a manager/i.test(error.message || "")
+          ? "Only a manager can approve a Team Mail ID"
+          : (error.message || "Could not approve that address"),
+      };
+    }
+    return {
+      ok: true,
+      alreadyApproved: data === "already approved",
+      message: data === "already approved"
+        ? `${addr} was already approved`
+        : `${addr} approved — they can now be invited and sign in`,
+    };
+  } catch (e) {
+    console.warn("[onboarding] approve failed:", e);
+    return { ok: false, message: "Could not approve that address. Check your connection." };
+  }
+}
+
+/**
  * Is this address on the LOCAL copy of the approved list?
  *
  * Only meaningful when HAS_EMBEDDED_DIRECTORY is true. A production bundle has
