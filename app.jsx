@@ -12,7 +12,8 @@ import {
   requestPasswordReset, completePasswordReset, isRecoveryLanding,
   createLoginThrottle, throttleMessage,
 } from "./src/authFlows.js";
-import { canSetRatingTier } from "./src/authz.js";
+import { canSetRatingTier, canViewAuditLog } from "./src/authz.js";
+import { auditFromDb } from "./src/auditLog.js";
 import { supa, subscribePush, unsubscribePush, sendPush, diffFieldsById, empToDb, empFromDb, lrToDb, lrFromDb, otToDb, otFromDb, annToDb, annFromDb, nfToDb, nfFromDb, diffById, pushSupported } from "./src/supabasePortal.js";
 import { Logo, Bd, Bt } from "./src/uiPrimitives.jsx";
 import { LoginPage } from "./src/LoginPage.jsx";
@@ -32,6 +33,7 @@ import { Perf } from "./src/components/PerformancePage.jsx";
 import { Prof } from "./src/components/Profile.jsx";
 import { Onboarding } from "./src/components/Onboarding.jsx";
 import { Team } from "./src/components/TeamPage.jsx";
+import { AuditPage } from "./src/components/AuditPage.jsx";
 import { MyTr, TrMgmt } from "./src/components/TrainingPage.jsx";
 
 const { useState, useCallback, useEffect, useRef } = React;
@@ -58,6 +60,12 @@ function App() {
   const [syncError, setSyncError] = useState("");
   // "Skip for now" only defers onboarding for this session; it is never persisted.
   const [onboardingSkipped, setOnboardingSkipped] = useState(false);
+  // Audit entries are fetched on demand rather than with the rest of the
+  // portal: the table grows without bound, only managers can read it, and most
+  // sessions never open the page.
+  const [auditEntries, setAuditEntries] = useState([]);
+  const [auditLoading, setAuditLoading] = useState(false);
+  const [auditError, setAuditError] = useState("");
   // Set while a password-recovery session from an emailed link is live. The
   // reset screen renders ahead of everything else, so a half-finished reset
   // cannot leak into the portal.
@@ -396,6 +404,13 @@ function App() {
     return () => clearTimeout(t);
   }, [notifications]);
 
+  // Fetch the audit trail the first time a manager opens the page, and on
+  // every subsequent visit so it does not go stale behind them.
+  useEffect(() => {
+    if (nav !== "audit" || !canViewAuditLog(currentUser)) return;
+    loadAudit();
+  }, [nav, currentUser, loadAudit]);
+
   // Expose currentUser.id for the realtime callback to check incoming notifs
   useEffect(() => {
     if (typeof window !== "undefined") window.__currentUserId = currentUser?.id || null;
@@ -546,6 +561,40 @@ function App() {
     if (data?.session?.user?.email) await loadPortalData(data.session.user.email);
     return res;
   }, [recovery, loadPortalData]);
+
+  // Load the audit trail. Capped at 500 entries — enough to answer "what
+  // happened recently" without pulling a table that only grows; the CSV export
+  // and the SQL editor are the right tools for a full historical review.
+  const loadAudit = useCallback(async () => {
+    if (!supa) return;
+    setAuditLoading(true);
+    setAuditError("");
+    try {
+      const { data, error } = await supa
+        .from("audit_log")
+        .select("*")
+        .order("occurred_at", { ascending: false })
+        .limit(500);
+      if (error) {
+        console.error("[audit] load:", error);
+        // A missing table means the migration has not been applied yet, which
+        // is a different problem from a permission refusal — say which.
+        setAuditError(
+          /does not exist|relation/i.test(error.message || "")
+            ? "The audit_log table is missing. Apply supabase_audit_log.sql to enable the audit trail."
+            : "Could not load the audit trail: " + (error.message || "unknown error")
+        );
+        setAuditEntries([]);
+        return;
+      }
+      setAuditEntries((data || []).map(auditFromDb));
+    } catch (e) {
+      console.error("[audit] load error:", e);
+      setAuditError("Could not load the audit trail. Check your connection.");
+    } finally {
+      setAuditLoading(false);
+    }
+  }, []);
 
   const cancelReset = useCallback(async () => {
     recoveryRef.current = false;
@@ -1137,6 +1186,15 @@ function App() {
               {nav === "training" && (iM ? <TrMgmt employees={employees} /> : <MyTr emp={currentUser} />)}
               {nav === "documents" && (iM ? <DocsMgmt employees={employees} onSel={setViewEmployee} /> : <MyDocs emp={currentUser} onAdd={addDoc} onDel={delDoc} />)}
               {nav === "announcements" && <AnnPg user={currentUser} announcements={announcements} onAdd={addAnn} onDel={delAnn} />}
+              {nav === "audit" && canViewAuditLog(currentUser) && (
+                <AuditPage
+                  entries={auditEntries}
+                  employees={employees}
+                  loading={auditLoading}
+                  error={auditError}
+                  onReload={loadAudit}
+                />
+              )}
             </div>
           )}
         </div>

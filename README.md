@@ -49,6 +49,18 @@ supabase_*.sql        database migrations (apply in numerical / dependency order
 9. `supabase_rls_hardening.sql` — **required before go-live**: drops the legacy
    plaintext password column, hides the directory from non-employees, blocks
    role/tier self-escalation, and pins leave status transitions per role
+10. `supabase_team_onboarding.sql` — profile self-service + lock, unique login
+    IDs, and the approved-Team-Mail-ID gate on `auth.users`
+11. `supabase_grant_hardening.sql` — revokes the default PUBLIC EXECUTE grant
+    left on the guard functions, and moves the roster backup out of the
+    PostgREST-exposed schema
+12. `supabase_audit_log.sql` — **required before go-live**: append-only
+    `audit_log` recording who changed or approved what, written only by
+    SECURITY DEFINER triggers and readable only by managers
+13. `supabase_validation.sql` — status CHECK constraints plus overlap and
+    range guards on leave and overtime
+14. `supabase_monitoring.sql` — `client_errors` table for front-end error
+    reporting (insert-only for users, manager-readable)
 
 ## Roles
 
