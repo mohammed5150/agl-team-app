@@ -14,6 +14,7 @@ import {
 } from "./src/authFlows.js";
 import { canSetRatingTier, canViewAuditLog } from "./src/authz.js";
 import { auditFromDb } from "./src/auditLog.js";
+import { installErrorReporting, setRoute, reportError } from "./src/errorReporter.js";
 import { supa, subscribePush, unsubscribePush, sendPush, diffFieldsById, empToDb, empFromDb, lrToDb, lrFromDb, otToDb, otFromDb, annToDb, annFromDb, nfToDb, nfFromDb, diffById, pushSupported } from "./src/supabasePortal.js";
 import { Logo, Bd, Bt } from "./src/uiPrimitives.jsx";
 import { LoginPage } from "./src/LoginPage.jsx";
@@ -411,14 +412,26 @@ function App() {
     loadAudit();
   }, [nav, currentUser, loadAudit]);
 
+  // Global error handlers. Installed once, as early as possible, so a fault
+  // during the first render is still reported. Reporting is fire-and-forget
+  // and swallows its own failures — it can never make a fault worse.
+  useEffect(() => installErrorReporting(supa), []);
+
+  // Tell the reporter which page a fault happened on. The app's own nav key,
+  // never the URL — the hash carries employee ids.
+  useEffect(() => { setRoute(nav); }, [nav]);
+
   // Expose currentUser.id for the realtime callback to check incoming notifs
   useEffect(() => {
     if (typeof window !== "undefined") window.__currentUserId = currentUser?.id || null;
   }, [currentUser]);
 
-  // Sync-failure toast auto-dismisses after a few seconds
+  // Sync-failure toast auto-dismisses after a few seconds. The failure is
+  // also reported: a save that silently did not land is the most damaging
+  // fault this app has, and the toast is seen by one person for six seconds.
   useEffect(() => {
     if (!syncError) return;
+    reportError({ kind: "sync", message: syncError });
     const t = setTimeout(() => setSyncError(""), 6000);
     return () => clearTimeout(t);
   }, [syncError]);

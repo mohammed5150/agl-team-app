@@ -1,0 +1,160 @@
+name: Uptime check
+
+# The portal had no uptime monitoring at all: if Netlify or the Supabase
+# project went down, the first anyone knew was a team member on shift finding
+# they could not file leave — and they would usually assume it was their phone.
+#
+# This is a low-tech check on purpose. It costs nothing, needs no third-party
+# account, and opens a GitHub issue when the portal stops answering, which
+# notifies whoever watches the repository. If the team later adopts a proper
+# monitor (Better Stack, Pingdom, UptimeRobot all have free tiers that check
+# more often and can page a phone), delete this file — see docs/MONITORING.md.
+
+on:
+  schedule:
+    # Every 15 minutes. GitHub's scheduler is best-effort and can run late
+    # under load, so treat this as "roughly quarter-hourly", not a guarantee.
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+env:
+  PORTAL_URL: https://auh-adb-portal.netlify.app
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch the portal
+        id: portal
+        run: |
+          # Two attempts: a single failed request is far more often a blip in
+          # the runner's network than an outage, and a false alarm every few
+          # hours is how a monitor gets muted.
+          for attempt in 1 2; do
+            code=$(curl -sS -o /tmp/body -w "%{http_code}" --max-time 20 "$PORTAL_URL" || echo "000")
+            if [ "$code" = "200" ]; then break; fi
+            echo "attempt $attempt: HTTP $code"
+            sleep 15
+          done
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+
+          if [ "$code" != "200" ]; then
+            echo "::error::Portal returned HTTP $code"
+            exit 1
+          fi
+
+          # A 200 that serves an empty page or a Netlify error page is still an
+          # outage as far as the team is concerned, so check the shell actually
+          # arrived rather than trusting the status code.
+          if ! grep -q 'id="root"' /tmp/body; then
+            echo "::error::Portal returned 200 but the app shell is missing"
+            exit 1
+          fi
+          if ! grep -q 'app.js' /tmp/body; then
+            echo "::error::Portal returned 200 but does not reference app.js"
+            exit 1
+          fi
+
+      - name: Check the app bundle is served
+        run: |
+          code=$(curl -sS -o /dev/null -w "%{http_code}" --max-time 20 "$PORTAL_URL/app.js" || echo "000")
+          if [ "$code" != "200" ]; then
+            echo "::error::app.js returned HTTP $code — the page would load blank"
+            exit 1
+          fi
+
+      - name: Check Supabase is answering
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+        run: |
+          if [ -z "$SUPABASE_URL" ]; then
+            echo "::notice::SUPABASE_URL secret not set — skipping the backend check."
+            echo "::notice::The portal can serve its shell while the database is down; see docs/MONITORING.md."
+            exit 0
+          fi
+          # /rest/v1/ without a key answers 401. That is a HEALTHY response:
+          # it proves PostgREST is up and rejecting properly. A paused project
+          # gives 503 or a connection failure instead.
+          code=$(curl -sS -o /dev/null -w "%{http_code}" --max-time 20 "$SUPABASE_URL/rest/v1/" || echo "000")
+          case "$code" in
+            200|401|404) echo "Supabase reachable (HTTP $code)" ;;
+            *) echo "::error::Supabase returned HTTP $code — the project may be paused"; exit 1 ;;
+          esac
+
+      - name: Open an issue if the portal is down
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = "🔴 Portal uptime check failed";
+            const run = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+
+            // Reuse the open issue rather than filing one every 15 minutes —
+            // an alert channel that floods is an alert channel that gets muted.
+            const { data: open } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: "open",
+              labels: "uptime",
+            });
+
+            const body = [
+              `The uptime check failed at ${new Date().toISOString()}.`,
+              "",
+              `- Run: ${run}`,
+              `- Portal: ${process.env.PORTAL_URL}`,
+              "",
+              "**First things to check**",
+              "1. Is the Supabase project paused? (billing, or 7-day inactivity on free tier)",
+              "2. Did the last Netlify deploy fail?",
+              "3. Is Supabase or Netlify reporting an incident?",
+              "",
+              "Recovery steps: `docs/BACKUP_RESTORE.md`. Monitoring: `docs/MONITORING.md`.",
+            ].join("\n");
+
+            if (open.length) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: open[0].number,
+                body: `Still failing — ${run}`,
+              });
+            } else {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title,
+                body,
+                labels: ["uptime"],
+              });
+            }
+
+      - name: Close the issue once it recovers
+        if: success()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: open } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: "open",
+              labels: "uptime",
+            });
+            for (const issue of open) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                body: `Recovered — the portal is answering again as of ${new Date().toISOString()}.`,
+              });
+              await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                state: "closed",
+              });
+            }

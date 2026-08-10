@@ -1,0 +1,80 @@
+name: Nightly Supabase backup
+
+# The portal's whole record lives in one Supabase project. Supabase's own PITR
+# covers a bad edit or a bad migration; it does not cover the project being
+# deleted, a billing lapse, or an account compromise, because it lives inside
+# the thing that has gone away. This is the copy that lives somewhere else.
+#
+# See docs/BACKUP_RESTORE.md for the recovery objectives this schedule is
+# built to (RPO 24h), what is and is not included, and the restore procedure.
+
+on:
+  schedule:
+    # 01:00 UTC = 05:00 Gulf Standard Time — after the night shift's entries
+    # have landed and before the morning shift starts.
+    - cron: "0 1 * * *"
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: "Why this backup is being taken by hand"
+        required: false
+        default: "manual run"
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    # Without the secrets this job would "succeed" every night doing nothing,
+    # which is worse than not having it — so skip explicitly and visibly.
+    if: ${{ github.repository_owner != '' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Check the secrets are configured
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
+            echo "::error::SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set as repository secrets."
+            echo "::error::See docs/BACKUP_RESTORE.md section 4. No backup was taken."
+            exit 1
+          fi
+
+      - name: Export all tables
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          GIT_REVISION: ${{ github.sha }}
+        run: node scripts/backup-supabase.mjs --out backups
+
+      - name: Upload the export
+        uses: actions/upload-artifact@v4
+        with:
+          name: supabase-backup-${{ github.run_id }}
+          path: backups/
+          # Matches the 90-day retention in docs/BACKUP_RESTORE.md section 2.
+          retention-days: 90
+          if-no-files-found: error
+
+      # A GitHub artifact shares an account boundary with this repository, so
+      # it does not cover the "account compromised" row of the risk table.
+      # docs/BACKUP_RESTORE.md asks for a monthly copy to be pulled somewhere
+      # with different credentials; this is the reminder in the run log.
+      - name: Note the off-site step
+        if: success()
+        run: |
+          echo "### Backup complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Artifact retained for 90 days." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "On the first run of each month, download this artifact and keep a" >> $GITHUB_STEP_SUMMARY
+          echo "copy somewhere with different credentials — a GitHub artifact does" >> $GITHUB_STEP_SUMMARY
+          echo "not survive this account being compromised." >> $GITHUB_STEP_SUMMARY
+          echo "See \`docs/BACKUP_RESTORE.md\` section 4." >> $GITHUB_STEP_SUMMARY

@@ -32,6 +32,20 @@ const showDemoLogin =
 // gate either way. scripts/verify-dist.js fails the build if an address leaks.
 const embedTeamDirectory = showDemoLogin;
 
+// Build identifier carried into error reports. Netlify exposes COMMIT_REF;
+// locally, fall back to the short git SHA, then to "dev".
+const appVersion = (() => {
+  const fromEnv = process.env.COMMIT_REF || process.env.GITHUB_SHA;
+  if (fromEnv) return fromEnv.slice(0, 8);
+  try {
+    return require("child_process")
+      .execSync("git rev-parse --short HEAD", { stdio: ["ignore", "pipe", "ignore"] })
+      .toString().trim();
+  } catch {
+    return "dev";
+  }
+})();
+
 // 1. Wipe dist
 fs.rmSync(DIST, { recursive: true, force: true });
 fs.mkdirSync(DIST, { recursive: true });
@@ -68,6 +82,9 @@ esb.buildSync({
   define:      {
     __SHOW_DEMO__:             JSON.stringify(!!showDemoLogin),
     __EMBED_TEAM_DIRECTORY__:  JSON.stringify(!!embedTeamDirectory),
+    // Stamped into every error report, so a fault can be tied to the build it
+    // came from. Netlify sets COMMIT_REF; falls back to the local git SHA.
+    __APP_VERSION__:           JSON.stringify(appVersion),
   },
 });
 
