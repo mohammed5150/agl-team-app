@@ -49,23 +49,41 @@ supabase_*.sql        database migrations (apply in numerical / dependency order
 9. `supabase_rls_hardening.sql` — **required before go-live**: drops the legacy
    plaintext password column, hides the directory from non-employees, blocks
    role/tier self-escalation, and pins leave status transitions per role
-10. `supabase_team_onboarding.sql` — profile self-service + lock, unique login
+10. `supabase_overtime_bands.sql` — performance band / airport / supplier
+    columns, the leave-manager status-transition fix, and the overtime request
+    table with its team-lead-terminal workflow. Its header requires this to
+    land after `supabase_rls_hardening.sql`
+11. `supabase_team_onboarding.sql` — profile self-service + lock, unique login
     IDs, and the approved-Team-Mail-ID gate on `auth.users`
-11. `supabase_grant_hardening.sql` — revokes the default PUBLIC EXECUTE grant
+12. `supabase_grant_hardening.sql` — revokes the default PUBLIC EXECUTE grant
     left on the guard functions, and moves the roster backup out of the
     PostgREST-exposed schema
-12. `supabase_audit_log.sql` — **required before go-live**: append-only
+13. `supabase_audit_log.sql` — **required before go-live**: append-only
     `audit_log` recording who changed or approved what, written only by
     SECURITY DEFINER triggers and readable only by managers
-13. `supabase_validation.sql` — status CHECK constraints plus overlap and
+14. `supabase_validation.sql` — status CHECK constraints plus overlap and
     range guards on leave and overtime
-14. `supabase_monitoring.sql` — `client_errors` table for front-end error
+15. `supabase_monitoring.sql` — `client_errors` table for front-end error
     reporting (insert-only for users, manager-readable)
-15. `supabase_security_v2.sql` — **required before go-live**: scopes who a
+16. `supabase_security_v2.sql` — **required before go-live**: scopes who a
     notification may be addressed to, adds `employment_status` so offboarding
     deactivates instead of deleting, and removes the employee DELETE policy
-16. `supabase_onboarding_selfservice.sql` — lets a manager approve a new
+17. `supabase_onboarding_selfservice.sql` — lets a manager approve a new
     joiner's Team Mail ID from the portal instead of needing SQL access
+18. `supabase_roster_privacy.sql` — narrows `employees` to self-or-staff and
+    adds the column-limited `employee_directory` view that keeps the colleague
+    list working for everyone else. Deploy the application *before* this one;
+    its header explains why
+19. `supabase_view_grants_hardening.sql` — **required before go-live**: makes
+    `employee_directory` read-only. It is a SECURITY DEFINER view, so the
+    write privileges a stock Supabase project grants by default let any signed
+    -in employee reach straight past RLS to `employees`. Must run last, after
+    every view above exists
+20. `supabase_overtime_guard_fix.sql` — **required**: makes
+    `guard_request_immutable()` table-aware. Step 10 attaches the leave
+    version of that guard to `overtime_requests`, which has different columns,
+    so every team-lead approval or rejection of overtime failed with
+    `record "new" has no field "start_date"`. Must run after step 10
 
 ## Roles
 

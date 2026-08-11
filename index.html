@@ -32,7 +32,7 @@
 <link rel="preload" as="script" href="vendor/react-dom.production.min.js">
 
 <!-- Security: Content Security Policy — all scripts are same-origin -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://*.supabase.co wss://*.supabase.co; frame-ancestors 'self'; object-src 'none'; base-uri 'self';">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.open-meteo.com; frame-ancestors 'self'; object-src 'none'; base-uri 'self';">
 
 <!-- Vendor libraries (self-hosted — no third-party CDN dependency) -->
 <script src="vendor/react.production.min.js" defer></script>
@@ -48,6 +48,15 @@ select option{background:#111f30;color:#e0e6ed}
 ::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.12);border-radius:3px}
 input:focus,select:focus,textarea:focus{outline:none}
 input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-visible,[role=button]:focus-visible{outline:2px solid #f5923e;outline-offset:2px}
+/* 44px is the iOS HIG / WCAG 2.5.5 touch target. Most buttons here are the Bt
+   primitive, which sets its own min-height, but ~39 are raw <button> elements
+   with only inline padding, and those came out as small as 22px. This is the
+   backstop that covers them.
+
+   :not(:disabled) matters: a disabled button is not a tap target, and some are
+   display-only (the read-only star rating is a row of 28px buttons). Stretching
+   those to 44px would distort the layout for no accessibility gain. */
+button:not(:disabled){min-height:44px}
 button{transition:opacity 0.15s,transform 0.1s}
 button:hover{opacity:0.9}
 button:active{transform:scale(0.98)}
@@ -84,7 +93,25 @@ button:active{transform:scale(0.98)}
   color:#fecaca;line-height:1.6;opacity:0;animation:bootstuck 0s linear 10s forwards}
 @keyframes bootstuck{to{opacity:1}}
 .boot-stuck b{color:#fff}
-@media(prefers-reduced-motion:reduce){.boot-wait{animation:none}}
+/* Honour the OS "reduce motion" setting across the whole app, not just the
+   boot pulse: the button hover/active transitions, .fade-in, .modal-bg and
+   .modal-panel all animate too, as do the transitions set inline on the
+   calendar, chart and onboarding components.
+
+   This overrides animation DURATION and ITERATION-COUNT but deliberately not
+   animation-DELAY, because .boot-stuck is not decoration — it is a 0s
+   animation on a 10s delay that reveals the "app never started" diagnostic.
+   Leaving delay alone keeps that message working; a blanket `animation:none`
+   would silently remove the one thing that explains a failed boot. */
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{
+    animation-duration:0.01ms!important;
+    animation-iteration-count:1!important;
+    transition-duration:0.01ms!important;
+    scroll-behavior:auto!important;
+  }
+  .boot-wait{animation:none!important}
+}
 </style>
 </head>
 <body>

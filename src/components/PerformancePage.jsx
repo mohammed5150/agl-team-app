@@ -13,8 +13,11 @@ export function StarRow({ value, onChange, editable }) {
   return (
     <div style={{ display:"flex", gap:4 }}>
       {[1,2,3,4,5].map(n => (
+        // Editable stars are tap targets, so they get the full 44px square.
+        // Read-only ones are just a score readout and stay compact.
         <button key={n} onClick={() => editable && onChange(n)} disabled={!editable} style={{
-          width:28, height:28, background:"none", border:"none", padding:0,
+          width: editable ? 44 : 28, height: editable ? 44 : 28,
+          background:"none", border:"none", padding:0,
           cursor: editable ? "pointer" : "default", fontSize:22, lineHeight:1,
           color: n <= (value||0) ? "#f5a623" : "rgba(255,255,255,0.2)"
         }}>★</button>

@@ -2,6 +2,7 @@ import { ANN_PRIORITIES, ATT_YEAR, theme } from "../constants.js";
 import { fmtDt } from "../helpers.js";
 import { Bd, Bt, Sec } from "../uiPrimitives.jsx";
 import { PASTEL, INK, Ring, Spark, Tile } from "./charts.jsx";
+import { WeatherCard } from "./WeatherCard.jsx";
 
 /* ============================================================
    EMPLOYEE DASHBOARD
@@ -73,6 +74,9 @@ export function EDash({ user, announcements, onGoTo }) {
         <span style={{ width:6, height:6, borderRadius:"50%", background:dutyColor }} />
         {dateStr} · {dutyLabel}
       </div>
+
+      {/* Conditions at this person's own airfield, from their employee record. */}
+      <WeatherCard user={user} />
 
       {/* Pinned announcement (if any) */}
       {pinnedAnn.map(a => {
