@@ -82,6 +82,24 @@ describe("the header policy and the meta policy cannot drift apart", () => {
     expect(connect).toContain("wss://*.supabase.co");
   });
 
+  it("allows those origins and NOTHING else", () => {
+    // connect-src is the list of places this app may send data. Asserting the
+    // whole set, rather than that the expected entries are somewhere in it,
+    // is what makes a future addition a deliberate edit to this line instead
+    // of a host that slipped in unremarked.
+    //
+    // api.open-meteo.com is the dashboard weather card. It is read-only and
+    // unauthenticated, and receives a latitude and a longitude and nothing
+    // else — see src/weather.js and the note in netlify.toml.
+    const connect = directives(headerCsp).get("connect-src");
+    expect(new Set(connect.split(/\s+/).filter(Boolean))).toEqual(new Set([
+      "'self'",
+      "https://*.supabase.co",
+      "wss://*.supabase.co",
+      "https://api.open-meteo.com",
+    ]));
+  });
+
   it("keeps scripts same-origin — every vendor library is self-hosted", () => {
     expect(directives(headerCsp).get("script-src")).toBe("'self'");
     expect(directives(headerCsp).get("object-src")).toBe("'none'");
