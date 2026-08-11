@@ -79,6 +79,11 @@ supabase_*.sql        database migrations (apply in numerical / dependency order
     write privileges a stock Supabase project grants by default let any signed
     -in employee reach straight past RLS to `employees`. Must run last, after
     every view above exists
+20. `supabase_overtime_guard_fix.sql` — **required**: makes
+    `guard_request_immutable()` table-aware. Step 10 attaches the leave
+    version of that guard to `overtime_requests`, which has different columns,
+    so every team-lead approval or rejection of overtime failed with
+    `record "new" has no field "start_date"`. Must run after step 10
 
 ## Roles
 
