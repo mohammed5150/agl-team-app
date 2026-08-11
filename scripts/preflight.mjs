@@ -244,7 +244,7 @@ if (PORTAL) {
 
     const js = await (await fetch(`${PORTAL.replace(/\/$/, "")}/app.js`)).text();
     const emails = [...new Set(js.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g) || [])]
-      .filter(e => !["your.name@adbsafegate.com", "someone@adbsafegate.ae",
+      .filter(e => !["your.name@adbsafegate.com", "someone@adbsafegate.com",
                      "john.doe@adbsafegate.com", "jane.smith@gmail.com"].includes(e.toLowerCase()));
     record(emails.length === 0, "live bundle carries no personal addresses",
       emails.length ? `${emails.length} found: ${emails.slice(0, 5).join(", ")}` : "clean");

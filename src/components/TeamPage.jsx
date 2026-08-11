@@ -70,7 +70,7 @@ export function InviteForm({ onInvite, onApproveLogin, onClose }) {
         <label style={{ color:theme.tx, fontSize:12, fontWeight:600 }}>
           Email <span style={{ color:theme.rd }}>*</span>
           <input value={fm.email} onChange={e => up("email")(e.target.value)}
-            placeholder="someone@adbsafegate.ae or @gmail / @outlook"
+            placeholder="someone@adbsafegate.com or @gmail / @outlook"
             style={{ ...ib, marginTop:4 }} />
         </label>
         <label style={{ color:theme.tx, fontSize:12, fontWeight:600 }}>

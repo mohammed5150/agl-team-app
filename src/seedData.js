@@ -20,7 +20,7 @@ const mE = (id, nm, sec, des, pi, band, airport, supplier, em) => {
     email: em || (() => {
       const parts = nm.toLowerCase().split(" ").filter(Boolean);
       const local = parts.length > 1 ? parts[0] + "." + parts[parts.length - 1] : parts[0];
-      return local.replace(/[^a-z.]/g, "") + "@adbsafegate.ae";
+      return local.replace(/[^a-z.]/g, "") + "@example.invalid";
     })(),
     name: nm, section: sec, designation: des,
     // Performance band from the salary standardisation exercise. null = not
@@ -199,7 +199,7 @@ const teamlead = {
 };
 
 const manager = {
-  id:"MGR-001", email:"ragesh.menon@adbsafegate.ae",
+  id:"MGR-001", email:"ragesh.menon@example.invalid",
   name:"Ragesh Menon", role:"manager", designation:"Maintenance Manager", section:"All", shift:"General",
   nationality:"Indian", mobile:"+971 50 333 0001", empNo:"ADB-3001",
   dob:"1980-07-10", maritalStatus:"Married", address:"Abu Dhabi, UAE", joinDate:"2012-01-15",
