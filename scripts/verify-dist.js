@@ -57,7 +57,7 @@ const EMAIL_RE = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
 // defaults to refusing. Never add a real person's address.
 const ALLOWED_EMAILS = new Set([
   "your.name@adbsafegate.com",           // LoginPage email field placeholder
-  "someone@adbsafegate.ae",              // TeamPage invite field placeholder
+  "someone@adbsafegate.com",             // TeamPage invite field placeholder
   "john.doe@adbsafegate.com",            // TeamPage CSV example row
   "jane.smith@gmail.com",                // TeamPage CSV example row
 ]);
