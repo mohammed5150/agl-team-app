@@ -84,7 +84,25 @@ button:active{transform:scale(0.98)}
   color:#fecaca;line-height:1.6;opacity:0;animation:bootstuck 0s linear 10s forwards}
 @keyframes bootstuck{to{opacity:1}}
 .boot-stuck b{color:#fff}
-@media(prefers-reduced-motion:reduce){.boot-wait{animation:none}}
+/* Honour the OS "reduce motion" setting across the whole app, not just the
+   boot pulse: the button hover/active transitions, .fade-in, .modal-bg and
+   .modal-panel all animate too, as do the transitions set inline on the
+   calendar, chart and onboarding components.
+
+   This overrides animation DURATION and ITERATION-COUNT but deliberately not
+   animation-DELAY, because .boot-stuck is not decoration — it is a 0s
+   animation on a 10s delay that reveals the "app never started" diagnostic.
+   Leaving delay alone keeps that message working; a blanket `animation:none`
+   would silently remove the one thing that explains a failed boot. */
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{
+    animation-duration:0.01ms!important;
+    animation-iteration-count:1!important;
+    transition-duration:0.01ms!important;
+    scroll-behavior:auto!important;
+  }
+  .boot-wait{animation:none!important}
+}
 </style>
 </head>
 <body>

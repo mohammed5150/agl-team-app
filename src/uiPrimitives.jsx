@@ -12,10 +12,15 @@ export const Logo = ({ size=120, w=true }) => (
   </svg>
 );
 
+// fontSize is 16, not 13, on purpose. iOS Safari auto-zooms the viewport when
+// a focused input's font-size is below 16px, which on a phone leaves the user
+// zoomed into a form field with the rest of the layout off-screen. 16px is the
+// threshold that stops it; there is no way to opt out that also allows pinch
+// zoom, and the viewport meta here deliberately keeps pinch zoom enabled.
 export const ib = {
   width:"100%", padding:"10px 14px", borderRadius:10,
   border:`1px solid ${theme.bl}`, background:"rgba(255,255,255,0.05)",
-  color:theme.tx, fontSize:13, outline:"none", boxSizing:"border-box"
+  color:theme.tx, fontSize:16, outline:"none", boxSizing:"border-box"
 };
 
 export const Bd = ({ text, color }) => (
@@ -46,6 +51,13 @@ export const Bd = ({ text, color }) => (
 export const Bt = ({ children, onClick, bg=theme.pl, color="#fff", outline=false, small=false, disabled=false, type="button" }) => (
   <button type={type} onClick={onClick} disabled={disabled} style={{
     padding: small ? "6px 14px" : "10px 20px",
+    // minHeight, not extra padding, so the hit area reaches 44px without the
+    // button visually growing much. 44px is the iOS HIG / WCAG 2.5.5 target
+    // size; `small` buttons were ~26px, which is fine for a mouse but not for
+    // a thumb — and these are Approve / Reject / Withdraw actions used on a
+    // phone out on the airfield.
+    minHeight:44,
+    display:"inline-flex", alignItems:"center", justifyContent:"center",
     borderRadius:10,
     border: outline ? `1px solid ${theme.bl}` : "none",
     background: disabled ? "rgba(255,255,255,0.05)" : (outline ? "transparent" : bg),
