@@ -5,6 +5,7 @@
 import { SECTIONS, STATUS_COLORS, STATUS_LABELS, ANN_PRIORITIES, theme } from "../constants.js";
 import { Bd, Bt, Sec, Empty } from "../uiPrimitives.jsx";
 import { PASTEL, INK, Ring, Tile } from "./charts.jsx";
+import { WeatherCard } from "./WeatherCard.jsx";
 
 export function MDash({ user, employees, leaveRequests, announcements, pc, onGoTo }) {
   const h = new Date().getHours();
@@ -51,6 +52,9 @@ export function MDash({ user, employees, leaveRequests, announcements, pc, onGoT
           {user.name.split(" ").map(n => n[0]).join("").slice(0,2)}
         </div>
       </div>
+
+      {/* Managers cover every site, so this one carries the switcher. */}
+      <WeatherCard user={user} canSwitchSite={true} />
       <div style={{ display:"inline-flex", alignItems:"center", gap:8, padding:"6px 12px",
         background:theme.ch, borderRadius:20, marginBottom:18, fontSize:11, fontWeight:700, letterSpacing:0.5, color:theme.ts }}>
         <span style={{ width:6, height:6, borderRadius:"50%", background:"#10b981" }} />
