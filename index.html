@@ -48,6 +48,15 @@ select option{background:#111f30;color:#e0e6ed}
 ::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.12);border-radius:3px}
 input:focus,select:focus,textarea:focus{outline:none}
 input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-visible,[role=button]:focus-visible{outline:2px solid #f5923e;outline-offset:2px}
+/* 44px is the iOS HIG / WCAG 2.5.5 touch target. Most buttons here are the Bt
+   primitive, which sets its own min-height, but ~39 are raw <button> elements
+   with only inline padding, and those came out as small as 22px. This is the
+   backstop that covers them.
+
+   :not(:disabled) matters: a disabled button is not a tap target, and some are
+   display-only (the read-only star rating is a row of 28px buttons). Stretching
+   those to 44px would distort the layout for no accessibility gain. */
+button:not(:disabled){min-height:44px}
 button{transition:opacity 0.15s,transform 0.1s}
 button:hover{opacity:0.9}
 button:active{transform:scale(0.98)}
