@@ -14,7 +14,7 @@ import {
 } from "./src/authFlows.js";
 import { canSetRatingTier, canViewAuditLog, canOffboardEmployee } from "./src/authz.js";
 import { auditFromDb } from "./src/auditLog.js";
-import { classifyPortalLoad, degradedMessage, LOAD_FAILED_MESSAGE } from "./src/portalLoad.js";
+import { classifyPortalLoad, degradedMessage, mergeRoster, LOAD_FAILED_MESSAGE } from "./src/portalLoad.js";
 import { installErrorReporting, setRoute, reportError } from "./src/errorReporter.js";
 import { supa, subscribePush, unsubscribePush, sendPush, diffFieldsById, empToDb, empFromDb, lrToDb, lrFromDb, otToDb, otFromDb, annToDb, annFromDb, nfToDb, nfFromDb, diffById, pushSupported } from "./src/supabasePortal.js";
 import { Logo, Bd, Bt } from "./src/uiPrimitives.jsx";
@@ -138,14 +138,37 @@ function App() {
     } catch (e) { console.warn("[portal] localStorage parse error:", e); }
   }, []);
 
+  // Read the roster the caller is entitled to: full rows from `employees`
+  // (self only, for an ordinary employee; everyone, for a TL or manager) plus
+  // the no-personal-data directory view for the rest. See mergeRoster in
+  // src/portalLoad.js for why the roster now comes from two places.
+  //
+  // The directory query is allowed to fail without taking the load with it:
+  // this code has to run against a database where the view does not exist yet
+  // (it ships ahead of the migration), and against the old permissive policy
+  // where `employees` already returns everything and the directory adds
+  // nothing. Both degrade to exactly the previous behaviour.
+  const fetchRoster = useCallback(async () => {
+    const [fullR, dirR] = await Promise.all([
+      supa.from("employees").select("*").order("id"),
+      supa.from("employee_directory").select("*").order("id"),
+    ]);
+    if (dirR.error) {
+      console.warn("[portal] employee_directory unavailable, using employees only:", dirR.error.message);
+    }
+    const full = (fullR.data || []).map(empFromDb);
+    const stubs = (dirR.data || []).map(empFromDb);
+    return { rows: mergeRoster(full, stubs), error: fullR.error };
+  }, []);
+
   // Load all team data from Supabase for an authenticated user
   const loadPortalData = useCallback(async (authEmail) => {
     if (loadingRef.current) return;
     loadingRef.current = true;
     const seq = ++loadSeqRef.current;
     try {
-      const [empsR, lrsR, otsR, annsR, nfsR] = await Promise.all([
-        supa.from("employees").select("*").order("id"),
+      const [rosterR, lrsR, otsR, annsR, nfsR] = await Promise.all([
+        fetchRoster(),
         supa.from("leave_requests").select("*").order("applied_on", { ascending: false }),
         supa.from("overtime_requests").select("*").order("applied_on", { ascending: false }),
         supa.from("announcements").select("*").order("date", { ascending: false }),
@@ -156,25 +179,25 @@ function App() {
       // results over the newer state.
       if (seq !== loadSeqRef.current) return;
 
-      if (empsR.error) console.error("[portal] employees load:", empsR.error);
+      if (rosterR.error) console.error("[portal] employees load:", rosterR.error);
       if (lrsR.error)  console.error("[portal] leaves load:",    lrsR.error);
       if (otsR.error)  console.error("[portal] overtime load:",  otsR.error);
       if (annsR.error) console.error("[portal] anns load:",      annsR.error);
       if (nfsR.error)  console.error("[portal] notifs load:",    nfsR.error);
 
-      const emps = (empsR.data || []).map(empFromDb);
+      const emps = rosterR.rows;
       // "No matching row" and "the read failed" are not the same finding, and
       // conflating them is what told the whole team they were not registered
       // employees whenever the backend hiccuped. See src/portalLoad.js.
       const verdict = classifyPortalLoad({
-        employeesResult: { data: empsR.error ? null : emps, error: empsR.error },
+        employeesResult: { data: rosterR.error ? null : emps, error: rosterR.error },
         authEmail,
         secondary: { leave: lrsR, overtime: otsR, announcements: annsR, notifications: nfsR },
       });
 
       if (verdict.status === "load-failed") {
         console.error("[portal] roster unreadable; not treating as unregistered user");
-        reportError({ kind: "sync", message: "portal load failed: " + (empsR.error?.message || "no rows") });
+        reportError({ kind: "sync", message: "portal load failed: " + (rosterR.error?.message || "no rows") });
         // Keep the session. The credentials were fine — making the user sign
         // in again cannot fix a server-side fault, and signing them out is
         // what turned a brief outage into a queue at the admin's desk.
@@ -233,11 +256,14 @@ function App() {
       if (!window.__portalChannel) {
         window.__portalChannel = supa.channel("portal")
           .on("postgres_changes", { event: "*", schema: "public", table: "employees" }, async () => {
-            const { data } = await supa.from("employees").select("*").order("id");
-            if (data) {
-              const fresh = data.map(empFromDb);
-              prevEmployeesRef.current = fresh;
-              setEmployees(fresh);
+            // Must go through fetchRoster, not a bare employees select: for an
+            // ordinary employee that returns only their own row, and setting
+            // it directly would drop every directory stub — silently breaking
+            // approval routing the moment anyone edited a profile.
+            const { rows, error } = await fetchRoster();
+            if (!error && rows.length) {
+              prevEmployeesRef.current = rows;
+              setEmployees(rows);
             }
           })
           .on("postgres_changes", { event: "*", schema: "public", table: "leave_requests" }, async () => {
@@ -303,7 +329,7 @@ function App() {
     } finally {
       loadingRef.current = false;
     }
-  }, [setLoginError]);
+  }, [setLoginError, fetchRoster]);
 
   // Retry after a failed load, without making the user sign in again — the
   // session is still valid, only the fetch failed.

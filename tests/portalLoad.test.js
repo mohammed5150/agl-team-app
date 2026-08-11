@@ -6,6 +6,7 @@ import {
   degradedMessage,
   notRegisteredMessage,
   LOAD_FAILED_MESSAGE,
+  mergeRoster,
 } from "../src/portalLoad.js";
 
 const ROSTER = [
@@ -129,5 +130,57 @@ describe("partial loads are surfaced rather than shown as empty pages", () => {
     expect(degradedMessage(["leave requests", "notifications"]))
       .toMatch(/\(leave requests and notifications\)/);
     expect(degradedMessage(["a", "b", "c"])).toMatch(/\(a, b and c\)/);
+  });
+});
+
+describe("mergeRoster — full rows for who you may see, safe stubs for the rest", () => {
+  const self = { id: "EMP-001", name: "Amarnath", role: "employee", passportNo: "X123", eidNo: "784-1" };
+  const stubs = [
+    { id: "EMP-001", name: "Amarnath", role: "employee" },
+    { id: "TL-002", name: "Faheem", role: "teamlead" },
+    { id: "MGR-001", name: "Ragesh", role: "manager" },
+  ];
+
+  it("keeps the full row and never lets a stub overwrite it", () => {
+    const merged = mergeRoster([self], stubs);
+    expect(merged).toHaveLength(3);
+    const me = merged.find(e => e.id === "EMP-001");
+    expect(me.passportNo).toBe("X123");   // own record still complete
+    expect(me.eidNo).toBe("784-1");
+  });
+
+  it("carries no personal data for colleagues", () => {
+    const merged = mergeRoster([self], stubs);
+    for (const other of merged.filter(e => e.id !== "EMP-001")) {
+      expect(other.passportNo).toBeUndefined();
+      expect(other.eidNo).toBeUndefined();
+      expect(other.mobile).toBeUndefined();
+      expect(other.address).toBeUndefined();
+      expect(other.band).toBeUndefined();
+    }
+  });
+
+  it("still exposes the id and role approval routing depends on", () => {
+    // newRequestRecipients / newOvertimeRecipients filter on role and map to id.
+    const merged = mergeRoster([self], stubs);
+    expect(merged.filter(e => e.role === "teamlead").map(e => e.id)).toEqual(["TL-002"]);
+    expect(merged.filter(e => e.role === "manager").map(e => e.id)).toEqual(["MGR-001"]);
+  });
+
+  it("is a no-op for staff, who already read every row in full", () => {
+    const everyone = [self, { id: "TL-002", name: "Faheem", role: "teamlead", passportNo: "Y9" }];
+    const merged = mergeRoster(everyone, stubs);
+    expect(merged).toHaveLength(3);
+    expect(merged.find(e => e.id === "TL-002").passportNo).toBe("Y9");
+  });
+
+  it("degrades to the plain roster when the directory is unavailable", () => {
+    expect(mergeRoster([self], [])).toEqual([self]);
+    expect(mergeRoster([self], null)).toEqual([self]);
+  });
+
+  it("sorts by id and ignores malformed rows", () => {
+    const merged = mergeRoster([{ id: "B" }, null], [{ id: "A" }, {}, undefined]);
+    expect(merged.map(e => e.id)).toEqual(["A", "B"]);
   });
 });
