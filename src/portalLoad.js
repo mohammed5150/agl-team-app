@@ -103,6 +103,41 @@ export function degradedTables(secondary) {
     .map(k => LABELS[k]);
 }
 
+/**
+ * Combine the rows a user may read in FULL with the safe directory stubs for
+ * everyone else.
+ *
+ * WHY THE ROSTER COMES FROM TWO PLACES NOW
+ * `employees` carries passport and Emirates ID numbers, date of birth, home
+ * address, mobile, emergency contacts and salary band. Its RLS policy used to
+ * be `current_emp_id() IS NOT NULL` — any signed-in employee could read every
+ * column of all 92 rows. The UI hid it (the Team page is staff-only) but the
+ * REST API did not: a token and one request to /rest/v1/employees returned the
+ * lot. With two accounts in existence that was theoretical; with the whole
+ * team onboarding it is not.
+ *
+ * So `employees` is now self-or-staff, and `employee_directory` — a view of
+ * id/name/role/section only, no personal data — covers what an ordinary
+ * employee legitimately needs about colleagues. That turns out to be very
+ * little: their nav has no Team, Performance or Calendar page, and the only
+ * code that reads other people's rows is newRequestRecipients /
+ * newOvertimeRecipients, which need `id` and `role` to route an approval
+ * notification to the right team lead and manager.
+ *
+ * Full rows always win over stubs, so a manager (who can read everything) is
+ * unaffected, and a user's own row is never a stub.
+ */
+export function mergeRoster(fullRows, directoryRows) {
+  const byId = new Map();
+  for (const d of directoryRows || []) {
+    if (d && d.id != null) byId.set(d.id, d);
+  }
+  for (const f of fullRows || []) {
+    if (f && f.id != null) byId.set(f.id, f);
+  }
+  return [...byId.values()].sort((a, b) => String(a.id).localeCompare(String(b.id)));
+}
+
 /** Human sentence for a partial load, or "" when everything arrived. */
 export function degradedMessage(degraded) {
   if (!degraded || degraded.length === 0) return "";
