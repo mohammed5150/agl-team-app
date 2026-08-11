@@ -12,13 +12,17 @@ name: Uptime check
 
 on:
   schedule:
-    # Every 15 minutes. GitHub's scheduler is best-effort and can run late
-    # under load, so treat this as "roughly quarter-hourly", not a guarantee.
+    # Asks for every 15 minutes. DO NOT READ THAT AS THE REAL CADENCE.
+    #
+    # GitHub's scheduler is best-effort and drops ticks under load, and it
+    # drops most of this repo's. Six consecutive observed runs came in at
+    # 19:32, 20:24, 21:20, 22:07, 22:56, 23:42 UTC — roughly 45-50 minutes
+    # apart, about a third of what the cron asks for. Nothing here can change
+    # that; a dependable interval needs a real monitor (docs/MONITORING.md
+    # lists free tiers that also page a phone). The comment is here so nobody
+    # reasons from "*/15" and concludes the portal is checked four times an
+    # hour, or that a 40-minute gap in the run history means something broke.
     - cron: "*/15 * * * *"
-    # Hourly, and deliberately at :07 so it never lands on the same tick as the
-    # quarter-hourly one. This is the run that also opens the portal in a real
-    # browser — see "the deep check" below.
-    - cron: "7 * * * *"
   workflow_dispatch:
 
 permissions:
@@ -86,21 +90,35 @@ jobs:
       # mounted — same assertions CI runs against the build, from
       # scripts/smoke.mjs, so the two cannot drift.
       #
-      # Hourly, not quarter-hourly, on purpose. It needs a checkout, node and a
-      # ~115MB Chromium (cached between runs), which is perhaps 30s of runner
-      # time against ~10s for the curl checks. At every 15 minutes that is a
-      # few thousand billable minutes a month for a class of fault that only
-      # appears at deploy time. Hourly is a sane trade; raise it if you'd
-      # rather pay for the tighter loop.
+      # Not on every run: it needs a checkout, node and a ~115MB Chromium
+      # (cached between runs), perhaps 30s of runner time against ~10s for the
+      # curl checks. On every tick that is a few thousand billable minutes a
+      # month for a class of fault that only appears at deploy time.
+      #
+      # WHICH RUNS GO DEEP, AND WHY IT IS NOT A SECOND CRON.
+      # This was originally a dedicated `7 * * * *` schedule, gated on
+      # github.event.schedule. That was wrong for the reason described at the
+      # top of this file: GitHub drops ticks, and a gate keyed to ONE tick is
+      # skipped entirely whenever that tick is among the dropped ones — the
+      # deep check could then go many hours without running while the workflow
+      # kept reporting success. Keying it to the clock instead means whichever
+      # run actually happens in the first half of an hour does the deep check,
+      # so it survives an arbitrary subset of ticks being dropped.
       # -------------------------------------------------------------------
       - name: Is this a deep-check run?
         id: mode
         run: |
-          if [ "${{ github.event.schedule }}" = "7 * * * *" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "deep=true" >> "$GITHUB_OUTPUT"
+          # 10# forces base 10. date gives a zero-padded minute, and "08"/"09"
+          # are invalid octal, so a bare $((minute)) fails for two minutes in
+          # every hour — under `bash -e` that would fail the whole check.
+          minute=$((10#$(date -u +%M)))
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] || [ "$minute" -lt 30 ]; then
+            deep=true
           else
-            echo "deep=false" >> "$GITHUB_OUTPUT"
+            deep=false
           fi
+          echo "deep=$deep" >> "$GITHUB_OUTPUT"
+          echo "minute past the hour: $minute -> deep check: $deep"
 
       - name: Checkout (deep check)
         if: steps.mode.outputs.deep == 'true'
@@ -130,15 +148,24 @@ jobs:
         if: steps.mode.outputs.deep == 'true'
         run: node scripts/smoke.mjs --url "$PORTAL_URL"
 
+      # This step was gated on a `SUPABASE_URL` secret that was never set, and
+      # it was written to skip rather than fail when the secret was missing —
+      # so every run since it was added has printed "skipping the backend
+      # check" and passed. The one thing the monitor most needed to watch (a
+      # free-tier project paused after 7 days idle, or a billing lapse) was
+      # never being watched at all, and the run still went green.
+      #
+      # The gate was unnecessary in the first place: the project URL is not a
+      # secret. It is committed in src/supabasePortal.js, compiled into
+      # dist/app.js, and served to anyone who loads the portal signed-out —
+      # index.html's own CSP names *.supabase.co. So default to the real URL
+      # and let a secret override it if the project ever moves. No key is
+      # involved: the check is a deliberately UNAUTHENTICATED request.
       - name: Check Supabase is answering
         env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL || 'https://vzipsbecmirbkrbrpcdt.supabase.co' }}
         run: |
-          if [ -z "$SUPABASE_URL" ]; then
-            echo "::notice::SUPABASE_URL secret not set — skipping the backend check."
-            echo "::notice::The portal can serve its shell while the database is down; see docs/MONITORING.md."
-            exit 0
-          fi
+          echo "Checking $SUPABASE_URL"
           # /rest/v1/ without a key answers 401. That is a HEALTHY response:
           # it proves PostgREST is up and rejecting properly. A paused project
           # gives 503 or a connection failure instead.
