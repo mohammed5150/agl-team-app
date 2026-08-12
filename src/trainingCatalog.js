@@ -87,8 +87,6 @@ export const TRAINING_CATALOG = [
   {"title": "Trip & slip hazard", "dur": "00h", "mode": "Class", "freq": "Monthly ", "type": "HSE", "roles": ["EL", "GW", "AT", "MD", "CH", "FD"]},
   {"title": "proper housekeeping", "dur": "00h", "mode": "Class", "freq": "Monthly ", "type": "HSE", "roles": ["EL", "GW", "AT", "MD", "CH", "FD"]},
   {"title": "electrical hazard", "dur": "00h", "mode": "Class", "freq": "Monthly ", "type": "HSE", "roles": ["EL", "GW", "AT", "MD", "CH", "FD"]},
-  {"title": "Adverse weather condition & weather hazards", "dur": "00h", "mode": "Class", "freq": "Monthly ", "type": "HSE", "roles": ["EL", "GW", "AT", "MD", "CH", "FD"]},
-  {"title": "Emergency reporting and evacuation procedures", "dur": "00h", "mode": "Class", "freq": "Monthly ", "type": "HSE", "roles": ["EL", "GW", "AT", "MD", "CH", "FD"]},
   {"title": "night operations safety", "dur": "00h", "mode": "Class", "freq": "Monthly ", "type": "HSE", "roles": ["EL", "GW", "AT", "MD", "CH", "FD"]},
   {"title": "Manual Handling", "dur": "00h", "mode": "Class", "freq": "Monthly ", "type": "HSE", "roles": ["EL", "GW", "AT", "MD", "CH", "FD"]},
   {"title": "Safe use of hand tools and power tools", "dur": "00h", "mode": "Class", "freq": "Monthly ", "type": "HSE", "roles": ["EL", "GW", "AT", "MD", "CH", "FD"]}
