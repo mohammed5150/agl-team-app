@@ -20,6 +20,13 @@ triggers `npm run build` and publishes the `dist/` folder.
 
 - Production: https://auh-adb-portal.netlify.app
 
+Response headers come from `netlify.toml`. The repo also carries a `_headers`
+file, which is the same policy in the format Cloudflare Pages reads — the site
+can be served from either host, and moving between them is a DNS change rather
+than a code change. See `docs/CLOUDFLARE_PAGES.md`. Whichever host serves it,
+`tests/securityHeaders.test.js` refuses to let the two host configs and the
+`index.html` meta tag disagree.
+
 ## Project structure
 
 ```

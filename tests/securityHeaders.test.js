@@ -3,19 +3,46 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
-// The browser is the boundary these headers defend, and Netlify only sends
-// them if netlify.toml says so. These assertions pin the guarantees, so an
-// edit that drops one fails the suite instead of quietly shipping the hole
-// back — the same reason tests/onboardingMigration.test.js pins the SQL.
+// The browser is the boundary these headers defend, and a host only sends them
+// if its own config says so. These assertions pin the guarantees, so an edit
+// that drops one fails the suite instead of quietly shipping the hole back —
+// the same reason tests/onboardingMigration.test.js pins the SQL.
+//
+// The policy now lives in three places, one per way the site can be served:
+//
+//   index.html   <meta http-equiv> — a locally opened file, or any host that
+//                sends no headers at all
+//   netlify.toml the real header on Netlify
+//   _headers     the real header on Cloudflare Pages
+//
+// Three hand-maintained copies is only survivable because the last describe
+// block below refuses to let any two of them disagree.
 
-const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
-const toml = readFileSync(join(ROOT, "netlify.toml"), "utf8");
-const html = readFileSync(join(ROOT, "index.html"), "utf8");
+const ROOT  = join(dirname(fileURLToPath(import.meta.url)), "..");
+const toml  = readFileSync(join(ROOT, "netlify.toml"), "utf8");
+const html  = readFileSync(join(ROOT, "index.html"), "utf8");
+const pages = readFileSync(join(ROOT, "_headers"), "utf8");
 
 /** Value of a header from the netlify.toml [headers.values] block. */
 function header(name) {
   const m = toml.match(new RegExp(`^\\s*${name}\\s*=\\s*"([^"]*)"`, "m"));
   return m ? m[1] : null;
+}
+
+/**
+ * Value of a header from the Cloudflare `_headers` file.
+ *
+ * Split on the FIRST colon only: a CSP is full of them (`https://…`), and
+ * splitting on every one would truncate the policy to `default-src 'self'`
+ * and make these tests pass against a broken file.
+ */
+function pagesHeader(name) {
+  for (const line of pages.split("\n")) {
+    if (/^\s*#/.test(line)) continue;          // comment
+    const m = line.match(/^\s+([A-Za-z0-9-]+):\s*(.*)$/);
+    if (m && m[1].toLowerCase() === name.toLowerCase()) return m[2].trim();
+  }
+  return null;
 }
 
 /** "a 'self'; b 'none'" -> Map { a => "'self'", b => "'none'" } */
@@ -126,5 +153,60 @@ describe("the remaining hardening headers are present", () => {
     const hsts = header("Strict-Transport-Security") || "";
     expect(hsts).toMatch(/max-age=31536000/);
     expect(hsts).not.toContain("preload");
+  });
+});
+
+describe("Cloudflare Pages is served the same policy as Netlify", () => {
+  // Netlify reads netlify.toml from the repo root. Cloudflare Pages reads a
+  // `_headers` file from the root of the PUBLISHED directory, which build.js
+  // copies in. Shipping both means changing host is a DNS change rather than a
+  // code change — but only while the two say the same thing.
+
+  const SHARED = [
+    "Content-Security-Policy",
+    "X-Frame-Options",
+    "X-Content-Type-Options",
+    "Referrer-Policy",
+    "Permissions-Policy",
+    "Strict-Transport-Security",
+  ];
+
+  it("applies its rules to every path", () => {
+    expect(pages).toMatch(/^\/\*\s*$/m);
+  });
+
+  it("carries every header netlify.toml does, with identical values", () => {
+    for (const name of SHARED) {
+      expect(`${name}: ${pagesHeader(name)}`).toBe(`${name}: ${header(name)}`);
+    }
+  });
+
+  it("agrees with the meta policy on every shared CSP directive", () => {
+    const p = directives(pagesHeader("Content-Security-Policy"));
+    const m = directives(metaCsp);
+    for (const [name, value] of m) {
+      if (p.has(name)) expect(`${name}: ${p.get(name)}`).toBe(`${name}: ${value}`);
+    }
+  });
+
+  it("sends frame-ancestors as a real header here too", () => {
+    // The defect the Netlify file was added for: a meta tag cannot do this.
+    expect(directives(pagesHeader("Content-Security-Policy")).get("frame-ancestors")).toBe("'self'");
+  });
+
+  it("allows the same connect-src origins and nothing else", () => {
+    const connect = directives(pagesHeader("Content-Security-Policy")).get("connect-src");
+    expect(new Set(connect.split(/\s+/).filter(Boolean))).toEqual(new Set([
+      "'self'",
+      "https://*.supabase.co",
+      "wss://*.supabase.co",
+      "https://api.open-meteo.com",
+    ]));
+  });
+
+  it("ships in the published output, or Cloudflare never sees it", () => {
+    // The whole file is inert unless build.js copies it next to index.html.
+    const build = readFileSync(join(ROOT, "build.js"), "utf8");
+    expect(build).toMatch(/"_headers"/);
   });
 });
