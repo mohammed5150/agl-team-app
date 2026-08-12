@@ -31,6 +31,19 @@ export const TRAINING_CATALOG = [
   {"title": "GAA Induction Training", "dur": "01h", "mode": "eLearn", "freq": "Annual", "type": "HSE", "roles": ["AM", "SEM", "HDE", "OM", "QHS", "TL", "SL", "EL", "GW", "AT", "MD", "CH", "FD"]},
   {"title": "SINYAR HSE Induction", "dur": "01h", "mode": "eLearn", "freq": "Annual", "type": "HSE", "roles": ["AM", "SEM", "HDE", "OM", "QHS", "TL", "SL", "EL", "GW", "AT", "MD", "CH", "FD"]},
   {"title": "SINYAR AVSEC Awareness", "dur": "01h", "mode": "eLearn", "freq": "Annual", "type": "HSE", "roles": ["AM", "SEM", "HDE", "OM", "QHS", "TL", "SL", "EL", "GW", "AT", "MD", "CH", "FD"]},
+  // The same two contractor inductions again, for WASAEL. They appear in the
+  // 2026 training register but were missing here, so the 31 people holding the
+  // HSE induction and the 16 holding AVSEC showed the certificate on their
+  // profile while the coverage matrix ignored it entirely.
+  //
+  // Duration, mode and frequency are copied from the SINYAR pair rather than
+  // invented: the register carries dates and nothing else, and these are the
+  // same induction under a different manpower contractor. Required for every
+  // role for the same reason the SINYAR and GAA inductions are — the holders
+  // already span nine designations across seven suppliers, and under-reporting
+  // a missing safety induction is worse than the noise of over-reporting one.
+  {"title": "WASAEL HSE Induction", "dur": "01h", "mode": "eLearn", "freq": "Annual", "type": "HSE", "roles": ["AM", "SEM", "HDE", "OM", "QHS", "TL", "SL", "EL", "GW", "AT", "MD", "CH", "FD"]},
+  {"title": "WASAEL AVSEC Awareness", "dur": "01h", "mode": "eLearn", "freq": "Annual", "type": "HSE", "roles": ["AM", "SEM", "HDE", "OM", "QHS", "TL", "SL", "EL", "GW", "AT", "MD", "CH", "FD"]},
   {"title": "Duties and responsiblities within the abu dhabi airport", "dur": "01h", "mode": "Class", "freq": "Annual", "type": "HSE", "roles": ["AM", "SEM", "HDE", "OM", "QHS", "TL", "SL", "EL", "GW", "AT", "MD", "CH", "FD"]},
   {"title": "SMS manual & standard operating procedures", "dur": "01h", "mode": "Class", "freq": "Annual", "type": "HSE", "roles": ["AM", "SEM", "HDE", "OM", "QHS", "TL", "SL", "EL", "GW", "AT", "MD", "CH", "FD"]},
   {"title": "Movement AreaADAC ADP - Airside Driving Permit", "dur": "01h", "mode": "eLearn", "freq": "Annual", "type": "HSE", "roles": ["CH"]},
