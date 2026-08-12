@@ -91,6 +91,11 @@ supabase_*.sql        database migrations (apply in numerical / dependency order
     version of that guard to `overtime_requests`, which has different columns,
     so every team-lead approval or rejection of overtime failed with
     `record "new" has no field "start_date"`. Must run after step 10
+21. `supabase_expired_session_fix.sql` — addresses the one SELECT policy that
+    was aimed at `public` rather than `authenticated`. An expired session falls
+    back to the anon key, matched that policy, and then failed on
+    `permission denied for function current_emp_id` instead of quietly
+    returning nothing and showing the login screen
 
 ## Roles
 

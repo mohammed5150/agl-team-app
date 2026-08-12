@@ -1,0 +1,54 @@
+-- ============================================================================
+-- FIX: an expired session broke the portal instead of asking for a new login
+--
+-- SYMPTOM
+-- client_errors was collecting these, most recently 12 Aug:
+--
+--     portal load failed: permission denied for function current_emp_id
+--
+-- The person had a session that had lapsed. supabase-js falls back to the anon
+-- key when the JWT is gone, so the request arrived as `anon`, and instead of
+-- being sent back to the sign-in screen they got a hard failure with a
+-- database error in it.
+--
+-- CAUSE
+-- Every policy in this schema is addressed to `authenticated` except one:
+--
+--     emp_select_self_or_staff  SELECT  {public}  (id = current_emp_id() OR is_staff())
+--
+-- `public` includes `anon`. So an anon request DID match the policy, and
+-- evaluating it called current_emp_id(). supabase_grant_hardening.sql revoked
+-- the default PUBLIC EXECUTE on the guard functions and granted it only to
+-- `authenticated` — correctly — so anon cannot execute it. Postgres raises
+-- rather than treating the qualifier as false, and the whole SELECT fails.
+--
+-- The grant is right; the policy's role list was the odd one out.
+--
+-- FIX
+-- Address the policy to `authenticated`, like every other policy here. An anon
+-- request then matches no policy at all and gets zero rows — the app's
+-- ordinary handled path, which shows the login screen. Signed-in behaviour is
+-- unchanged: same qualifier, same visibility, same row counts.
+--
+-- Verified against the live database before applying, in a rolled-back
+-- transaction:
+--
+--   before / anon                 ERROR: permission denied for function current_emp_id
+--   after  / anon                 returned 0 rows, no error
+--   after  / signed-in employee   sees 1 own row, 91 colleagues
+-- ============================================================================
+
+alter policy emp_select_self_or_staff on public.employees to authenticated;
+
+-- VERIFY ---------------------------------------------------------------------
+--   -- expect {authenticated}
+--   select policyname, roles from pg_policies
+--    where schemaname='public' and tablename='employees'
+--      and policyname='emp_select_self_or_staff';
+--
+--   -- expect 0 rows and NO error
+--   begin;
+--     select set_config('request.jwt.claims', null, true);
+--     set local role anon;
+--     select count(*) from public.employees;
+--   rollback;
