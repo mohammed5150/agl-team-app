@@ -1,5 +1,5 @@
-import { theme } from "./src/constants.js";
-import { NE, NM } from "./src/nav.js";
+import { theme, defaultAttMonth } from "./src/constants.js";
+import { navItemsForRole } from "./src/nav.js";
 import { TIERS_CAP } from "./src/rating.js";
 import { INITIAL_EMPLOYEES, INITIAL_LEAVE_REQUESTS, INITIAL_ANNOUNCEMENTS, nfId, INITIAL_NOTIFICATIONS } from "./src/seedData.js";
 import { nextEmpId } from "./src/helpers.js";
@@ -39,7 +39,7 @@ function App() {
   const [announcements, setAnnouncements] = useState(INITIAL_ANNOUNCEMENTS);
   const [nextLrId, setNextLrId] = useState(5);
   const [nextAnnId, setNextAnnId] = useState(6);
-  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
+  const [selectedMonth, setSelectedMonth] = useState(defaultAttMonth());
   const [showNotif, setShowNotif] = useState(false);
   const [syncError, setSyncError] = useState("");
 
@@ -51,6 +51,12 @@ function App() {
   const prevLeaveRequestsRef = useRef([]);
   const prevAnnouncementsRef = useRef([]);
   const prevNotificationsRef = useRef([]);
+  // Set once the user clears their initial password, so a concurrent data
+  // refetch (triggered by the change-password re-auth) can't re-flag them.
+  const pwClearedRef = useRef(false);
+  // Ensures the URL hash is applied to nav only once per login (deep-link
+  // support) and not on every currentUser identity change.
+  const hashAppliedRef = useRef(false);
 
   // Load UI-only state from localStorage immediately
   useEffect(() => {
@@ -82,6 +88,13 @@ function App() {
       const emps = (empsR.data || []).map(empFromDb);
       const matches = emps.filter(e => e.email?.toLowerCase() === authEmail?.toLowerCase());
       const me = matches[0];
+      // If this session just cleared its initial password, don't let a stale
+      // DB read (this refetch can race the change) re-flag the user.
+      if (me && pwClearedRef.current) {
+        me.initialPassword = false;
+        const mi = emps.findIndex(e => e.id === me.id);
+        if (mi >= 0) emps[mi] = me;
+      }
       if (!me) {
         console.warn("[portal] authenticated email has no employee record:", authEmail);
         setLoginError(
@@ -278,19 +291,36 @@ function App() {
   // Hash routing: keep the active view in the URL (#/leave) so refreshes and
   // shared links land on the right page. Only keys valid for the user's role
   // are accepted; unknown hashes are ignored.
+  //
+  // Apply the incoming hash to nav exactly ONCE per login (deep-link / refresh
+  // support). Keyed on the user id, and guarded so it never re-fires when the
+  // currentUser object is merely replaced (profile save, initial-password flip)
+  // — which previously bounced the user back to a stale hash and closed panels.
   useEffect(() => {
-    if (!currentUser) return;
-    const items = currentUser.role === "manager" ? NM.filter(n => n.key !== "attendance")
-      : currentUser.role === "teamlead" ? NM : NE;
-    const valid = new Set(items.map(i => i.key));
-    const applyHash = () => {
+    if (!currentUser || hashAppliedRef.current) return;
+    hashAppliedRef.current = true;
+    const valid = new Set(navItemsForRole(currentUser.role).map(i => i.key));
+    const k = window.location.hash.replace(/^#\/?/, "");
+    if (valid.has(k)) setNav(k);
+  }, [currentUser]);
+
+  // Reset the once-per-login guard when the user signs out.
+  useEffect(() => { if (!currentUser) hashAppliedRef.current = false; }, [currentUser]);
+
+  // Respond to real hashchange events (browser back/forward, manual edits).
+  // Keyed on role (a string), so replacing the currentUser object does not
+  // re-attach the listener or trigger navigation side effects.
+  useEffect(() => {
+    const role = currentUser?.role;
+    if (!role) return;
+    const valid = new Set(navItemsForRole(role).map(i => i.key));
+    const onHashChange = () => {
       const k = window.location.hash.replace(/^#\/?/, "");
       if (valid.has(k)) { setNav(k); setViewEmployee(null); setShowNotif(false); }
     };
-    applyHash();
-    window.addEventListener("hashchange", applyHash);
-    return () => window.removeEventListener("hashchange", applyHash);
-  }, [currentUser]);
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
+  }, [currentUser?.role]);
 
   useEffect(() => {
     if (!currentUser) return;
@@ -358,6 +388,13 @@ function App() {
     if (error) return false;
     const upd = await supa.auth.updateUser({ password: newPw });
     if (upd.error) { console.error(upd.error); return false; }
+    // Persist the cleared flag directly. The re-auth above fires an auth event
+    // that refetches employees; relying on the debounced upsert would lose the
+    // race (the refetch resets the diff baseline before it runs). The ref makes
+    // the concurrent refetch preserve the cleared value too.
+    pwClearedRef.current = true;
+    const dbw = await supa.from("employees").update({ initial_password: false }).eq("id", currentUser.id);
+    if (dbw.error) console.error("[pw] clear initial flag:", dbw.error);
     setEmployees(p => p.map(e => e.id === currentUser.id ? { ...e, initialPassword: false } : e));
     setCurrentUser(p => ({ ...p, initialPassword: false }));
     setNav("dashboard");
@@ -489,7 +526,12 @@ function App() {
     const lrMsg = `New leave: ${currentUser.name} - ${form.type} (${form.days}d)`;
     // Team leads review employee requests; a team lead's own request goes
     // straight to the managers.
-    const recipients = newRequestRecipients(currentUser.role, employees);
+    let recipients = newRequestRecipients(currentUser.role, employees);
+    // Fallback: if the intended approver role has no members, notify any staff
+    // so a request is never silently lost.
+    if (!recipients.length) {
+      recipients = employees.filter(e => e.role === "teamlead" || e.role === "manager").map(e => e.id);
+    }
     if (recipients.length) {
       const date = new Date().toISOString();
       setNotifications(p => [
@@ -497,26 +539,30 @@ function App() {
         ...p,
       ]);
       recipients.forEach(rid => sendPush(rid, "New Leave Request", lrMsg, "/"));
+    } else {
+      console.warn("[leave] no teamlead/manager to notify for request", id);
+      setSyncError("Leave submitted, but no approver is configured to be notified.");
     }
   }, [currentUser, nextLrId, employees]);
 
   const leaveAction = useCallback((rid, action, comment) => {
     const managerIds = employees.filter(e => e.role === "manager").map(e => e.id);
-    setLeaveRequests(prev => prev.map(r => {
-      if (r.id !== rid) return r;
-      const now = new Date().toISOString();
-      const res = applyLeaveAction(r, currentUser, action, comment, now, managerIds);
-      if (!res) return r;
-      if (res.notifs.length) {
-        setNotifications(p => [
-          ...res.notifs.map(n => ({ id: nfId(), ...n, read:false, date:now })),
-          ...p,
-        ]);
-      }
-      res.pushes.forEach(pu => sendPush(pu.to, pu.title, pu.body, "/"));
-      return res.updated;
-    }));
-  }, [currentUser, employees]);
+    const req = leaveRequests.find(r => r.id === rid);
+    if (!req) return;
+    const now = new Date().toISOString();
+    const res = applyLeaveAction(req, currentUser, action, comment, now, managerIds);
+    if (!res) return;
+    // Pure state update — side effects (notifs/pushes) run once, outside the
+    // updater, so a replayed render can't duplicate them.
+    setLeaveRequests(prev => prev.map(r => r.id === rid ? res.updated : r));
+    if (res.notifs.length) {
+      setNotifications(p => [
+        ...res.notifs.map(n => ({ id: nfId(), ...n, read:false, date:now })),
+        ...p,
+      ]);
+    }
+    res.pushes.forEach(pu => sendPush(pu.to, pu.title, pu.body, "/"));
+  }, [currentUser, employees, leaveRequests]);
 
   const editRoster = useCallback((eid, mk, day, newCode) => {
     setEmployees(prev => prev.map(e => {
@@ -597,7 +643,7 @@ function App() {
   const iMgr = currentUser.role === "manager";
   const isTL = currentUser.role === "teamlead";
   // Manager doesn't see the raw Working Hours roster — that's a TL concern.
-  const ni = iMgr ? NM.filter(n => n.key !== "attendance") : iM ? NM : NE;
+  const ni = navItemsForRole(currentUser.role);
 
   // Save an employee's rating (TL or MGR); salary tier editable by MGR only
   const saveRating = (empId, patch) => {
@@ -615,6 +661,12 @@ function App() {
     : currentUser.role === "teamlead"
       ? { l:"Team Leader", c:theme.yl }
       : { l:"Manager", c:theme.pu };
+
+  // Force a password change on first login before anything else is reachable.
+  // Enforced at render (not by scattered nav checks) so no route bypasses it.
+  if (currentUser.initialPassword) {
+    return <ChPw onCh={changePassword} forced={true} onOut={logout} />;
+  }
 
   if (nav === "changepw") {
     return <ChPw onCh={changePassword} forced={currentUser.initialPassword} onOut={logout} />;

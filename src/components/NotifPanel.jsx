@@ -23,7 +23,19 @@ export function NotifPanel({ notifs, onMarkRead, onMarkAll, onGoTo, currentUser 
         const res = await subscribePush(currentUser.id);
         if (!res.ok) console.warn("[push] subscribe:", res.reason);
       }
-      new Notification("ADB Portal", { body: "Push notifications enabled ✅", icon: "/icon-192.png" });
+      // Show the confirmation via the service worker. The page-context
+      // `new Notification()` constructor throws "Illegal constructor" on Android
+      // Chrome (the main PWA target), so prefer registration.showNotification.
+      try {
+        const reg = await navigator.serviceWorker?.getRegistration();
+        if (reg?.showNotification) {
+          await reg.showNotification("ADB Portal", { body: "Push notifications enabled ✅", icon: "/icon-192.png" });
+        } else if ("Notification" in window) {
+          new Notification("ADB Portal", { body: "Push notifications enabled ✅", icon: "/icon-192.png" });
+        }
+      } catch (e) {
+        console.warn("[notif] confirmation toast:", e);
+      }
     }
   };
   const iconFor = (tp) => tp === "approved" ? "✅"

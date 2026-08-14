@@ -1,4 +1,5 @@
 import { STATUS_COLORS, STATUS_LABELS, MONTHS, theme } from "../constants.js";
+import { countsAsOnLeave } from "../leaveWorkflow.js";
 import { Bd, Sec, Empty } from "../uiPrimitives.jsx";
 
 const { useState } = React;
@@ -30,7 +31,7 @@ export function LeaveCalendar({ leaveRequests }) {
     if (!day) return [];
     const dStr = `${year}-${String(selectedMonth+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
     return leaveRequests.filter(r => {
-      if (r.status === "rejected") return false;
+      if (!countsAsOnLeave(r.status)) return false;
       return dStr >= r.startDate && dStr <= r.endDate;
     });
   };
