@@ -158,6 +158,11 @@ or new project starts without them.
   and the Edge Function environment. It must never appear in this repository,
   in the bundle, or in a browser. If one leaks, rotate it in Project Settings →
   API immediately — every RLS policy in this document is void while it is out.
+- The same applies to the newer **secret key** (`sb_secret_...`, env var
+  `SUPABASE_SECRET_KEY`), which replaces the service role key under the new
+  API-key naming. Edge Functions never read it directly: `@supabase/server`
+  resolves the platform-injected value and exposes it only as the
+  `supabaseAdmin` client after the caller's JWT has been verified.
 
 ---
 

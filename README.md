@@ -37,7 +37,16 @@ sw.js                 service worker (network-first for HTML/JS, cache-first for
 build.js              cross-platform build script (used by `npm run build`)
 icon-*.png            PWA icons (generated from PHOTO-2026-04-27-21-41-51.jpg.jpeg)
 supabase_*.sql        database migrations (apply in numerical / dependency order)
+supabase/functions/   Edge Functions (send-push), built on @supabase/server
+.env.example          server-side Supabase env vars (auto-injected on Edge Functions)
 ```
+
+Edge Functions authenticate callers with
+[`@supabase/server`](https://github.com/supabase/server): `withSupabase({ auth: "user" })`
+verifies the caller's JWT and provides the admin (secret-key) client, so the
+functions never read `SUPABASE_SERVICE_ROLE_KEY` themselves. On the Supabase
+platform every variable in `.env.example` is injected automatically; copy that
+file to `.env` only when running server code in another runtime.
 
 ## Database migrations (apply in this order on a fresh Supabase project)
 
