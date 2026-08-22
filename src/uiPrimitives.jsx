@@ -85,7 +85,7 @@ export const SC2 = ({ label, value, color, icon, sub }) => (
       <GlyphIcon glyph={icon} size={64} strokeWidth={1.2} />
     </div>
     <div style={{ fontSize:13, color:theme.td, marginBottom:6, fontWeight:500 }}>{label}</div>
-    <div style={{ fontSize:28, fontWeight:800, color }}>{value}</div>
+    <div className="type-display" style={{ fontSize:26, fontWeight:700, color }}>{value}</div>
     {sub && <div style={{ fontSize:11, color:theme.td, marginTop:4 }}>{sub}</div>}
   </div>
 );

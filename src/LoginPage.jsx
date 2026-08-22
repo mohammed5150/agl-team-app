@@ -122,6 +122,10 @@ export function LoginPage({
         position:"absolute", inset:0,
         background:"radial-gradient(ellipse at 20% 50%,rgba(21,66,95,0.3) 0%,transparent 60%),radial-gradient(ellipse at 80% 20%,rgba(232,112,42,0.1) 0%,transparent 50%)"
       }}/>
+      <div className="runway" aria-hidden="true">
+        <div className="runway-plane" />
+        <div className="runway-threshold" />
+      </div>
       <div style={{ width:"100%", maxWidth:400, padding:20, position:"relative", zIndex:1 }}>
         <div style={{ textAlign:"center", marginBottom:32 }}>
           <div style={{ margin:"0 auto 16px", display:"flex", justifyContent:"center" }}>

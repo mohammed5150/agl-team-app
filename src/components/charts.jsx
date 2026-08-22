@@ -20,7 +20,7 @@ export const Ring = ({ value, size=120, stroke=10, color="#0b1a2b", track="rgba(
       </svg>
       <div style={{ position:"absolute", inset:0, display:"flex", flexDirection:"column",
         alignItems:"center", justifyContent:"center" }}>
-        <div style={{ fontSize:28, fontWeight:800, color:INK, lineHeight:1 }}>{label}</div>
+        <div className="type-display" style={{ fontSize:28, fontWeight:700, color:INK, lineHeight:1 }}>{label}</div>
         {sub && <div style={{ fontSize:10, fontWeight:700, color:INK, opacity:0.7, marginTop:2, letterSpacing:0.4 }}>{sub}</div>}
       </div>
     </div>
@@ -56,7 +56,7 @@ export const Tile = ({ bg, label, value, sub, dark=false, children, onClick }) =
       <div style={{ fontSize:11, fontWeight:700, letterSpacing:1, opacity:0.75, textTransform:"uppercase" }}>{label}</div>
       {children ? children : (
         <div>
-          <div style={{ fontSize:34, fontWeight:800, lineHeight:1 }}>{value}</div>
+          <div className="type-display" style={{ fontSize:32, fontWeight:700, lineHeight:1 }}>{value}</div>
           {sub && <div style={{ fontSize:11, opacity:0.7, marginTop:4 }}>{sub}</div>}
         </div>
       )}
