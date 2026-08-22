@@ -21,6 +21,8 @@
 // own nav key ('leave', 'approvals'), never a URL, because the hash carries
 // employee ids.
 
+import { errorAlert } from "./slackEvents.js";
+
 const MAX_QUEUE = 20;
 const APP_VERSION = typeof __APP_VERSION__ !== "undefined" ? __APP_VERSION__ : "dev";
 
@@ -117,9 +119,8 @@ export function reportError(report) {
     // "alerts" channel (see supabase/functions/notify-slack) so it doesn't mix
     // with leave/overtime chatter. Deliberately no email/emp_id in the text —
     // the reporter's identity is stamped server-side, never client-supplied.
-    const routePrefix = currentRoute ? `${currentRoute}: ` : "";
     const sp = client.functions?.invoke?.("notify-slack", {
-      body: { channel: "alerts", text: `🚨 [${kind}] ${routePrefix}${message}` },
+      body: { channel: "alerts", text: errorAlert(kind, currentRoute, message) },
     });
     if (sp && typeof sp.then === "function") sp.catch(() => {});
   } catch (e) {
