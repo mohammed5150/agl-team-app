@@ -31,7 +31,7 @@ it was their phone.
 three things:
 
 1. `GET /` returns 200 **and the page actually contains the app shell** — a
-   Netlify error page also returns 200, and would otherwise read as healthy.
+   host error page also returns 200, and would otherwise read as healthy.
 2. `GET /app.js` returns 200 — without it the page loads blank.
 3. `GET <supabase>/rest/v1/` answers. A **401 is a healthy response**: it means
    PostgREST is up and rejecting properly. A paused project gives 503 or

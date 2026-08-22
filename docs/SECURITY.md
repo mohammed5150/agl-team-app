@@ -163,7 +163,7 @@ or new project starts without them.
 
 ## 7. Browser-side controls
 
-- **CSP** — declared in both `index.html` (meta) and `netlify.toml` (header).
+- **CSP** — declared in both `index.html` (meta) and `_headers` (header).
   `frame-ancestors` only works as a header; the meta tag is ignored for it, so
   both exist and `tests/securityHeaders.test.js` fails the suite if they
   disagree on a shared directive.
@@ -174,7 +174,7 @@ or new project starts without them.
 - No CDN: React, ReactDOM and supabase-js are vendored with versions pinned by
   `package-lock.json`, so a compromised CDN cannot serve script into the page.
 - HSTS, `X-Content-Type-Options`, `Referrer-Policy` and `Permissions-Policy`
-  are set in `netlify.toml`.
+  are set in `_headers`.
 
 ---
 

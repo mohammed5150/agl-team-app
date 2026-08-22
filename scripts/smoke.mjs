@@ -107,13 +107,13 @@ try {
 // Static server, serving the REAL production headers
 // ---------------------------------------------------------------------------
 
-// Read the CSP out of netlify.toml rather than restating it, so the smoke test
+// Read the CSP out of _headers rather than restating it, so the smoke test
 // exercises whatever policy is actually deployed. A policy tightened into
 // blocking the app's own scripts should fail here, not in front of the team.
 // (Only for the local server — a deployed site sends its own.)
-const CSP = TARGET_URL ? null : (fs.readFileSync(path.join(ROOT, "netlify.toml"), "utf8")
-  .match(/^\s*Content-Security-Policy\s*=\s*"([^"]*)"/m) || [])[1];
-if (!TARGET_URL && !CSP) fail("could not read Content-Security-Policy out of netlify.toml");
+const CSP = TARGET_URL ? null : ((fs.readFileSync(path.join(ROOT, "_headers"), "utf8")
+  .match(/^\s+Content-Security-Policy:\s*(.*)$/m) || [])[1] || "").trim() || null;
+if (!TARGET_URL && !CSP) fail("could not read Content-Security-Policy out of _headers");
 
 const MIME = {
   ".html": "text/html", ".js": "text/javascript", ".json": "application/json",

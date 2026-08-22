@@ -1,4 +1,4 @@
-// Single-step build for Netlify or local dev.
+// Single-step build for Cloudflare Pages, Netlify, or local dev.
 // Bundles app.jsx -> dist/app.js, copies static assets to dist/.
 // Cross-platform (works on Windows local + Linux CI).
 
@@ -10,6 +10,9 @@ const ROOT = __dirname;
 const DIST = path.join(ROOT, "dist");
 
 const STATIC_ASSETS = [
+  // Security headers — Cloudflare Pages and Netlify both read _headers from
+  // the publish directory, so it must ship inside dist/ to take effect.
+  "_headers",
   "index.html",
   "manifest.json",
   "sw.js",
@@ -32,10 +35,11 @@ const showDemoLogin =
 // gate either way. scripts/verify-dist.js fails the build if an address leaks.
 const embedTeamDirectory = showDemoLogin;
 
-// Build identifier carried into error reports. Netlify exposes COMMIT_REF;
-// locally, fall back to the short git SHA, then to "dev".
+// Build identifier carried into error reports. Cloudflare Pages exposes
+// CF_PAGES_COMMIT_SHA and Netlify exposes COMMIT_REF; locally, fall back to
+// the short git SHA, then to "dev".
 const appVersion = (() => {
-  const fromEnv = process.env.COMMIT_REF || process.env.GITHUB_SHA;
+  const fromEnv = process.env.CF_PAGES_COMMIT_SHA || process.env.COMMIT_REF || process.env.GITHUB_SHA;
   if (fromEnv) return fromEnv.slice(0, 8);
   try {
     return require("child_process")
@@ -83,7 +87,7 @@ esb.buildSync({
     __SHOW_DEMO__:             JSON.stringify(!!showDemoLogin),
     __EMBED_TEAM_DIRECTORY__:  JSON.stringify(!!embedTeamDirectory),
     // Stamped into every error report, so a fault can be tied to the build it
-    // came from. Netlify sets COMMIT_REF; falls back to the local git SHA.
+    // came from. See appVersion above for the env vars each host sets.
     __APP_VERSION__:           JSON.stringify(appVersion),
   },
 });
