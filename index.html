@@ -60,6 +60,12 @@ button:not(:disabled){min-height:44px}
 button{transition:opacity 0.15s,transform 0.1s}
 button:hover{opacity:0.9}
 button:active{transform:scale(0.98)}
+/* Hover affordance for clickable rows/tiles (sidebar items, list rows).
+   Kept as a class because inline styles can't express :hover; rows that set
+   an inline background (e.g. the active nav item) win over this, which is
+   the intended precedence. */
+.row-hover{transition:background 0.15s}
+.row-hover:hover{background:rgba(255,255,255,0.06)}
 .fade-in{animation:fi .2s ease-out}
 @keyframes fi{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
 .modal-bg{animation:mb .2s ease-out}

@@ -6,6 +6,7 @@ import { SECTIONS, STATUS_COLORS, STATUS_LABELS, ANN_PRIORITIES, theme } from ".
 import { Bd, Bt, Sec, Empty } from "../uiPrimitives.jsx";
 import { PASTEL, INK, Ring, Tile } from "./charts.jsx";
 import { WeatherCard } from "./WeatherCard.jsx";
+import { GlyphIcon } from "../icons.jsx";
 
 export function MDash({ user, employees, leaveRequests, announcements, pc, onGoTo }) {
   const h = new Date().getHours();
@@ -71,7 +72,7 @@ export function MDash({ user, employees, leaveRequests, announcements, pc, onGoT
             padding:"14px 16px", marginBottom:16, cursor:"pointer"
           }}>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:8, marginBottom:4 }}>
-              <div style={{ fontSize:13, fontWeight:800, color:theme.tx }}>📌 {a.title}</div>
+              <div style={{ fontSize:13, fontWeight:800, color:theme.tx }}><span style={{ display:"inline-flex", verticalAlign:"-2px", marginRight:6, color:theme.ol }}><GlyphIcon glyph="bookmark" size={13} /></span>{a.title}</div>
               <Bd text={pr.label.toUpperCase()} color={pr.color} />
             </div>
             <div style={{ fontSize:12, color:theme.ts }}>
@@ -82,7 +83,7 @@ export function MDash({ user, employees, leaveRequests, announcements, pc, onGoT
       })}
 
       {/* Hero: Team on duty ring */}
-      <div style={{ background:PASTEL.coral, borderRadius:24, padding:20, marginBottom:14,
+      <div style={{ background:PASTEL.coral, borderRadius:theme.r.hero, padding:20, marginBottom:14,
         display:"flex", alignItems:"center", gap:20, flexWrap:"wrap" }}>
         <div style={{ flex:1, minWidth:160 }}>
           <div style={{ fontSize:11, fontWeight:700, color:INK, opacity:0.75, letterSpacing:1 }}>TEAM TODAY</div>

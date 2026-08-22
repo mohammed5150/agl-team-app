@@ -1,29 +1,29 @@
 export const NE = [
-  { key:"dashboard", label:"Dashboard", icon:"📊" },
-  { key:"profile", label:"My Profile", icon:"👤" },
-  { key:"leave", label:"Leave", icon:"📅" },
-  { key:"overtime", label:"Overtime", icon:"⏰" },
-  { key:"attendance", label:"My Attendance", icon:"✅" },
-  { key:"training", label:"Training", icon:"🎓" },
-  { key:"documents", label:"My Documents", icon:"📁" },
-  { key:"announcements", label:"Announcements", icon:"📢" },
-  { key:"changepw", label:"Settings", icon:"⚙️" }
+  { key:"dashboard", label:"Dashboard", icon:"bar-chart" },
+  { key:"profile", label:"My Profile", icon:"user" },
+  { key:"leave", label:"Leave", icon:"calendar" },
+  { key:"overtime", label:"Overtime", icon:"clock" },
+  { key:"attendance", label:"My Attendance", icon:"check-square" },
+  { key:"training", label:"Training", icon:"grad-cap" },
+  { key:"documents", label:"My Documents", icon:"folder" },
+  { key:"announcements", label:"Announcements", icon:"megaphone" },
+  { key:"changepw", label:"Settings", icon:"gear" }
 ];
 
 export const NM = [
-  { key:"dashboard", label:"Dashboard", icon:"📊" },
-  { key:"team", label:"Employees", icon:"👥" },
-  { key:"performance", label:"Performance", icon:"🏆" },
-  { key:"approvals", label:"Approvals", icon:"🔔" },
-  { key:"attendance", label:"Working Hours", icon:"⏱️" },
-  { key:"leave", label:"Leave Requests", icon:"📅" },
-  { key:"overtime", label:"Overtime", icon:"⏰" },
-  { key:"calendar", label:"Leave Calendar", icon:"🗓️" },
-  { key:"training", label:"Training", icon:"🎓" },
-  { key:"documents", label:"Documents", icon:"📁" },
-  { key:"announcements", label:"Announcements", icon:"📢" },
-  { key:"audit", label:"Audit Trail", icon:"🧾" },
-  { key:"changepw", label:"Settings", icon:"⚙️" }
+  { key:"dashboard", label:"Dashboard", icon:"bar-chart" },
+  { key:"team", label:"Employees", icon:"users" },
+  { key:"performance", label:"Performance", icon:"award" },
+  { key:"approvals", label:"Approvals", icon:"bell" },
+  { key:"attendance", label:"Working Hours", icon:"stopwatch" },
+  { key:"leave", label:"Leave Requests", icon:"calendar" },
+  { key:"overtime", label:"Overtime", icon:"clock" },
+  { key:"calendar", label:"Leave Calendar", icon:"calendar-days" },
+  { key:"training", label:"Training", icon:"grad-cap" },
+  { key:"documents", label:"Documents", icon:"folder" },
+  { key:"announcements", label:"Announcements", icon:"megaphone" },
+  { key:"audit", label:"Audit Trail", icon:"list" },
+  { key:"changepw", label:"Settings", icon:"gear" }
 ];
 
 // Single source of truth for which nav items a role sees. Managers don't see

@@ -1,5 +1,6 @@
 import { theme } from "./constants.js";
 import { Logo, ib } from "./uiPrimitives.jsx";
+import { GlyphIcon } from "./icons.jsx";
 import { POLICY_SUMMARY } from "./passwordPolicy.js";
 
 const { useId, useState } = React;
@@ -98,6 +99,10 @@ export function LoginPage({
   const emailId = useId();
   const passwordId = useId();
   const [mode, setMode] = useState("signin"); // "signin" | "forgot"
+  const [showPassword, setShowPassword] = useState(false);
+  // The password-rules paragraph only matters once someone is choosing a
+  // password; revealing it on focus keeps the resting screen quiet.
+  const [passwordTouched, setPasswordTouched] = useState(false);
   // __SHOW_DEMO__ is a compile-time define (build.js / npm run dev). Using it
   // directly (not via a variable) lets esbuild fold the condition and strip
   // every demo credential string out of production bundles entirely.
@@ -106,9 +111,9 @@ export function LoginPage({
   // account, including these, sets its own via Supabase Auth. Compiled out of
   // production builds by the __SHOW_DEMO__ define (build.js).
   const demoAccounts = (typeof __SHOW_DEMO__ !== "undefined" ? __SHOW_DEMO__ : true) ? [
-    { id:"amarnath.munderi@adbsafegate.com", l:"Employee (Amarnath)", i:"👷" },
-    { id:"mohammed.faheem@adbsafegate.com", l:"Team Leader (Faheem)", i:"👨‍💼" },
-    { id:"ragesh.menon@adbsafegate.com", l:"Manager (Ragesh)", i:"👔" }
+    { id:"amarnath.munderi@adbsafegate.com", l:"Employee (Amarnath)", i:"hard-hat" },
+    { id:"mohammed.faheem@adbsafegate.com", l:"Team Leader (Faheem)", i:"users" },
+    { id:"ragesh.menon@adbsafegate.com", l:"Manager (Ragesh)", i:"briefcase" }
   ] : [];
 
   return (
@@ -167,16 +172,32 @@ export function LoginPage({
             </div>
             <div style={{ marginBottom:22 }}>
               <label htmlFor={passwordId} style={{ display:"block", color:theme.td, fontSize:10, fontWeight:700, marginBottom:5, letterSpacing:1 }}>PASSWORD</label>
-              <input
-                id={passwordId}
-                name="password"
-                type="password"
-                autoComplete="current-password"
-                value={loginPassword}
-                onChange={e => setLoginPassword(e.target.value)}
-                placeholder="Enter password"
-                style={ib}
-              />
+              <div style={{ position:"relative" }}>
+                <input
+                  id={passwordId}
+                  name="password"
+                  type={showPassword ? "text" : "password"}
+                  autoComplete="current-password"
+                  value={loginPassword}
+                  onChange={e => setLoginPassword(e.target.value)}
+                  onFocus={() => setPasswordTouched(true)}
+                  placeholder="Enter password"
+                  style={{ ...ib, paddingRight:46 }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(v => !v)}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  aria-pressed={showPassword}
+                  style={{
+                    position:"absolute", right:4, top:"50%", transform:"translateY(-50%)",
+                    background:"none", border:"none", cursor:"pointer", padding:"0 10px",
+                    color:theme.ts, display:"inline-flex", alignItems:"center"
+                  }}
+                >
+                  <GlyphIcon glyph={showPassword ? "eye-off" : "eye"} size={18} />
+                </button>
+              </div>
             </div>
             <button
               type="submit"
@@ -202,7 +223,7 @@ export function LoginPage({
           <div style={{ textAlign:"center", marginTop:8, fontSize:11, color:theme.td, lineHeight:1.6 }}>
             Sign in with your Team Mail ID. First time here? Enter your team email
             and choose your own password — it becomes your permanent password.
-            <div style={{ marginTop:6, color:theme.td, opacity:0.85 }}>{POLICY_SUMMARY}</div>
+            {passwordTouched && <div className="fade-in" style={{ marginTop:6, color:theme.td }}>{POLICY_SUMMARY}</div>}
           </div>
           </>
           )}
@@ -212,14 +233,18 @@ export function LoginPage({
           marginTop:18, background:"rgba(17,31,48,0.6)", borderRadius:12,
           padding:14, border:`1px solid ${theme.bd}`
         }}>
-          <p style={{ color:theme.td, fontSize:10, fontWeight:700, letterSpacing:1, marginBottom:8 }}>👤 DEV: PREFILL EMAIL</p>
+          <p style={{ color:theme.td, fontSize:10, fontWeight:700, letterSpacing:1, marginBottom:8, display:"flex", alignItems:"center", gap:6 }}>
+            <GlyphIcon glyph="user" size={12} /> DEV: PREFILL EMAIL
+          </p>
           {demoAccounts.map(a => (
-            <div key={a.id} onClick={() => setLoginId(a.id)} style={{
-              display:"flex", justifyContent:"space-between", padding:"7px 8px",
-              borderRadius:8, cursor:"pointer", fontSize:12
+            <div key={a.id} className="row-hover" onClick={() => setLoginId(a.id)} style={{
+              display:"flex", justifyContent:"space-between", alignItems:"center", gap:8,
+              padding:"7px 8px", borderRadius:8, cursor:"pointer", fontSize:12
             }}>
-              <span style={{ color:theme.ts }}>{a.i} {a.l}</span>
-              <span style={{ color:theme.or, fontFamily:"monospace", fontSize:9 }}>{a.id}</span>
+              <span style={{ color:theme.ts, display:"inline-flex", alignItems:"center", gap:7 }}>
+                <GlyphIcon glyph={a.i} size={14} /> {a.l}
+              </span>
+              <span style={{ color:theme.ol, fontFamily:"monospace", fontSize:10 }}>{a.id}</span>
             </div>
           ))}
         </div>

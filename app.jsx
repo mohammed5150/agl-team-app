@@ -18,6 +18,7 @@ import { classifyPortalLoad, degradedMessage, mergeRoster, LOAD_FAILED_MESSAGE }
 import { installErrorReporting, setRoute, reportError } from "./src/errorReporter.js";
 import { supa, subscribePush, unsubscribePush, sendPush, diffFieldsById, empToDb, empFromDb, lrToDb, lrFromDb, otToDb, otFromDb, annToDb, annFromDb, nfToDb, nfFromDb, diffById, pushSupported } from "./src/supabasePortal.js";
 import { Logo, Bd, Bt } from "./src/uiPrimitives.jsx";
+import { GlyphIcon } from "./src/icons.jsx";
 import { LoginPage } from "./src/LoginPage.jsx";
 import { ErrorBoundary } from "./src/ErrorBoundary.jsx";
 import { AnnPg } from "./src/components/AnnouncementsPage.jsx";
@@ -40,6 +41,23 @@ import { MyTr, TrMgmt } from "./src/components/TrainingPage.jsx";
 
 const { useState, useCallback, useEffect, useRef } = React;
 
+// True below 768px. The desktop shell is a fixed sidebar; on a phone that
+// sidebar covered ~60% of the viewport, so the phone layout swaps it for a
+// bottom tab bar (thumb-reachable, standard PWA pattern).
+const MOBILE_QUERY = "(max-width: 767px)";
+function useIsMobile() {
+  const [mobile, setMobile] = useState(
+    () => typeof window !== "undefined" && window.matchMedia(MOBILE_QUERY).matches
+  );
+  useEffect(() => {
+    const mq = window.matchMedia(MOBILE_QUERY);
+    const onChange = e => setMobile(e.matches);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
+  return mobile;
+}
+
 function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [loginId, setLoginId] = useState("");
@@ -48,6 +66,8 @@ function App() {
   const [loginSubmitting, setLoginSubmitting] = useState(false);
   const [nav, setNav] = useState("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const isMobile = useIsMobile();
   const [employees, setEmployees] = useState(INITIAL_EMPLOYEES);
   const [viewEmployee, setViewEmployee] = useState(null);
   const [leaveRequests, setLeaveRequests] = useState(INITIAL_LEAVE_REQUESTS);
@@ -1278,7 +1298,8 @@ function App() {
 
   return (
     <div style={{ display:"flex", minHeight:"100vh", background:theme.bg }}>
-      {/* SIDEBAR */}
+      {/* SIDEBAR (desktop only; phones get the bottom tab bar) */}
+      {!isMobile && (
       <nav aria-label="Main navigation" style={{
         width: sidebarOpen ? 230 : 56, transition:"width 0.3s",
         background:"rgba(13,31,48,0.95)", borderRight:`1px solid ${theme.bd}`,
@@ -1303,16 +1324,16 @@ function App() {
             const isA = nav === it.key;
             const bd2 = it.key === "approvals" && pc > 0;
             return (
-              <div key={it.key} onClick={() => { setNav(it.key); setViewEmployee(null); setShowNotif(false); }}
+              <div key={it.key} className="row-hover" onClick={() => { setNav(it.key); setViewEmployee(null); setShowNotif(false); }}
                 style={{
                   display:"flex", alignItems:"center", gap:8,
                   padding: sidebarOpen ? "9px 12px" : "9px 0",
                   justifyContent: sidebarOpen ? "flex-start" : "center",
                   borderRadius:10, marginBottom:2, cursor:"pointer",
-                  background: isA ? "rgba(232,112,42,0.12)" : "transparent",
+                  background: isA ? "rgba(232,112,42,0.12)" : undefined,
                   color: isA ? theme.or : theme.td, fontSize:13, position:"relative"
                 }}>
-                <span style={{ fontSize:16 }}>{it.icon}</span>
+                <GlyphIcon glyph={it.icon} size={17} />
                 {sidebarOpen && <span style={{ fontWeight: isA ? 700 : 400, fontSize:12 }}>{it.label}</span>}
                 {bd2 && <span style={{
                   position:"absolute", top:3, right: sidebarOpen ? 8 : 0,
@@ -1342,6 +1363,7 @@ function App() {
           )}
         </div>
       </nav>
+      )}
 
       {/* MAIN */}
       <main style={{ flex:1, display:"flex", flexDirection:"column", minWidth:0 }}>
@@ -1352,16 +1374,20 @@ function App() {
           position:"sticky", top:0, zIndex:10
         }}>
           <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-            <button onClick={() => setSidebarOpen(!sidebarOpen)} style={{
-              background:"none", border:"none", color:theme.td, cursor:"pointer", fontSize:18
-            }}>☰</button>
+            {!isMobile && (
+              <button onClick={() => setSidebarOpen(!sidebarOpen)} aria-label="Toggle sidebar" style={{
+                background:"none", border:"none", color:theme.ts, cursor:"pointer",
+                display:"inline-flex", alignItems:"center"
+              }}><GlyphIcon glyph="menu" size={20} /></button>
+            )}
             <h1 style={{ color:theme.tx, fontSize:16, fontWeight:700, margin:0 }}>
               {viewEmployee ? viewEmployee.name : (ni.find(n => n.key === nav)?.label || "")}
             </h1>
           </div>
           <div style={{ display:"flex", alignItems:"center", gap:10, position:"relative" }}>
-            <div onClick={() => setShowNotif(!showNotif)} style={{ position:"relative", cursor:"pointer", padding:4 }}>
-              <span style={{ fontSize:18 }}>🔔</span>
+            <div onClick={() => setShowNotif(!showNotif)} className="row-hover" role="button" aria-label="Notifications"
+              style={{ position:"relative", cursor:"pointer", padding:6, borderRadius:8, display:"inline-flex", color:theme.ts }}>
+              <GlyphIcon glyph="bell" size={20} />
               {mn.length > 0 && (
                 <span style={{
                   position:"absolute", top:-2, right:-4, width:16, height:16, borderRadius:"50%",
@@ -1388,7 +1414,7 @@ function App() {
         </div>
 
         <div style={{
-          flex:1, padding:20, overflowY:"auto",
+          flex:1, padding: isMobile ? "16px 14px 90px" : 20, overflowY:"auto",
           background:"radial-gradient(ellipse at 50% 0%,rgba(21,66,95,0.08) 0%,transparent 50%)"
         }}>
           {viewEmployee ? (
@@ -1431,15 +1457,94 @@ function App() {
         </div>
       </main>
 
+      {/* MOBILE BOTTOM TAB BAR — the first four nav items for this role plus
+          a "More" sheet holding the rest. Replaces the sidebar under 768px. */}
+      {isMobile && (() => {
+        const tabs = ni.slice(0, 4);
+        const rest = ni.slice(4);
+        const restActive = rest.some(n => n.key === nav);
+        const go = key => { setNav(key); setViewEmployee(null); setShowNotif(false); setMoreOpen(false); };
+        const tabStyle = active => ({
+          flex:1, background:"none", border:"none", cursor:"pointer",
+          display:"flex", flexDirection:"column", alignItems:"center", gap:3,
+          padding:"9px 0 7px", color: active ? theme.ol : theme.td,
+          fontSize:10, fontWeight: active ? 700 : 500
+        });
+        return (
+          <>
+            <nav aria-label="Main navigation" style={{
+              position:"fixed", bottom:0, left:0, right:0, zIndex:90,
+              display:"flex", alignItems:"stretch",
+              background:"rgba(10,23,38,0.97)", backdropFilter:"blur(12px)",
+              borderTop:`1px solid ${theme.bl}`,
+              paddingBottom:"env(safe-area-inset-bottom)"
+            }}>
+              {tabs.map(it => (
+                <button key={it.key} onClick={() => go(it.key)} aria-current={nav === it.key ? "page" : undefined}
+                  style={tabStyle(nav === it.key)}>
+                  <span style={{ position:"relative", display:"inline-flex" }}>
+                    <GlyphIcon glyph={it.icon} size={20} />
+                    {it.key === "approvals" && pc > 0 && (
+                      <span style={{
+                        position:"absolute", top:-4, right:-8, minWidth:15, height:15, borderRadius:8,
+                        background:theme.rd, color:"#fff", fontSize:9, fontWeight:800, padding:"0 3px",
+                        display:"flex", alignItems:"center", justifyContent:"center"
+                      }}>{pc}</span>
+                    )}
+                  </span>
+                  {it.label}
+                </button>
+              ))}
+              {rest.length > 0 && (
+                <button onClick={() => setMoreOpen(true)} aria-expanded={moreOpen}
+                  style={tabStyle(restActive)}>
+                  <GlyphIcon glyph="more-horizontal" size={20} />
+                  More
+                </button>
+              )}
+            </nav>
+            {moreOpen && (
+              <div onClick={() => setMoreOpen(false)} className="modal-bg" style={{
+                position:"fixed", inset:0, background:"rgba(0,0,0,0.55)", zIndex:94
+              }}>
+                <div role="dialog" aria-label="More pages" onClick={e => e.stopPropagation()} style={{
+                  position:"fixed", bottom:0, left:0, right:0, zIndex:95,
+                  background:theme.cs, borderTop:`1px solid ${theme.bl}`,
+                  borderRadius:`${theme.r.panel}px ${theme.r.panel}px 0 0`,
+                  padding:"14px 14px calc(14px + env(safe-area-inset-bottom))",
+                  boxShadow:"0 -16px 60px rgba(0,0,0,0.5)"
+                }}>
+                  <div style={{ width:36, height:4, borderRadius:2, background:theme.bl, margin:"0 auto 14px" }} />
+                  <div style={{ display:"grid", gridTemplateColumns:"repeat(3, 1fr)", gap:8 }}>
+                    {rest.map(it => (
+                      <button key={it.key} onClick={() => go(it.key)} className="row-hover" style={{
+                        background: nav === it.key ? "rgba(232,112,42,0.12)" : "rgba(255,255,255,0.03)",
+                        border:`1px solid ${theme.bd}`, borderRadius:theme.r.ctl, cursor:"pointer",
+                        display:"flex", flexDirection:"column", alignItems:"center", gap:6,
+                        padding:"14px 4px", color: nav === it.key ? theme.ol : theme.ts,
+                        fontSize:11, fontWeight:600
+                      }}>
+                        <GlyphIcon glyph={it.icon} size={20} />
+                        {it.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </>
+        );
+      })()}
+
       {loadNotice && (
         <div role="status" aria-live="polite" style={{
-          position:"fixed", bottom:syncError ? 74 : 20, left:"50%", transform:"translateX(-50%)", zIndex:99,
+          position:"fixed", bottom:(syncError ? 74 : 20) + (isMobile ? 62 : 0), left:"50%", transform:"translateX(-50%)", zIndex:99,
           background:"rgba(10,25,40,0.96)", border:`1px solid ${theme.bl}`,
           color:theme.ts, padding:"10px 16px", borderRadius:12, fontSize:12,
           display:"flex", gap:10, alignItems:"center", maxWidth:"90vw",
           boxShadow:"0 8px 30px rgba(0,0,0,0.5)"
         }}>
-          ⚠️ {loadNotice}
+          <GlyphIcon glyph="alert-triangle" size={16} style={{ color:theme.yl }} /> {loadNotice}
           <button onClick={() => setLoadNotice("")} aria-label="Dismiss" style={{
             background:"none", border:"none", color:theme.ts, cursor:"pointer", fontSize:14, fontWeight:700
           }}>✕</button>
@@ -1448,12 +1553,12 @@ function App() {
 
       {syncError && (
         <div role="alert" style={{
-          position:"fixed", bottom:20, left:"50%", transform:"translateX(-50%)", zIndex:100,
+          position:"fixed", bottom:20 + (isMobile ? 62 : 0), left:"50%", transform:"translateX(-50%)", zIndex:100,
           background:"rgba(30,10,10,0.95)", border:"1px solid rgba(239,68,68,0.5)",
           color:"#fecaca", padding:"10px 16px", borderRadius:12, fontSize:12,
           display:"flex", gap:10, alignItems:"center", boxShadow:"0 8px 30px rgba(0,0,0,0.5)"
         }}>
-          ⚠️ {syncError} — your last change may not be saved. Check your connection.
+          <GlyphIcon glyph="alert-triangle" size={16} /> {syncError} — your last change may not be saved. Check your connection.
           <button onClick={() => setSyncError("")} aria-label="Dismiss" style={{
             background:"none", border:"none", color:"#fecaca", cursor:"pointer", fontSize:14, fontWeight:700
           }}>✕</button>

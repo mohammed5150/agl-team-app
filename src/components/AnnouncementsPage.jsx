@@ -1,6 +1,7 @@
 import { SECTIONS, ANN_PRIORITIES, theme } from "../constants.js";
 import { fmtDt } from "../helpers.js";
 import { ib, Bd, Bt, Sec, Modal, Empty } from "../uiPrimitives.jsx";
+import { GlyphIcon } from "../icons.jsx";
 
 const { useState } = React;
 
@@ -76,7 +77,7 @@ export function AnnPg({ user, announcements, onAdd, onDel }) {
               <input type="checkbox" checked={form.pinned}
                 onChange={e => setForm(p => ({ ...p, pinned:e.target.checked }))}
                 style={{ width:16, height:16, accentColor:theme.or }} />
-              📌 Pin to top (shows on dashboards)
+              Pin to top (shows on dashboards)
             </label>
           </div>
           <div style={{ display:"flex", gap:8 }}>
@@ -131,7 +132,7 @@ export const AnnCard = React.memo(function AnnCard({ a, canDel, onDel }) {
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:10, flexWrap:"wrap" }}>
         <div style={{ flex:1, minWidth:0 }}>
           <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
-            {a.pinned && <span style={{ fontSize:12 }}>📌</span>}
+            {a.pinned && <span style={{ color:theme.ol, display:"inline-flex" }}><GlyphIcon glyph="bookmark" size={12} /></span>}
             <div style={{ fontSize:14, fontWeight:700, color:theme.tx }}>{a.title}</div>
             <Bd text={pr.label.toUpperCase()} color={pr.color} />
           </div>

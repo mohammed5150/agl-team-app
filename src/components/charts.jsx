@@ -1,4 +1,6 @@
 
+import { theme } from "../constants.js";
+
 // Pastel palette for the new dashboard cards
 export const PASTEL = { coral:"#f5a99a", mint:"#a8e5c5", lilac:"#b9a8f2", butter:"#f5e892", sky:"#a8d4f5" };
 export const INK = "#0b1a2b";
@@ -33,7 +35,7 @@ export const Spark = ({ values, color=INK, height=50, active=-1 }) => {
       {values.map((v, i) => (
         <div key={i} style={{
           flex:1, height:`${Math.max(8, (v/max)*height)}px`,
-          background: i === active ? color : `${color}55`,
+          background: i === active ? color : `${color}80`,
           borderRadius:6,
         }} />
       ))}
@@ -46,7 +48,7 @@ export const Tile = ({ bg, label, value, sub, dark=false, children, onClick }) =
   const fg = dark ? "#f0f4f8" : INK;
   return (
     <div onClick={onClick} style={{
-      background: bg, borderRadius:22, padding:18,
+      background: bg, borderRadius:theme.r.hero, padding:18,
       minHeight:150, cursor: onClick ? "pointer" : "default",
       display:"flex", flexDirection:"column", justifyContent:"space-between",
       color: fg, boxShadow: dark ? "none" : "0 2px 20px rgba(0,0,0,0.12)"

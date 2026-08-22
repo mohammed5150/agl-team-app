@@ -1,4 +1,5 @@
 import { theme } from "./constants.js";
+import { GlyphIcon } from "./icons.jsx";
 
 const { useId, useRef, useEffect } = React;
 
@@ -18,7 +19,7 @@ export const Logo = ({ size=120, w=true }) => (
 // threshold that stops it; there is no way to opt out that also allows pinch
 // zoom, and the viewport meta here deliberately keeps pinch zoom enabled.
 export const ib = {
-  width:"100%", padding:"10px 14px", borderRadius:10,
+  width:"100%", padding:"10px 14px", borderRadius:theme.r.ctl,
   border:`1px solid ${theme.bl}`, background:"rgba(255,255,255,0.05)",
   color:theme.tx, fontSize:16, outline:"none", boxSizing:"border-box"
 };
@@ -58,7 +59,7 @@ export const Bt = ({ children, onClick, bg=theme.pl, color="#fff", outline=false
     // phone out on the airfield.
     minHeight:44,
     display:"inline-flex", alignItems:"center", justifyContent:"center",
-    borderRadius:10,
+    borderRadius:theme.r.ctl,
     border: outline ? `1px solid ${theme.bl}` : "none",
     background: disabled ? "rgba(255,255,255,0.05)" : (outline ? "transparent" : bg),
     color: disabled ? theme.td : (outline ? theme.ts : color),
@@ -70,11 +71,13 @@ export const Bt = ({ children, onClick, bg=theme.pl, color="#fff", outline=false
 
 export const SC2 = ({ label, value, color, icon, sub }) => (
   <div style={{
-    background:theme.card, borderRadius:14, padding:"18px 16px",
+    background:theme.card, borderRadius:theme.r.card, padding:"18px 16px",
     flex:"1 1 150px", border:`1px solid ${theme.bd}`, minWidth:140,
     position:"relative", overflow:"hidden"
   }}>
-    <div style={{ position:"absolute", top:-8, right:-8, fontSize:48, opacity:0.06 }}>{icon}</div>
+    <div style={{ position:"absolute", top:-8, right:-8, opacity:0.07, color:theme.tx }}>
+      <GlyphIcon glyph={icon} size={64} strokeWidth={1.2} />
+    </div>
     <div style={{ fontSize:13, color:theme.td, marginBottom:6, fontWeight:500 }}>{label}</div>
     <div style={{ fontSize:28, fontWeight:800, color }}>{value}</div>
     {sub && <div style={{ fontSize:11, color:theme.td, marginTop:4 }}>{sub}</div>}
@@ -82,10 +85,11 @@ export const SC2 = ({ label, value, color, icon, sub }) => (
 );
 
 export const Sec = ({ title, icon, children, action }) => (
-  <div style={{ background:theme.card, borderRadius:14, padding:22, marginBottom:18, border:`1px solid ${theme.bd}` }}>
+  <div style={{ background:theme.card, borderRadius:theme.r.card, padding:22, marginBottom:18, border:`1px solid ${theme.bd}` }}>
     <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16, flexWrap:"wrap", gap:8 }}>
       <h3 style={{ fontSize:15, fontWeight:700, color:theme.tx, display:"flex", alignItems:"center", gap:8, margin:0 }}>
-        {icon} {title}
+        {icon && <span style={{ color:theme.ol, display:"inline-flex" }}><GlyphIcon glyph={icon} size={17} /></span>}
+        {title}
       </h3>
       {action}
     </div>
@@ -139,7 +143,7 @@ export const Modal = ({ title, onClose, children, width=560 }) => {
         onClick={e=>e.stopPropagation()}
         className="modal-panel"
         style={{
-        background:theme.cs, borderRadius:16, padding:24, border:`1px solid ${theme.bl}`,
+        background:theme.cs, borderRadius:theme.r.panel, padding:24, border:`1px solid ${theme.bl}`,
         width:"100%", maxWidth:width, maxHeight:"90vh", overflowY:"auto",
         boxShadow:"0 24px 80px rgba(0,0,0,0.5)", outline:"none"
       }}>
@@ -156,9 +160,9 @@ export const Modal = ({ title, onClose, children, width=560 }) => {
   );
 };
 
-export const Empty = ({ icon="📭", text="No records yet" }) => (
+export const Empty = ({ icon="inbox", text="No records yet" }) => (
   <div style={{ textAlign:"center", padding:"30px 16px", color:theme.td }}>
-    <div style={{ fontSize:32, marginBottom:8, opacity:0.5 }}>{icon}</div>
+    <div style={{ marginBottom:8, opacity:0.6 }}><GlyphIcon glyph={icon} size={32} strokeWidth={1.4} /></div>
     <div style={{ fontSize:13 }}>{text}</div>
   </div>
 );

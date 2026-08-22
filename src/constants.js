@@ -59,8 +59,14 @@ export const theme = {
   bg:"#0b1a2b", card:"rgba(255,255,255,0.04)", cs:"#111f30",
   ch:"rgba(255,255,255,0.07)", bd:"rgba(255,255,255,0.08)", bl:"rgba(255,255,255,0.12)",
   pet:"#15425f", pl:"#1a5a80", or:"#e8702a", ol:"#f5923e", yl:"#f5a623",
-  tx:"#f0f4f8", ts:"#94a3b8", td:"#64748b",
+  // td is the dimmest text allowed on bg: #7c8ea6 is 5.2:1 on #0b1a2b, the
+  // AA floor with margin. The previous #64748b measured 3.7:1 and was used
+  // for 10px labels, exactly where contrast matters most.
+  tx:"#f0f4f8", ts:"#94a3b8", td:"#7c8ea6",
   gn:"#10b981", rd:"#ef4444", bu:"#38bdf8", pu:"#a78bfa", cy:"#22d3ee",
   gp:"linear-gradient(135deg,#15425f,#1a5a80)",
-  ga:"linear-gradient(135deg,#e8702a,#f5923e)"
+  ga:"linear-gradient(135deg,#e8702a,#f5923e)",
+  // Radius scale. ctl: inputs/buttons/chips; card: Sec/stat cards/panels;
+  // panel: modals and the login card; hero: the pastel dashboard tiles.
+  r:{ ctl:10, card:14, panel:18, hero:20 }
 };

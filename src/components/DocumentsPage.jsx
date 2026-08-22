@@ -1,6 +1,7 @@
 import { SECTIONS, DOC_TYPES, theme } from "../constants.js";
 import { certSt } from "../helpers.js";
 import { ib, Bd, Bt, SC2, Sec, Modal, Empty } from "../uiPrimitives.jsx";
+import { GlyphIcon } from "../icons.jsx";
 
 const { useState } = React;
 
@@ -103,7 +104,7 @@ export function MyDocs({ emp, onAdd, onDel }) {
                     borderLeft:`4px solid ${st.c}`
                   }}>
                     <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:10 }}>
-                      <div style={{ fontSize:24 }}>{typeInfo.icon}</div>
+                      <div style={{ color:theme.ol, display:"flex" }}><GlyphIcon glyph={typeInfo.icon} size={24} /></div>
                       <div style={{ flex:1, minWidth:0 }}>
                         <div style={{ fontSize:13, fontWeight:600, color:theme.tx }}>{d.title}</div>
                         <div style={{ fontSize:10, color:theme.td, textTransform:"uppercase", fontWeight:700 }}>{typeInfo.label}</div>
@@ -210,7 +211,7 @@ export function DocsMgmt({ employees, onSel }) {
                     <tr key={i} style={{ borderTop:`1px solid ${theme.bd}` }}>
                       <td style={{ padding:"10px 12px", color:theme.tx, fontWeight:500 }}>{c.empName}</td>
                       <td style={{ padding:"10px 12px" }}><Bd text={c.section} color={theme.bu} /></td>
-                      <td style={{ padding:"10px 12px", color:theme.tx }}>{ti.icon} {c.title}</td>
+                      <td style={{ padding:"10px 12px", color:theme.tx }}><span style={{ display:"inline-flex", alignItems:"center", gap:7 }}><span style={{ color:theme.ol, display:"inline-flex" }}><GlyphIcon glyph={ti.icon} size={14} /></span>{c.title}</span></td>
                       <td style={{ padding:"10px 12px", color:theme.bu, fontFamily:"monospace", fontSize:11 }}>{c.docNo}</td>
                       <td style={{ padding:"10px 12px", color:c.stc, fontWeight:600 }}>{c.expiryDate}</td>
                       <td style={{ padding:"10px 12px" }}>
