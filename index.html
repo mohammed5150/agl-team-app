@@ -28,7 +28,6 @@
 <meta name="mobile-web-app-capable" content="yes">
 
 <!-- Performance: Preload critical scripts (self-hosted, versions pinned via package-lock) -->
-<link rel="preload" as="font" type="font/woff2" href="vendor/b612-latin-700-normal.woff2" crossorigin>
 <link rel="preload" as="script" href="vendor/react.production.min.js">
 <link rel="preload" as="script" href="vendor/react-dom.production.min.js">
 
@@ -42,13 +41,7 @@
 
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-/* B612 — the typeface Airbus commissioned for cockpit displays (SIL OFL,
-   vendored like React; no CDN). Used for headings and instrument-style
-   numbers; body text stays on the system stack. */
-@font-face{font-family:'B612';src:url('vendor/b612-latin-400-normal.woff2') format('woff2');font-weight:400;font-style:normal;font-display:swap}
-@font-face{font-family:'B612';src:url('vendor/b612-latin-700-normal.woff2') format('woff2');font-weight:700;font-style:normal;font-display:swap}
 body{background:#0b1a2b;font-family:'Segoe UI',system-ui,-apple-system,sans-serif;-webkit-font-smoothing:antialiased}
-h1,h2,h3,.type-display{font-family:'B612','Segoe UI',system-ui,sans-serif}
 select option{background:#111f30;color:#e0e6ed}
 ::-webkit-scrollbar{width:6px;height:6px}
 ::-webkit-scrollbar-track{background:transparent}
@@ -73,25 +66,6 @@ button:active{transform:scale(0.98)}
    the intended precedence. */
 .row-hover{transition:background 0.15s}
 .row-hover:hover{background:rgba(255,255,255,0.06)}
-/* Runway at night, behind the login card. Pure CSS: a perspective plane
-   carrying the centerline dashes and amber edge-light dots, plus the green
-   threshold bar. These are the fixtures this team maintains. */
-.runway{position:fixed;inset:0;overflow:hidden;pointer-events:none}
-.runway-plane{position:absolute;left:50%;bottom:-8vh;width:200vmax;height:340vh;
-  transform:translateX(-50%) perspective(700px) rotateX(58deg);transform-origin:50% 100%;
-  opacity:.7;
-  background:
-    repeating-linear-gradient(to top,rgba(240,244,248,.85) 0 30px,transparent 30px 110px) 50% 0/7px 100% no-repeat,
-    repeating-linear-gradient(to top,rgba(245,166,35,.8) 0 9px,transparent 9px 120px) calc(50% - 430px) 0/7px 100% no-repeat,
-    repeating-linear-gradient(to top,rgba(245,166,35,.8) 0 9px,transparent 9px 120px) calc(50% + 430px) 0/7px 100% no-repeat;
-  -webkit-mask-image:linear-gradient(to top,rgba(0,0,0,.95) 0%,rgba(0,0,0,.35) 55%,transparent 82%);
-  mask-image:linear-gradient(to top,rgba(0,0,0,.95) 0%,rgba(0,0,0,.35) 55%,transparent 82%)}
-.runway-threshold{position:absolute;left:50%;transform:translateX(-50%);bottom:14px;
-  width:min(600px,92vw);height:5px;border-radius:3px;
-  background:repeating-linear-gradient(to right,rgba(16,185,129,.85) 0 13px,transparent 13px 32px);
-  filter:drop-shadow(0 0 7px rgba(16,185,129,.45));
-  animation:rwyglow 5s ease-in-out infinite}
-@keyframes rwyglow{0%,100%{opacity:.55}50%{opacity:1}}
 .fade-in{animation:fi .2s ease-out}
 @keyframes fi{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
 .modal-bg{animation:mb .2s ease-out}
@@ -114,7 +88,7 @@ button:active{transform:scale(0.98)}
    instead — no JS, nothing to block.
    ------------------------------------------------------------------ */
 .boot{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center;color:#94a3b8;font-size:13px}
-.boot-mark{width:44px;height:44px;margin-bottom:16px}
+.boot-mark{width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,#e8702a,#f5923e);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:900;font-size:13px;letter-spacing:1px;margin-bottom:16px}
 .boot-title{color:#f0f4f8;font-size:15px;font-weight:700;margin-bottom:6px}
 .boot-wait{animation:bootpulse 1.4s ease-in-out infinite}
 @keyframes bootpulse{0%,100%{opacity:.45}50%{opacity:1}}
@@ -149,7 +123,7 @@ button:active{transform:scale(0.98)}
 <body>
 <div id="root">
   <div class="boot">
-    <img class="boot-mark" src="favicon.png" alt="" width="44" height="44">
+    <div class="boot-mark">AS</div>
     <div class="boot-title">ADB SAFEGATE — Team Portal</div>
     <div class="boot-wait">Loading the portal…</div>
     <div class="boot-stuck">

@@ -87,7 +87,7 @@ export function MDash({ user, employees, leaveRequests, announcements, pc, onGoT
         display:"flex", alignItems:"center", gap:20, flexWrap:"wrap" }}>
         <div style={{ flex:1, minWidth:160 }}>
           <div style={{ fontSize:11, fontWeight:700, color:INK, opacity:0.75, letterSpacing:1 }}>TEAM TODAY</div>
-          <div className="type-display" style={{ fontSize:28, fontWeight:700, color:INK, margin:"4px 0 10px" }}>ON DUTY</div>
+          <div style={{ fontSize:30, fontWeight:900, color:INK, letterSpacing:-0.5, margin:"4px 0 10px" }}>ON DUTY</div>
           <div style={{ display:"flex", flexDirection:"column", gap:6, fontSize:12, color:INK }}>
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
               <span style={{ display:"flex", alignItems:"center", gap:6 }}><span style={{ width:8, height:8, borderRadius:"50%", background:INK }} />Active</span>
