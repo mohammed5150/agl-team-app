@@ -1,5 +1,5 @@
 import { ANN_PRIORITIES, ATT_YEAR, theme } from "../constants.js";
-import { fmtDt } from "../helpers.js";
+import { fmtDt, certSt } from "../helpers.js";
 import { Bd, Bt, Sec } from "../uiPrimitives.jsx";
 import { PASTEL, INK, Ring, MonthBars, Tile } from "./charts.jsx";
 import { WeatherCard } from "./WeatherCard.jsx";
@@ -16,20 +16,22 @@ export function EDash({ user, announcements, onGoTo }) {
   const pinnedAnn = myAnn.filter(a => a.pinned).slice(0, 1);
   const latestAnn = myAnn.filter(a => !a.pinned).slice(0, 3);
 
-  const docsExpiring = (user.documents || []).filter(d => {
-    if (!d.expiryDate) return false;
-    const expDate = new Date(d.expiryDate);
-    if (isNaN(expDate.getTime())) return false;
-    const diff = (expDate - new Date()) / 864e5;
-    return diff >= 0 && diff <= 90;
-  });
-  const certsExpiring = (user.training || []).filter(x => {
-    if (!x.certExpiry) return false;
-    const expDate = new Date(x.certExpiry);
-    if (isNaN(expDate.getTime())) return false;
-    const diff = (expDate - new Date()) / 864e5;
-    return diff >= 0 && diff <= 90;
-  });
+  // Same classification the Training and Documents pages use (certSt), so the
+  // dashboard can never disagree with them. Expired items are counted, not
+  // silently dropped: an expired certificate is the most urgent state.
+  const classify = (items, dateKey) => {
+    const expiring = [], expired = [];
+    for (const x of items || []) {
+      const st = certSt(x[dateKey]);
+      if (st.l === "EXPIRING") expiring.push(x);
+      else if (st.l === "EXPIRED") expired.push(x);
+    }
+    return { expiring, expired };
+  };
+  const docsAttn = classify(user.documents, "expiryDate");
+  const certsAttn = classify(user.training, "certExpiry");
+  const totalCerts = user.training?.length || 0;
+  const validCerts = totalCerts - certsAttn.expiring.length - certsAttn.expired.length;
 
   // Today roster code for the status pill
   const today = new Date();
@@ -145,38 +147,31 @@ export function EDash({ user, announcements, onGoTo }) {
             )}
           </div>
         </Tile>
-        <Tile bg={PASTEL.butter} label="Certificates"
-          value={(user.training?.length || 0) - certsExpiring.length}
-          sub={`${certsExpiring.length} expiring · ${user.training?.length || 0} total`}
+        <Tile bg={PASTEL.butter} label="Valid Certificates"
+          value={validCerts}
+          sub={`${certsAttn.expired.length} expired · ${certsAttn.expiring.length} expiring · ${totalCerts} total`}
           onClick={() => onGoTo("training")} />
       </div>
 
       {/* Action Required card (if anything expiring) */}
-      {(certsExpiring.length > 0 || docsExpiring.length > 0) && (
+      {(certsAttn.expired.length + certsAttn.expiring.length + docsAttn.expired.length + docsAttn.expiring.length > 0) && (
         <Tile bg={theme.cs} dark label="Action Required">
           <div style={{ marginTop:8 }}>
-            {certsExpiring.slice(0,3).map(x => (
-              <div key={"c"+x.id} style={{
+            {[
+              ...certsAttn.expired.map(x => ({ key:"c"+x.id, title:x.title, when:`Expired ${x.certExpiry}` })),
+              ...docsAttn.expired.map(x => ({ key:"d"+x.id, title:x.title, when:`Document expired ${x.expiryDate}` })),
+              ...certsAttn.expiring.map(x => ({ key:"c"+x.id, title:x.title, when:`Expires ${x.certExpiry}`, soon:true })),
+              ...docsAttn.expiring.map(x => ({ key:"d"+x.id, title:x.title, when:`Document expires ${x.expiryDate}`, soon:true })),
+            ].slice(0, 6).map(row => (
+              <div key={row.key} style={{
                 display:"flex", justifyContent:"space-between", alignItems:"center",
                 padding:"10px 0", borderBottom:`1px solid ${theme.bd}`, gap:6, flexWrap:"wrap"
               }}>
                 <div>
-                  <div style={{ fontSize:13, color:theme.tx, fontWeight:600 }}>{x.title}</div>
-                  <div style={{ fontSize:11, color:theme.td }}>Expires {x.certExpiry}</div>
+                  <div style={{ fontSize:13, color:theme.tx, fontWeight:600 }}>{row.title}</div>
+                  <div style={{ fontSize:11, color:theme.td }}>{row.when}</div>
                 </div>
-                <Bd text="EXPIRING" color={theme.yl} />
-              </div>
-            ))}
-            {docsExpiring.slice(0,3).map(x => (
-              <div key={"d"+x.id} style={{
-                display:"flex", justifyContent:"space-between", alignItems:"center",
-                padding:"10px 0", borderBottom:`1px solid ${theme.bd}`, gap:6, flexWrap:"wrap"
-              }}>
-                <div>
-                  <div style={{ fontSize:13, color:theme.tx, fontWeight:600 }}>{x.title}</div>
-                  <div style={{ fontSize:11, color:theme.td }}>Document expires {x.expiryDate}</div>
-                </div>
-                <Bd text="EXPIRING" color={theme.yl} />
+                <Bd text={row.soon ? "EXPIRING" : "EXPIRED"} color={row.soon ? theme.yl : theme.rd} />
               </div>
             ))}
           </div>

@@ -4,6 +4,7 @@
 
 import { SECTIONS, STATUS_COLORS, STATUS_LABELS, ANN_PRIORITIES, theme } from "../constants.js";
 import { Bd, Bt, Sec, Empty } from "../uiPrimitives.jsx";
+import { certSt } from "../helpers.js";
 import { PASTEL, INK, Ring, Tile } from "./charts.jsx";
 import { WeatherCard } from "./WeatherCard.jsx";
 import { GlyphIcon } from "../icons.jsx";
@@ -12,30 +13,34 @@ export function MDash({ user, employees, leaveRequests, announcements, pc, onGoT
   const h = new Date().getHours();
   const g = h < 12 ? "Good Morning" : h < 17 ? "Good Afternoon" : "Good Evening";
   const today = new Date();
+  // Only employees still on the books count toward duty, sections and
+  // expiries: an offboarded technician must not inflate "on duty".
+  const active = employees.filter(e => (e.employmentStatus || "active") === "active");
+  const activeIds = new Set(active.map(e => e.id));
+  // Date-only comparison in local time. `new Date(now) <= new Date("2026-04-23")`
+  // fails for the whole of the final leave day (the parsed end date is
+  // midnight), which used to mark people back on duty a day early.
+  const pad2 = n => String(n).padStart(2, "0");
+  const todayStr = `${today.getFullYear()}-${pad2(today.getMonth() + 1)}-${pad2(today.getDate())}`;
+  const seenOnLeave = new Set();
   const onLeaveToday = leaveRequests.filter(r => {
     if (r.status !== "approved") return false;
-    const s = new Date(r.startDate), e = new Date(r.endDate);
-    return today >= s && today <= e;
+    if (!(r.startDate <= todayStr && todayStr <= r.endDate)) return false;
+    // one entry per person, and only people still active
+    if (!activeIds.has(r.empId) || seenOnLeave.has(r.empId)) return false;
+    seenOnLeave.add(r.empId);
+    return true;
   });
-  const onDutyToday = employees.length - onLeaveToday.length;
-  const dutyPct = employees.length ? onDutyToday / employees.length : 1;
-  const expiringCerts = employees.reduce((a, e) => a + (e.training || []).filter(x => {
-    if (!x.certExpiry) return false;
-    const expDate = new Date(x.certExpiry);
-    if (isNaN(expDate.getTime())) return false;
-    const d = (expDate - new Date()) / 864e5;
-    return d >= 0 && d <= 90;
-  }).length, 0);
-  const expiringDocs = employees.reduce((a, e) => a + (e.documents || []).filter(x => {
-    if (!x.expiryDate) return false;
-    const expDate = new Date(x.expiryDate);
-    if (isNaN(expDate.getTime())) return false;
-    const d = (expDate - new Date()) / 864e5;
-    return d >= 0 && d <= 90;
-  }).length, 0);
+  const onDutyToday = active.length - onLeaveToday.length;
+  const dutyPct = active.length ? onDutyToday / active.length : 1;
+  // certSt is the same classifier the Documents/Training pages use; expired
+  // items count as needing attention, not only the ones expiring soon.
+  const needsAttn = kind => { const st = certSt(kind); return st.l === "EXPIRING" || st.l === "EXPIRED"; };
+  const expiringCerts = active.reduce((a, e) => a + (e.training || []).filter(x => needsAttn(x.certExpiry)).length, 0);
+  const expiringDocs = active.reduce((a, e) => a + (e.documents || []).filter(x => needsAttn(x.expiryDate)).length, 0);
   const pinnedAnn = announcements.filter(a => a.pinned).slice(0, 1);
   const sectionCounts = SECTIONS.map(s => ({
-    name: s, count: employees.filter(e => e.section === s).length
+    name: s, count: active.filter(e => e.section === s).length
   }));
   const maxSectionCount = Math.max(1, ...sectionCounts.map(s => s.count));
   const dateStr = today.toLocaleDateString("en-GB", { weekday:"short", day:"2-digit", month:"short" }).toUpperCase();
@@ -91,7 +96,7 @@ export function MDash({ user, employees, leaveRequests, announcements, pc, onGoT
           <div style={{ display:"flex", flexDirection:"column", gap:6, fontSize:12, color:INK }}>
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
               <span style={{ display:"flex", alignItems:"center", gap:6 }}><span style={{ width:8, height:8, borderRadius:"50%", background:INK }} />Active</span>
-              <b>{onDutyToday}/{employees.length}</b>
+              <b>{onDutyToday}/{active.length}</b>
             </div>
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
               <span style={{ display:"flex", alignItems:"center", gap:6 }}><span style={{ width:8, height:8, borderRadius:"50%", background:"#fff" }} />On Leave</span>
@@ -110,7 +115,7 @@ export function MDash({ user, employees, leaveRequests, announcements, pc, onGoT
       {/* Two small cards row */}
       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14, marginBottom:14 }}>
         <Tile bg={PASTEL.lilac} label="Approvals" value={pc} sub="awaiting your review" onClick={() => onGoTo("approvals")} />
-        <Tile bg={PASTEL.butter} label="Expiring" value={expiringCerts + expiringDocs} sub="certs + documents ≤90d" onClick={() => onGoTo("documents")} />
+        <Tile bg={PASTEL.butter} label="Needs Attention" value={expiringCerts + expiringDocs} sub="certs + documents expired or ≤90d" onClick={() => onGoTo("documents")} />
       </div>
 
       {/* Section breakdown as dark card with horizontal bars */}
