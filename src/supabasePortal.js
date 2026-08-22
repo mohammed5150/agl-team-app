@@ -89,11 +89,30 @@ export function sendPush(toEmpId, title, body, url = "/") {
   return invokeEdgeFunction(supa, "push", "send-push", { to: toEmpId, title, body, url });
 }
 
-// channel is "ops" (leave/overtime/onboarding activity) or "alerts" (see
-// errorReporter.js) — see supabase/functions/notify-slack for which webhook
-// secret each maps to.
+// channel is "ops" (leave/overtime/onboarding activity), "alerts" (see
+// errorReporter.js), or "emergency" (see sendEmergencyBroadcast below) — see
+// supabase/functions/notify-slack for which webhook secret each maps to.
 export function sendSlack(text, channel = "ops") {
   return invokeEdgeFunction(supa, "slack", "notify-slack", { text, channel });
+}
+
+// Unlike sendPush/sendSlack, this is NOT fire-and-forget: whoever triggers
+// an emergency broadcast needs to know whether it actually went out, so the
+// caller awaits this and shows the result. The server-side manager/team-lead
+// check (supabase/functions/send-emergency) is the real boundary — this has
+// no client-side role gate of its own to bypass.
+export async function sendEmergencyBroadcast(title, body) {
+  if (!supa) return { ok: false, error: "not connected" };
+  try {
+    const { data, error } = await supa.functions.invoke("send-emergency", {
+      body: { title, body },
+    });
+    if (error) return { ok: false, error: error.message || "send failed" };
+    if (data?.error) return { ok: false, error: data.error };
+    return { ok: true, push: data?.push, slackSent: data?.slackSent };
+  } catch (e) {
+    return { ok: false, error: e?.message || "send error" };
+  }
 }
 
 export const empToDb = e => ({

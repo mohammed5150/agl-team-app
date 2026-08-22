@@ -43,6 +43,7 @@ follow that pattern.
 | Offboard / suspend / reactivate | manager | `set_employment_status`, `guard_employment_status` |
 | Read the audit log | manager | `audit_select_manager` |
 | Read client errors | manager | `ce_select_manager` |
+| Emergency broadcast (push + Slack, everyone) | teamlead, manager | `send-emergency` Edge Function — role verified server-side against the caller's JWT, not a database policy (see `docs/MONITORING.md` §6a) |
 | **Delete an employee** | **nobody** | no DELETE policy — see §5 |
 
 Overtime being team-lead-terminal is deliberate, not an oversight: the team

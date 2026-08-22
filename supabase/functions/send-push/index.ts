@@ -11,7 +11,8 @@
 // SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are auto-injected by the platform.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import webpush from "npm:web-push@3.6.7";
+import { json, cors } from "../_shared/http.ts";
+import { configureVapid, sendToSubscriptions } from "../_shared/webpush.ts";
 
 const SUPABASE_URL  = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE  = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -19,12 +20,7 @@ const VAPID_PUBLIC  = Deno.env.get("VAPID_PUBLIC_KEY")!;
 const VAPID_PRIVATE = Deno.env.get("VAPID_PRIVATE_KEY")!;
 const VAPID_SUBJECT = Deno.env.get("VAPID_SUBJECT") || "mailto:noreply@example.com";
 
-webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC, VAPID_PRIVATE);
-
-const cors = {
-  "Access-Control-Allow-Origin":  "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+configureVapid(VAPID_SUBJECT, VAPID_PUBLIC, VAPID_PRIVATE);
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
@@ -53,39 +49,10 @@ Deno.serve(async (req) => {
       tag:  `adb-${to}-${Date.now()}`,
     });
 
-    let sent = 0, failed = 0;
-    const removed: string[] = [];
-
-    await Promise.all(subs.map(async (s) => {
-      const subscription = {
-        endpoint: s.endpoint,
-        keys: { p256dh: s.p256dh, auth: s.auth },
-      };
-      try {
-        await webpush.sendNotification(subscription, payload);
-        sent++;
-      } catch (e: any) {
-        const code = e?.statusCode;
-        if (code === 404 || code === 410) {
-          await sb.from("push_subscriptions").delete().eq("id", s.id);
-          removed.push(s.id);
-        } else {
-          failed++;
-          console.error("[send-push]", code, e?.body || e?.message);
-        }
-      }
-    }));
-
-    return json({ sent, failed, removed: removed.length, total: subs.length });
+    const { sent, failed, removed } = await sendToSubscriptions(sb, subs, payload);
+    return json({ sent, failed, removed, total: subs.length });
   } catch (e: any) {
     console.error("[send-push] fatal:", e);
     return json({ error: e.message || String(e) }, 500);
   }
 });
-
-function json(obj: unknown, status = 200) {
-  return new Response(JSON.stringify(obj), {
-    status,
-    headers: { ...cors, "Content-Type": "application/json" },
-  });
-}

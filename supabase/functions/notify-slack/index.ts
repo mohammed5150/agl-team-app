@@ -2,32 +2,37 @@
 // Posts a message to a Slack Incoming Webhook. Called by the client (signed-in
 // users only) when a leave/overtime request is submitted or actioned, a new
 // joiner is invited, a profile is finalized, or a front-end error is reported —
-// mirroring how send-push is invoked for web push.
+// mirroring how send-push is invoked for web push. Also called by
+// send-emergency for manager-triggered emergency broadcasts.
 //
-// Two channels are supported so operational chatter and error alerts don't
-// share a room:
-//   "ops"    - leave/overtime/onboarding activity (default)
-//   "alerts" - front-end error reports (see src/errorReporter.js)
+// Three channels are supported so operational chatter, error alerts and
+// emergency broadcasts don't share a room:
+//   "ops"       - leave/overtime/onboarding activity (default)
+//   "alerts"    - front-end error reports (see src/errorReporter.js)
+//   "emergency" - manager-triggered broadcasts (see send-emergency)
 //
 // Required secrets (set via supabase dashboard → Edge Functions → Secrets):
-//   SLACK_WEBHOOK_URL         - Incoming Webhook URL for the "ops" channel
-//   SLACK_ALERTS_WEBHOOK_URL  - Incoming Webhook URL for the "alerts" channel
-//                                (optional; falls back to SLACK_WEBHOOK_URL)
+//   SLACK_WEBHOOK_URL           - Incoming Webhook URL for the "ops" channel
+//   SLACK_ALERTS_WEBHOOK_URL    - Incoming Webhook URL for "alerts"
+//                                  (optional; falls back to SLACK_WEBHOOK_URL)
+//   SLACK_EMERGENCY_WEBHOOK_URL - Incoming Webhook URL for "emergency"
+//                                  (optional; falls back to SLACK_WEBHOOK_URL)
 //
-// If neither secret is configured this is a silent no-op (200, sent: false) —
-// Slack is a convenience notification, not something a request should fail
-// over, exactly like send-push swallowing a dead subscription.
+// If neither the requested channel's secret nor SLACK_WEBHOOK_URL is
+// configured this is a silent no-op (200, sent: false) — Slack is a
+// convenience notification, not something a request should fail over,
+// exactly like send-push swallowing a dead subscription.
 
-const SLACK_WEBHOOK_URL        = Deno.env.get("SLACK_WEBHOOK_URL") || "";
-const SLACK_ALERTS_WEBHOOK_URL = Deno.env.get("SLACK_ALERTS_WEBHOOK_URL") || SLACK_WEBHOOK_URL;
+import { json, cors } from "../_shared/http.ts";
 
-const cors = {
-  "Access-Control-Allow-Origin":  "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+const SLACK_WEBHOOK_URL           = Deno.env.get("SLACK_WEBHOOK_URL") || "";
+const SLACK_ALERTS_WEBHOOK_URL    = Deno.env.get("SLACK_ALERTS_WEBHOOK_URL") || SLACK_WEBHOOK_URL;
+const SLACK_EMERGENCY_WEBHOOK_URL = Deno.env.get("SLACK_EMERGENCY_WEBHOOK_URL") || SLACK_WEBHOOK_URL;
 
 function webhookFor(channel: string): string {
-  return channel === "alerts" ? SLACK_ALERTS_WEBHOOK_URL : SLACK_WEBHOOK_URL;
+  if (channel === "alerts") return SLACK_ALERTS_WEBHOOK_URL;
+  if (channel === "emergency") return SLACK_EMERGENCY_WEBHOOK_URL;
+  return SLACK_WEBHOOK_URL;
 }
 
 Deno.serve(async (req) => {
@@ -66,10 +71,3 @@ Deno.serve(async (req) => {
     return json({ error: e.message || String(e) }, 500);
   }
 });
-
-function json(obj: unknown, status = 200) {
-  return new Response(JSON.stringify(obj), {
-    status,
-    headers: { ...cors, "Content-Type": "application/json" },
-  });
-}

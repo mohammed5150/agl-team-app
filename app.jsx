@@ -12,11 +12,11 @@ import {
   requestPasswordReset, completePasswordReset, isRecoveryLanding,
   createLoginThrottle, throttleMessage, sendResetForEmployee,
 } from "./src/authFlows.js";
-import { canSetRatingTier, canViewAuditLog, canOffboardEmployee } from "./src/authz.js";
+import { canSetRatingTier, canViewAuditLog, canOffboardEmployee, isStaff } from "./src/authz.js";
 import { auditFromDb } from "./src/auditLog.js";
 import { classifyPortalLoad, degradedMessage, mergeRoster, LOAD_FAILED_MESSAGE } from "./src/portalLoad.js";
 import { installErrorReporting, setRoute, reportError } from "./src/errorReporter.js";
-import { supa, subscribePush, unsubscribePush, sendPush, sendSlack, diffFieldsById, empToDb, empFromDb, lrToDb, lrFromDb, otToDb, otFromDb, annToDb, annFromDb, nfToDb, nfFromDb, diffById, pushSupported } from "./src/supabasePortal.js";
+import { supa, subscribePush, unsubscribePush, sendPush, sendSlack, sendEmergencyBroadcast, diffFieldsById, empToDb, empFromDb, lrToDb, lrFromDb, otToDb, otFromDb, annToDb, annFromDb, nfToDb, nfFromDb, diffById, pushSupported } from "./src/supabasePortal.js";
 import * as slackEvents from "./src/slackEvents.js";
 import { Logo, Bd, Bt } from "./src/uiPrimitives.jsx";
 import { LoginPage } from "./src/LoginPage.jsx";
@@ -1151,7 +1151,7 @@ function App() {
     if (viewEmployee?.id === eid) setViewEmployee(p => ({ ...p, documents:(p.documents||[]).filter(d => d.id !== did) }));
   }, [currentUser, viewEmployee]);
 
-  const addAnn = useCallback(a => {
+  const addAnn = useCallback(async a => {
     const id = `ANN-${String(nextAnnId).padStart(3,"0")}`;
     setNextAnnId(p => p + 1);
     const newAnn = {
@@ -1170,6 +1170,15 @@ function App() {
       })),
       ...p
     ]);
+    // Emergency also fans out to push + Slack, everyone, regardless of the
+    // announcement's own section targeting — server-side enforces manager
+    // or team lead (supabase/functions/send-emergency); this check is UX,
+    // not the security boundary. Awaited, unlike the fire-and-forget
+    // notifications above, so whoever triggered it sees whether it landed.
+    if (a.emergency && isStaff(currentUser)) {
+      return sendEmergencyBroadcast(a.title, a.message);
+    }
+    return null;
   }, [nextAnnId, currentUser, employees]);
 
   const delAnn = useCallback(id => {

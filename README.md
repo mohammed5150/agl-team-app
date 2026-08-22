@@ -117,21 +117,29 @@ retry. No SQL access needed.
   backed up, and the step-by-step restore runbook.
 - **`docs/MONITORING.md`** — uptime checks, front-end error reporting, Slack
   notifications, and what to look at when the portal misbehaves.
-- **`docs/NOTION_SYNC.md`** — the nightly roster/leave export to Notion: what
-  is (and deliberately is not) included, and the Notion-side setup.
+- **`docs/NOTION_SYNC.md`** — the nightly roster/leave/overtime export to
+  Notion: full detail by deliberate choice, and why that's a tradeoff worth
+  reading before widening who has access to it.
+- **`docs/MONTHLY_REPORT.md`** — the month-end Excel export to Google Drive,
+  kept as an audit/compliance record.
 
 ## Optional integrations
 
-Both are off by default and the portal behaves identically with neither
+All three are off by default and the portal behaves identically with none
 configured — see the linked docs for setup and exactly what data leaves the
 app in each case.
 
 - **Slack** (`supabase/functions/notify-slack`) — posts leave/overtime/
-  onboarding activity to an ops channel, and front-end error summaries to a
-  separate alerts channel. `docs/MONITORING.md` §6.
-- **Notion** (`.github/workflows/notion-sync.yml`) — nightly, non-sensitive
-  roster and leave-calendar summary for visibility outside the portal.
-  `docs/NOTION_SYNC.md`.
+  onboarding activity to an ops channel, front-end error summaries to an
+  alerts channel, and manager-triggered emergency broadcasts to an emergency
+  channel. `docs/MONITORING.md` §6.
+- **Notion** (`.github/workflows/notion-sync.yml`) — nightly, **full-detail**
+  roster, leave calendar and overtime log, including PII — a deliberate
+  tradeoff, not an oversight. `docs/NOTION_SYNC.md`.
+- **Google Drive** (`.github/workflows/monthly-report.yml`) — a full-detail
+  Excel workbook uploaded on the 1st of each month, for audit/compliance
+  proof of that month's leave, overtime and roster activity.
+  `docs/MONTHLY_REPORT.md`.
 
 ## Publishing checklist (production go-live)
 

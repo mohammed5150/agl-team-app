@@ -10,9 +10,15 @@ const { useState } = React;
 
 export function AnnPg({ user, announcements, onAdd, onDel }) {
   const canCompose = user.role === "manager" || user.role === "teamlead";
+  const canBroadcastEmergency = canCompose; // manager or team lead
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ title:"", message:"", priority:"info", pinned:false, target:"all" });
+  const [form, setForm] = useState({ title:"", message:"", priority:"info", pinned:false, target:"all", emergency:false });
+  // Form-validation error — shown inside the modal, which stays open.
   const [er, setEr] = useState("");
+  // Outcome of an emergency broadcast — shown as a page banner once the
+  // modal has already closed, so it survives past the post that triggered it.
+  const [broadcastResult, setBroadcastResult] = useState(null); // { ok, message } | null
+  const [sending, setSending] = useState(false);
   const [filter, setFilter] = useState("all");
 
   const visible = user.role === "employee"
@@ -22,12 +28,24 @@ export function AnnPg({ user, announcements, onAdd, onDel }) {
   const pinned = filtered.filter(a => a.pinned);
   const regular = filtered.filter(a => !a.pinned);
 
-  const submit = () => {
+  const submit = async () => {
     setEr("");
     if (!form.title.trim() || !form.message.trim()) return setEr("Title and message required");
-    onAdd(form);
-    setForm({ title:"", message:"", priority:"info", pinned:false, target:"all" });
-    setShowForm(false);
+    setSending(true);
+    try {
+      const result = await onAdd(form);
+      if (form.emergency && canBroadcastEmergency) {
+        setBroadcastResult(result?.ok
+          ? { ok: true, message: `Emergency broadcast sent — push reached ${result.push?.sent ?? 0} `
+              + `device(s)${result.slackSent ? ", Slack notified." : " (Slack post failed)."}` }
+          : { ok: false, message: `The announcement was posted, but the emergency broadcast failed: `
+              + `${result?.error || "unknown error"}. Retry the broadcast, or notify people another way.` });
+      }
+      setForm({ title:"", message:"", priority:"info", pinned:false, target:"all", emergency:false });
+      setShowForm(false);
+    } finally {
+      setSending(false);
+    }
   };
 
   return (
@@ -79,11 +97,44 @@ export function AnnPg({ user, announcements, onAdd, onDel }) {
               📌 Pin to top (shows on dashboards)
             </label>
           </div>
+          {canBroadcastEmergency && (
+            <div style={{
+              marginBottom:16, padding:"10px 12px", borderRadius:8,
+              background: form.emergency ? "rgba(239,68,68,0.1)" : "transparent",
+              border:`1px solid ${form.emergency ? theme.rd : theme.bd}`
+            }}>
+              <label style={{ display:"flex", alignItems:"center", gap:8, fontSize:12, color:theme.ts, cursor:"pointer" }}>
+                <input type="checkbox" checked={form.emergency}
+                  onChange={e => setForm(p => ({ ...p, emergency:e.target.checked }))}
+                  style={{ width:16, height:16, accentColor:theme.rd }} />
+                🚨 Also broadcast as emergency — push notification to every device, and Slack
+              </label>
+              {form.emergency && (
+                <div style={{ fontSize:11, color:theme.td, marginTop:6, paddingLeft:24 }}>
+                  Goes to everyone, ignoring the Target selected above. Use for genuine emergencies only.
+                </div>
+              )}
+            </div>
+          )}
           <div style={{ display:"flex", gap:8 }}>
-            <Bt onClick={submit} bg={theme.gn}>📤 Post</Bt>
+            <Bt onClick={submit} bg={theme.gn} disabled={sending}>{sending ? "Sending…" : "📤 Post"}</Bt>
             <Bt onClick={() => setShowForm(false)} outline={true}>Cancel</Bt>
           </div>
         </Modal>
+      )}
+
+      {broadcastResult && (
+        <div style={{
+          background: broadcastResult.ok ? "rgba(34,197,94,0.1)" : "rgba(239,68,68,0.1)",
+          borderRadius:8, padding:"10px 14px", marginBottom:16,
+          color: broadcastResult.ok ? theme.gn : theme.rd, fontSize:13,
+          display:"flex", justifyContent:"space-between", alignItems:"center", gap:10
+        }}>
+          <span>{broadcastResult.ok ? "✅ " : "⚠️ "}{broadcastResult.message}</span>
+          <button type="button" onClick={() => setBroadcastResult(null)} aria-label="Dismiss" style={{
+            background:"none", border:"none", color:"inherit", cursor:"pointer", fontSize:14
+          }}>✕</button>
+        </div>
       )}
 
       <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:16 }}>

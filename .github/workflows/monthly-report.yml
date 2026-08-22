@@ -1,0 +1,67 @@
+name: Month-end report to Google Drive
+
+# Uploads a full-detail Excel workbook (current roster, plus that month's
+# leave and overtime activity) to Google Drive on the 1st of each month, as
+# an audit/compliance record — see scripts/monthly-report.mjs for exactly
+# what's included and docs/MONTHLY_REPORT.md for the Google-side setup.
+
+on:
+  schedule:
+    # 02:00 UTC on the 1st = 06:00 Gulf Standard Time — after the nightly
+    # backup and Notion sync, reporting on the month that just closed.
+    - cron: "0 2 1 * *"
+  workflow_dispatch:
+    inputs:
+      month:
+        description: "Month to report on (YYYY-MM). Leave blank for last month."
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    # Without the secrets this job would "succeed" every month doing
+    # nothing, which is worse than not having it — so skip explicitly and
+    # visibly.
+    if: ${{ github.repository_owner != '' }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "20"
+
+      - name: Check the secrets are configured
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          GOOGLE_SERVICE_ACCOUNT_KEY: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_KEY }}
+          GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
+        run: |
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
+            echo "::error::SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set as repository secrets."
+            exit 1
+          fi
+          if [ -z "$GOOGLE_SERVICE_ACCOUNT_KEY" ] || [ -z "$GOOGLE_DRIVE_FOLDER_ID" ]; then
+            echo "::error::GOOGLE_SERVICE_ACCOUNT_KEY and GOOGLE_DRIVE_FOLDER_ID must be set. See docs/MONTHLY_REPORT.md."
+            exit 1
+          fi
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build and upload the month-end report
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          GOOGLE_SERVICE_ACCOUNT_KEY: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_KEY }}
+          GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
+        run: |
+          if [ -n "${{ inputs.month }}" ]; then
+            node scripts/monthly-report.mjs --month "${{ inputs.month }}"
+          else
+            node scripts/monthly-report.mjs
+          fi

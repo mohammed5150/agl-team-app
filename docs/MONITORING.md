@@ -163,11 +163,17 @@ The first few are the diagnosis; the rest are cost.
 - [ ] Watch the repository with Issues notifications on
 - [ ] Set a calendar reminder to review `client_error_summary` weekly
 - [ ] Decide whether to schedule pruning (below)
-- [ ] (optional) Set Edge Function secrets `SLACK_WEBHOOK_URL` and
-      `SLACK_ALERTS_WEBHOOK_URL` to enable Slack notifications (section 6)
+- [ ] (optional) Set Edge Function secrets `SLACK_WEBHOOK_URL`,
+      `SLACK_ALERTS_WEBHOOK_URL` and `SLACK_EMERGENCY_WEBHOOK_URL` to enable
+      Slack notifications and emergency broadcast (section 6)
+- [ ] (optional) Deploy `send-emergency` alongside `send-push` and
+      `notify-slack` to enable the emergency broadcast button (section 6a)
 - [ ] (optional) Set repository secrets `NOTION_TOKEN`, `NOTION_ROSTER_DB_ID`,
-      `NOTION_LEAVE_DB_ID` to enable the nightly Notion sync
-      (`docs/NOTION_SYNC.md`)
+      `NOTION_LEAVE_DB_ID`, `NOTION_OVERTIME_DB_ID` to enable the nightly
+      Notion sync (`docs/NOTION_SYNC.md`)
+- [ ] (optional) Set repository secrets `GOOGLE_SERVICE_ACCOUNT_KEY`,
+      `GOOGLE_DRIVE_FOLDER_ID` to enable the month-end report
+      (`docs/MONTHLY_REPORT.md`)
 
 ---
 
@@ -188,29 +194,53 @@ select cron.schedule(
 
 ## 6. Slack notifications
 
-`supabase/functions/notify-slack` posts to a Slack Incoming Webhook. It is
-invoked the same way `send-push` is — fire-and-forget, from the client, after
-a write already succeeded — for:
+`supabase/functions/notify-slack` posts to a Slack Incoming Webhook. Most
+call sites invoke it the same way `send-push` is — fire-and-forget, from the
+client, after a write already succeeded — for:
 
 - new leave / overtime requests, and each approval or rejection
 - a manager inviting a new joiner (single or bulk)
 - a joiner finalizing their profile
 - front-end error reports (see above) — routed to a separate channel
+- a manager or team lead's emergency broadcast (§6a) — routed to a third
+  channel, and NOT fire-and-forget: `send-emergency` calls `notify-slack`
+  itself, server-side, and the result is awaited and shown to whoever
+  triggered it
 
-Two Edge Function secrets, each an Incoming Webhook URL for a Slack channel:
+Three Edge Function secrets, each an Incoming Webhook URL for a Slack channel:
 
 | Secret | Channel | If unset |
 |---|---|---|
 | `SLACK_WEBHOOK_URL` | Operational activity (`#ops` or similar) | No-op — the invoking call still succeeds, nothing is posted |
 | `SLACK_ALERTS_WEBHOOK_URL` | Front-end errors (`#alerts` or similar) | Falls back to `SLACK_WEBHOOK_URL` |
+| `SLACK_EMERGENCY_WEBHOOK_URL` | Emergency broadcasts (`#emergency` or similar) | Falls back to `SLACK_WEBHOOK_URL` |
 
 Set them in the Supabase dashboard → Edge Functions → `notify-slack` →
-Secrets. Neither secret is required — the portal works identically with
-neither set, since every call site treats the notification as best-effort and
-never awaits or surfaces its result to the user.
+Secrets. None are required — the portal works identically with none set,
+since every call site except the emergency broadcast treats the notification
+as best-effort and never awaits or surfaces its result to the user.
 
 To create a webhook: Slack → a workspace admin → **Apps → Incoming Webhooks →
 Add to Slack**, pick the channel, copy the URL.
+
+### 6a. Emergency broadcast
+
+A manager or team lead can broadcast to *every* employee at once — push
+notification to every registered device, plus Slack — from the
+Announcements page: **🚨 Also broadcast as emergency**, alongside a normal
+announcement post. This is a different trust level from every other Slack
+call site above: it reaches everyone regardless of the announcement's own
+section targeting, so `supabase/functions/send-emergency` verifies the
+caller's role server-side (their JWT against Supabase Auth, then their role
+looked up with the service-role key) and refuses anyone who isn't a manager
+or team lead — the client-side checkbox visibility is UX, not the boundary.
+
+Requires the `VAPID_*` secrets already set for `send-push` (reused, not
+duplicated), plus `SUPABASE_ANON_KEY` (auto-injected by the platform — no
+setup needed) so the function can verify the caller's identity. No separate
+opt-in: if `send-push` and `notify-slack` are both deployed with their
+secrets set, emergency broadcast works as soon as `send-emergency` is
+deployed alongside them.
 
 ---
 

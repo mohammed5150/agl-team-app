@@ -1,9 +1,9 @@
 name: Nightly Notion sync
 
-# Exports a non-sensitive roster and leave-calendar summary to Notion for
-# visibility outside the portal — see scripts/sync-notion.mjs for exactly
-# which columns are (and are deliberately never) included, and
-# docs/NOTION_SYNC.md for the Notion-side database setup this expects.
+# Exports the full roster, leave calendar and overtime log to Notion — see
+# scripts/sync-notion.mjs and docs/NOTION_SYNC.md for exactly what that
+# means (including the PII this now deliberately sends to a third party)
+# and the Notion-side database setup this expects.
 
 on:
   schedule:
@@ -40,6 +40,7 @@ jobs:
           NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
           NOTION_ROSTER_DB_ID: ${{ secrets.NOTION_ROSTER_DB_ID }}
           NOTION_LEAVE_DB_ID: ${{ secrets.NOTION_LEAVE_DB_ID }}
+          NOTION_OVERTIME_DB_ID: ${{ secrets.NOTION_OVERTIME_DB_ID }}
         run: |
           if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
             echo "::error::SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set as repository secrets."
@@ -49,16 +50,17 @@ jobs:
             echo "::error::NOTION_TOKEN must be set as a repository secret. See docs/NOTION_SYNC.md."
             exit 1
           fi
-          if [ -z "$NOTION_ROSTER_DB_ID" ] && [ -z "$NOTION_LEAVE_DB_ID" ]; then
-            echo "::error::Set at least one of NOTION_ROSTER_DB_ID / NOTION_LEAVE_DB_ID. Nothing to sync otherwise."
+          if [ -z "$NOTION_ROSTER_DB_ID" ] && [ -z "$NOTION_LEAVE_DB_ID" ] && [ -z "$NOTION_OVERTIME_DB_ID" ]; then
+            echo "::error::Set at least one of NOTION_ROSTER_DB_ID / NOTION_LEAVE_DB_ID / NOTION_OVERTIME_DB_ID."
             exit 1
           fi
 
-      - name: Sync roster and leave calendar to Notion
+      - name: Sync roster, leave calendar and overtime log to Notion
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
           NOTION_ROSTER_DB_ID: ${{ secrets.NOTION_ROSTER_DB_ID }}
           NOTION_LEAVE_DB_ID: ${{ secrets.NOTION_LEAVE_DB_ID }}
+          NOTION_OVERTIME_DB_ID: ${{ secrets.NOTION_OVERTIME_DB_ID }}
         run: node scripts/sync-notion.mjs
