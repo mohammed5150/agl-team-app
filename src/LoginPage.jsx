@@ -125,7 +125,7 @@ export function LoginPage({
       <div style={{ width:"100%", maxWidth:400, padding:20, position:"relative", zIndex:1 }}>
         <div style={{ textAlign:"center", marginBottom:32 }}>
           <div style={{ margin:"0 auto 16px", display:"flex", justifyContent:"center" }}>
-            <Logo size={180} w={true} />
+            <Logo size={260} />
           </div>
           <p style={{ color:theme.or, fontSize:12, fontWeight:700, letterSpacing:2 }}>ABU DHABI MAINTENANCE TEAM</p>
         </div>

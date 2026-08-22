@@ -20,6 +20,7 @@ const STATIC_ASSETS = [
   "icon-512.png",
   "apple-touch-icon.png",
   "favicon.png",
+  "logo-dark.png",
 ];
 
 // Demo mode ships the demo login accounts AND the seeded team roster in the

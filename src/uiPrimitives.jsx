@@ -3,14 +3,20 @@ import { GlyphIcon } from "./icons.jsx";
 
 const { useId, useRef, useEffect } = React;
 
-export const Logo = ({ size=120, w=true }) => (
-  <svg viewBox="0 0 280 210" width={size} height={size*210/280} xmlns="http://www.w3.org/2000/svg">
-    <g transform="translate(140, 8)" fill="#E8702A">
-      <path d="M0,0 L5,10 L5,28 L40,46 L40,52 L5,46 L5,64 L16,74 L16,78 L0,73 L-16,78 L-16,74 L-5,64 L-5,46 L-40,52 L-40,46 L-5,28 L-5,10 Z"/>
-    </g>
-    <text x="140" y="140" textAnchor="middle" fontFamily="'Arial Black',Impact,sans-serif" fontSize="42" fontWeight="900" fill={w?"#fff":"#1b4d62"} letterSpacing="3">ADB</text>
-    <text x="140" y="190" textAnchor="middle" fontFamily="'Arial Black',Impact,sans-serif" fontSize="42" fontWeight="900" fill={w?"#fff":"#1b4d62"} letterSpacing="3">SAFEGATE</text>
-  </svg>
+// The real company wordmark. logo-dark.png is derived from the source logo
+// scan at the repo root (see scripts/make-logo-assets.py): background removed
+// and the wordmark knocked out to white for dark surfaces; the star keeps its
+// brand colors. `size` is the rendered width; the file is 820x251. The old
+// `w` prop is accepted for compatibility but there is only a dark-surface
+// variant, since the app has no light surfaces.
+export const Logo = ({ size=120 }) => (
+  <img
+    src="logo-dark.png"
+    alt="ADB SAFEGATE"
+    width={size}
+    height={Math.round(size * 251 / 820)}
+    style={{ display:"block" }}
+  />
 );
 
 // fontSize is 16, not 13, on purpose. iOS Safari auto-zooms the viewport when

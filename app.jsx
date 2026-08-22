@@ -1203,7 +1203,7 @@ function App() {
       minHeight:"100vh", display:"flex", flexDirection:"column", alignItems:"center",
       justifyContent:"center", background:theme.bg, gap:18
     }}>
-      <Logo size={150} w={true} />
+      <Logo size={220} />
       <p role="status" aria-live="polite" style={{ color:theme.ts, fontSize:13 }}>
         Loading your portal…
       </p>
@@ -1219,7 +1219,7 @@ function App() {
       minHeight:"100vh", display:"flex", flexDirection:"column", alignItems:"center",
       justifyContent:"center", background:theme.bg, padding:24, textAlign:"center"
     }}>
-      <Logo size={150} w={true} />
+      <Logo size={220} />
       <div role="alert" style={{
         maxWidth:440, marginTop:24, background:"rgba(239,68,68,0.08)",
         border:"1px solid rgba(239,68,68,0.28)", borderRadius:14, padding:"16px 18px",
@@ -1311,7 +1311,7 @@ function App() {
           justifyContent: sidebarOpen ? "flex-start" : "center"
         }}>
           {sidebarOpen
-            ? <Logo size={110} w={true} />
+            ? <Logo size={150} />
             : <div style={{
                 width:30, height:30, borderRadius:8, background:theme.ga,
                 display:"flex", alignItems:"center", justifyContent:"center",

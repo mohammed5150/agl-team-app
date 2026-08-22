@@ -53,7 +53,7 @@ export function ResetPassword({ email, onSubmit, onCancel }) {
     }}>
       <div style={{ width:"100%", maxWidth:420, padding:20 }}>
         <div style={{ display:"flex", justifyContent:"center", marginBottom:24 }}>
-          <Logo size={150} w={true} />
+          <Logo size={220} />
         </div>
         <div style={{
           background:theme.cs, borderRadius:16, padding:28, border:`1px solid ${theme.bd}`
