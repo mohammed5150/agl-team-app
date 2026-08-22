@@ -15,10 +15,13 @@ npm start          # serves dist/ on http://localhost:8080
 
 ## Deploy
 
-This repo is connected to Netlify continuous deploy. Every push to `main`
-triggers `npm run build` and publishes the `dist/` folder.
+The portal deploys to **Cloudflare Pages**: every push to `main` triggers
+`npm run build` and publishes the `dist/` folder. Security headers travel
+with the output in `_headers`, a format both Cloudflare Pages and Netlify
+honour, so the legacy Netlify site keeps its headers until it is retired.
+Setup and cutover steps: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
-- Production: https://auh-adb-portal.netlify.app
+- Production (legacy, until cutover): https://auh-adb-portal.netlify.app
 
 ## Project structure
 
@@ -138,9 +141,10 @@ retry. No SQL access needed.
    roster and the approved Team Mail ID list are compiled out by default;
    `SHOW_DEMO_LOGIN=1` re-enables them for local development. Never deploy
    such a build — it embeds real staff contact details and document numbers.
-4. **Deploy** — publish `dist/` (Netlify). No CDN dependencies: React,
-   ReactDOM and supabase-js are self-hosted under `vendor/` with versions
-   pinned by `package-lock.json`.
+4. **Deploy** — publish `dist/` (Cloudflare Pages; see
+   `docs/DEPLOYMENT.md`). No CDN dependencies: React, ReactDOM and
+   supabase-js are self-hosted under `vendor/` with versions pinned by
+   `package-lock.json`.
 5. **Passwords** — ensure every employee has set a personal password; the
    shared onboarding password must not remain valid on real accounts. Members
    who are locked out now use **Forgot your password?** rather than needing an
