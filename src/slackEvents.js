@@ -8,15 +8,12 @@
 // Actually sending is supabasePortal.js's sendSlack(); this module only
 // decides what to say. None of these functions do any I/O.
 
-export const leaveSubmitted = (name, type, days) =>
-  `📅 New leave: ${name} - ${type} (${days}d)`;
-
-export const leaveActioned = message => `📅 ${message}`;
-
-export const overtimeSubmitted = (name, hours, workDate) =>
-  `🕐 New overtime: ${name} - ${hours}h on ${workDate}`;
-
-export const overtimeActioned = message => `🕐 ${message}`;
+// Both leave events (a new submission and each approve/reject) reuse the
+// same message text app.jsx already built for the in-app notification/push —
+// passed in here, not recomputed — so there's one source for the wording and
+// only the emoji prefix is added for Slack.
+export const leaveEvent = message => `📅 ${message}`;
+export const overtimeEvent = message => `🕐 ${message}`;
 
 export const employeeInvited = (name, email) =>
   `👋 New joiner invited: ${name} (${email})`;

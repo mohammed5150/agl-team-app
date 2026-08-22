@@ -22,6 +22,7 @@
 // employee ids.
 
 import { errorAlert } from "./slackEvents.js";
+import { invokeEdgeFunction } from "./supabasePortal.js";
 
 const MAX_QUEUE = 20;
 const APP_VERSION = typeof __APP_VERSION__ !== "undefined" ? __APP_VERSION__ : "dev";
@@ -115,14 +116,16 @@ export function reportError(report) {
        .catch(() => {});
     }
 
-    // Best-effort Slack alert, same fire-and-forget rule. Routed to the
-    // "alerts" channel (see supabase/functions/notify-slack) so it doesn't mix
-    // with leave/overtime chatter. Deliberately no email/emp_id in the text —
-    // the reporter's identity is stamped server-side, never client-supplied.
-    const sp = client.functions?.invoke?.("notify-slack", {
-      body: { channel: "alerts", text: errorAlert(kind, currentRoute, message) },
+    // Best-effort Slack alert, same fire-and-forget rule and shared with
+    // sendSlack()'s own edge-function call (supabasePortal.js) — this just
+    // supplies the `client` this reporter was installed with, rather than
+    // that module's own singleton, so the test double above still applies.
+    // Routed to the "alerts" channel so it doesn't mix with leave/overtime
+    // chatter. Deliberately no email/emp_id in the text — the reporter's
+    // identity is stamped server-side, never client-supplied.
+    invokeEdgeFunction(client, "slack", "notify-slack", {
+      channel: "alerts", text: errorAlert(kind, currentRoute, message),
     });
-    if (sp && typeof sp.then === "function") sp.catch(() => {});
   } catch (e) {
     // Reporting must never throw into the caller.
     try { console.warn("[portal] error reporter failed:", e); } catch { /* nothing left to do */ }

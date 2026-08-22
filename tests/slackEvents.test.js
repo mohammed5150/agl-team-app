@@ -1,26 +1,20 @@
 import { describe, it, expect } from "vitest";
 import {
-  leaveSubmitted, leaveActioned, overtimeSubmitted, overtimeActioned,
+  leaveEvent, overtimeEvent,
   employeeInvited, bulkInvited, profileFinalized, errorAlert,
 } from "../src/slackEvents.js";
 
 describe("slack event text", () => {
-  it("describes a new leave request", () => {
-    expect(leaveSubmitted("Nisar Ahmed", "Annual", 3))
+  it("wraps a leave message — new submission or a workflow action — with the leave emoji", () => {
+    expect(leaveEvent("New leave: Nisar Ahmed - Annual (3d)"))
       .toBe("📅 New leave: Nisar Ahmed - Annual (3d)");
+    expect(leaveEvent("Annual APPROVED ✅")).toBe("📅 Annual APPROVED ✅");
   });
 
-  it("wraps a leave workflow message with the leave emoji", () => {
-    expect(leaveActioned("Annual APPROVED ✅")).toBe("📅 Annual APPROVED ✅");
-  });
-
-  it("describes a new overtime request", () => {
-    expect(overtimeSubmitted("Bv4 Haris", 4, "2026-08-22"))
+  it("wraps an overtime message — new submission or a workflow action — with the overtime emoji", () => {
+    expect(overtimeEvent("New overtime: Bv4 Haris - 4h on 2026-08-22"))
       .toBe("🕐 New overtime: Bv4 Haris - 4h on 2026-08-22");
-  });
-
-  it("wraps an overtime workflow message with the overtime emoji", () => {
-    expect(overtimeActioned("Overtime 4h on 2026-08-22 APPROVED ✅"))
+    expect(overtimeEvent("Overtime 4h on 2026-08-22 APPROVED ✅"))
       .toBe("🕐 Overtime 4h on 2026-08-22 APPROVED ✅");
   });
 

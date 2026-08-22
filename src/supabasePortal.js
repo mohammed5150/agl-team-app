@@ -70,31 +70,30 @@ export async function unsubscribePush() {
   try { await supa.from("push_subscriptions").delete().eq("endpoint", endpoint); } catch (e) { console.warn("[push] delete subscription error:", e); }
 }
 
-export async function sendPush(toEmpId, title, body, url = "/") {
-  if (!supa) return;
+// Fire an Edge Function and swallow whatever goes wrong — a dead function or
+// a network blip must degrade to a missed notification, never a thrown error
+// on a caller's hot path. Takes `client` explicitly (rather than assuming the
+// module-level `supa`) so errorReporter.js can reuse this against the client
+// it was installed with, keeping its own test seam intact.
+export async function invokeEdgeFunction(client, label, name, body) {
+  if (!client) return;
   try {
-    const { error } = await supa.functions.invoke("send-push", {
-      body: { to: toEmpId, title, body, url },
-    });
-    if (error) console.warn("[push] send failed:", error);
+    const { error } = await client.functions.invoke(name, { body });
+    if (error) console.warn(`[${label}] send failed:`, error);
   } catch (e) {
-    console.warn("[push] send error:", e);
+    console.warn(`[${label}] send error:`, e);
   }
 }
 
-// Fire-and-forget Slack notification, mirroring sendPush. channel is "ops"
-// (leave/overtime/onboarding activity) or "alerts" (see errorReporter.js) —
-// see supabase/functions/notify-slack for which webhook secret each maps to.
-export async function sendSlack(text, channel = "ops") {
-  if (!supa) return;
-  try {
-    const { error } = await supa.functions.invoke("notify-slack", {
-      body: { text, channel },
-    });
-    if (error) console.warn("[slack] send failed:", error);
-  } catch (e) {
-    console.warn("[slack] send error:", e);
-  }
+export function sendPush(toEmpId, title, body, url = "/") {
+  return invokeEdgeFunction(supa, "push", "send-push", { to: toEmpId, title, body, url });
+}
+
+// channel is "ops" (leave/overtime/onboarding activity) or "alerts" (see
+// errorReporter.js) — see supabase/functions/notify-slack for which webhook
+// secret each maps to.
+export function sendSlack(text, channel = "ops") {
+  return invokeEdgeFunction(supa, "slack", "notify-slack", { text, channel });
 }
 
 export const empToDb = e => ({

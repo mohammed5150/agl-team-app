@@ -38,8 +38,9 @@
 // a sync run through an end-user session would silently omit rows that user
 // cannot see. Never expose it to the browser or commit it.
 
+import { fetchAllRows } from "./lib/supabaseTable.mjs";
+
 const NOTION_VERSION = "2022-06-28";
-const PAGE_SIZE = 1000;
 
 // Minimum gap between Notion API calls. Notion's documented average rate
 // limit is ~3 requests/second; this keeps a roster of a few hundred well
@@ -50,26 +51,6 @@ function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-async function fetchAllRows(url, key, table, orderBy) {
-  const rows = [];
-  for (let offset = 0; ; offset += PAGE_SIZE) {
-    const endpoint = `${url}/rest/v1/${table}`
-      + `?select=*&order=${encodeURIComponent(orderBy)}`
-      + `&limit=${PAGE_SIZE}&offset=${offset}`;
-    const res = await fetch(endpoint, {
-      headers: { apikey: key, Authorization: `Bearer ${key}`, Accept: "application/json" },
-    });
-    if (!res.ok) {
-      const body = await res.text();
-      throw new Error(`${table}: HTTP ${res.status} ${body.slice(0, 300)}`);
-    }
-    const page = await res.json();
-    rows.push(...page);
-    if (page.length < PAGE_SIZE) break;
-  }
-  return rows;
-}
-
 function notionHeaders(token) {
   return {
     Authorization: `Bearer ${token}`,
@@ -78,43 +59,54 @@ function notionHeaders(token) {
   };
 }
 
-/** Find the existing page for `portalId`, matched on the title property. */
-async function findPage(token, databaseId, titleProperty, portalId) {
-  const res = await fetch(`https://api.notion.com/v1/databases/${databaseId}/query`, {
-    method: "POST",
-    headers: notionHeaders(token),
-    body: JSON.stringify({
-      filter: { property: titleProperty, title: { equals: portalId } },
-      page_size: 1,
-    }),
-  });
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`query ${databaseId}: HTTP ${res.status} ${body.slice(0, 300)}`);
-  }
-  const { results } = await res.json();
-  return results[0] || null;
+/**
+ * Every existing page in `databaseId`, keyed by its title-property text
+ * (the portal id). Fetched once per sync, up front, so upserting N rows costs
+ * N Notion calls instead of 2N — a per-row "does this page exist" query
+ * before every write would double the nightly run's time against Notion's
+ * ~3 req/sec ceiling for no reason: the whole database fits in a handful of
+ * paginated queries.
+ */
+async function fetchExistingPages(token, databaseId, titleProperty) {
+  const byPortalId = new Map();
+  let cursor;
+  do {
+    const res = await fetch(`https://api.notion.com/v1/databases/${databaseId}/query`, {
+      method: "POST",
+      headers: notionHeaders(token),
+      body: JSON.stringify({ page_size: 100, start_cursor: cursor }),
+    });
+    if (!res.ok) {
+      const body = await res.text();
+      throw new Error(`query ${databaseId}: HTTP ${res.status} ${body.slice(0, 300)}`);
+    }
+    const data = await res.json();
+    for (const page of data.results) {
+      const title = page.properties?.[titleProperty]?.title?.[0]?.plain_text;
+      if (title) byPortalId.set(title, page.id);
+    }
+    cursor = data.has_more ? data.next_cursor : undefined;
+    await sleep(NOTION_THROTTLE_MS);
+  } while (cursor);
+  return byPortalId;
 }
 
-async function upsertPage(token, databaseId, titleProperty, portalId, properties) {
-  const existing = await findPage(token, databaseId, titleProperty, portalId);
-  await sleep(NOTION_THROTTLE_MS);
-
+async function upsertPage(token, databaseId, existingPageId, titleProperty, portalId, properties) {
   const body = { properties: { [titleProperty]: { title: [{ text: { content: portalId } }] }, ...properties } };
-  const endpoint = existing
-    ? `https://api.notion.com/v1/pages/${existing.id}`
+  const endpoint = existingPageId
+    ? `https://api.notion.com/v1/pages/${existingPageId}`
     : `https://api.notion.com/v1/pages`;
   const res = await fetch(endpoint, {
-    method: existing ? "PATCH" : "POST",
+    method: existingPageId ? "PATCH" : "POST",
     headers: notionHeaders(token),
-    body: JSON.stringify(existing ? body : { parent: { database_id: databaseId }, ...body }),
+    body: JSON.stringify(existingPageId ? body : { parent: { database_id: databaseId }, ...body }),
   });
   await sleep(NOTION_THROTTLE_MS);
   if (!res.ok) {
     const errBody = await res.text();
     throw new Error(`upsert ${portalId} into ${databaseId}: HTTP ${res.status} ${errBody.slice(0, 300)}`);
   }
-  return existing ? "updated" : "created";
+  return existingPageId ? "updated" : "created";
 }
 
 const richText = value => ({ rich_text: value ? [{ text: { content: String(value).slice(0, 2000) } }] : [] });
@@ -158,9 +150,13 @@ async function syncTable({ notionToken, databaseId, rows, propsFor, label }) {
     console.log(`[notion-sync] ${label}: no database id configured, skipped`);
     return { created: 0, updated: 0, skipped: rows.length };
   }
+  const existingPages = await fetchExistingPages(notionToken, databaseId, "Employee ID");
   let created = 0, updated = 0;
   for (const row of rows) {
-    const outcome = await upsertPage(notionToken, databaseId, "Employee ID", String(row.id), propsFor(row));
+    const portalId = String(row.id);
+    const outcome = await upsertPage(
+      notionToken, databaseId, existingPages.get(portalId), "Employee ID", portalId, propsFor(row),
+    );
     if (outcome === "created") created++; else updated++;
   }
   console.log(`[notion-sync] ${label}: ${created} created, ${updated} updated (${rows.length} total)`);

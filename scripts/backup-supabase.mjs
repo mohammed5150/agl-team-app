@@ -34,6 +34,7 @@
 
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { fetchAllRows } from "./lib/supabaseTable.mjs";
 
 // Order matters on restore: employees before anything referencing emp_id.
 //
@@ -66,8 +67,6 @@ const OPTIONAL = new Set([
   "client_errors",
 ]);
 
-const PAGE_SIZE = 1000;
-
 function parseArgs(argv) {
   const args = { out: "backups", tables: null };
   for (let i = 0; i < argv.length; i++) {
@@ -75,42 +74,6 @@ function parseArgs(argv) {
     else if (argv[i] === "--tables") args.tables = argv[++i].split(",").map(s => s.trim());
   }
   return args;
-}
-
-/**
- * Read one table completely, in pages.
- *
- * PostgREST caps a response at 1000 rows by default, so a single unpaged GET
- * on a growing audit_log would silently return a prefix and call it a backup.
- * Ordering by the primary key makes the paging stable.
- */
-async function fetchAll(url, key, table, orderBy) {
-  const rows = [];
-  for (let offset = 0; ; offset += PAGE_SIZE) {
-    const endpoint = `${url}/rest/v1/${table}`
-      + `?select=*&order=${encodeURIComponent(orderBy)}`
-      + `&limit=${PAGE_SIZE}&offset=${offset}`;
-    const res = await fetch(endpoint, {
-      headers: {
-        apikey: key,
-        Authorization: `Bearer ${key}`,
-        Accept: "application/json",
-      },
-    });
-
-    if (!res.ok) {
-      const body = await res.text();
-      const err = new Error(`${table}: HTTP ${res.status} ${body.slice(0, 300)}`);
-      err.status = res.status;
-      err.body = body;
-      throw err;
-    }
-
-    const page = await res.json();
-    rows.push(...page);
-    if (page.length < PAGE_SIZE) break;
-  }
-  return rows;
 }
 
 /** Primary key to order by, so paging is deterministic per table. */
@@ -145,7 +108,7 @@ export async function backup({ url, key, out, tables = TABLES, now = new Date() 
 
   for (const table of tables) {
     try {
-      const rows = await fetchAll(url, key, table, orderColumn(table));
+      const rows = await fetchAllRows(url, key, table, orderColumn(table));
       writeFileSync(join(dir, `${table}.json`), JSON.stringify(rows, null, 2));
       manifest.tables[table] = rows.length;
       console.log(`[backup] ${table.padEnd(22)} ${String(rows.length).padStart(6)} rows`);

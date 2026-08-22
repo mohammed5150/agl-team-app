@@ -1016,7 +1016,7 @@ function App() {
       tlComment:"", mgrComment:"", tlActionDate:"", mgrActionDate:"", tlName:"", mgrName:""
     }, ...p]);
     const lrMsg = `New leave: ${currentUser.name} - ${form.type} (${form.days}d)`;
-    sendSlack(slackEvents.leaveSubmitted(currentUser.name, form.type, form.days));
+    sendSlack(slackEvents.leaveEvent(lrMsg));
     // Team leads review employee requests; a team lead's own request goes
     // straight to the managers.
     let recipients = newRequestRecipients(currentUser.role, employees);
@@ -1055,7 +1055,7 @@ function App() {
       ]);
     }
     res.pushes.forEach(pu => sendPush(pu.to, pu.title, pu.body, "/"));
-    res.notifs.forEach(n => sendSlack(slackEvents.leaveActioned(n.message)));
+    res.notifs.forEach(n => sendSlack(slackEvents.leaveEvent(n.message)));
   }, [currentUser, employees, leaveRequests]);
 
   const submitOvertime = useCallback(form => {
@@ -1068,7 +1068,7 @@ function App() {
       tlComment:"", tlActionDate:"", tlName:"", compOffDays:0
     }, ...p]);
     const msg = `New overtime: ${currentUser.name} - ${form.hours}h on ${form.workDate}`;
-    sendSlack(slackEvents.overtimeSubmitted(currentUser.name, form.hours, form.workDate));
+    sendSlack(slackEvents.overtimeEvent(msg));
     // Overtime stops at the team lead, so only team leads are notified. If
     // there is none configured, fall back to managers so it is never lost.
     let recipients = newOvertimeRecipients(employees);
@@ -1102,7 +1102,7 @@ function App() {
       ]);
     }
     res.pushes.forEach(pu => sendPush(pu.to, pu.title, pu.body, "/"));
-    res.notifs.forEach(n => sendSlack(slackEvents.overtimeActioned(n.message)));
+    res.notifs.forEach(n => sendSlack(slackEvents.overtimeEvent(n.message)));
   }, [currentUser, overtimeRequests]);
 
   // Employee saving their own onboarding draft. sanitizeEmployeeEdit drops
