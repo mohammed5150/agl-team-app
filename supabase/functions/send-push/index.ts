@@ -18,6 +18,29 @@
 import { withSupabase } from "npm:@supabase/server@1";
 import webpush from "npm:web-push@3.6.7";
 
+// Minimal schema covering only what this function touches. Regenerate with
+// `supabase gen types typescript` if more tables are ever needed here.
+type Database = {
+  public: {
+    Tables: {
+      push_subscriptions: {
+        Row: {
+          id: string;
+          user_id: string;
+          endpoint: string;
+          p256dh: string;
+          auth: string;
+        };
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
+    };
+    Views: Record<string, never>;
+    Functions: Record<string, never>;
+  };
+};
+
 const VAPID_PUBLIC  = Deno.env.get("VAPID_PUBLIC_KEY")!;
 const VAPID_PRIVATE = Deno.env.get("VAPID_PRIVATE_KEY")!;
 const VAPID_SUBJECT = Deno.env.get("VAPID_SUBJECT") || "mailto:noreply@example.com";
@@ -25,7 +48,7 @@ const VAPID_SUBJECT = Deno.env.get("VAPID_SUBJECT") || "mailto:noreply@example.c
 webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC, VAPID_PRIVATE);
 
 export default {
-  fetch: withSupabase({ auth: "user" }, async (req, ctx) => {
+  fetch: withSupabase<Database>({ auth: "user" }, async (req, ctx) => {
     if (req.method !== "POST") {
       return json({ error: "method not allowed" }, 405);
     }
