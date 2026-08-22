@@ -1,5 +1,11 @@
 # Deployment — Cloudflare Pages
 
+> **STATUS: PAUSED (2026-08-22).** The migration below was never executed —
+> no Pages project was created and DNS was never cut over. Netlify works
+> fine and remains the production host (https://auh-adb-portal.netlify.app,
+> auto-deploying `main`). The steps are kept only in case the migration is
+> ever revived; do not follow them as part of routine deployment.
+
 The portal is a static bundle (`dist/`) plus Supabase. Hosting therefore only
 has two jobs: serve the files, and send the security headers in `_headers`.
 This document covers setting up Cloudflare Pages and cutting over from the

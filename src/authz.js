@@ -31,7 +31,7 @@ export function isEmployee(actor) { return roleOf(actor) === "employee"; }
 export function isTeamLead(actor) { return roleOf(actor) === "teamlead"; }
 export function isManager(actor)  { return roleOf(actor) === "manager"; }
 
-/** Team lead or manager. Mirrors public.is_staff() in the database. */
+/** Team lead or manager. Mirrors app.is_staff() in the database. */
 export function isStaff(actor) {
   return RANK[roleOf(actor)] >= RANK.teamlead;
 }
