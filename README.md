@@ -15,13 +15,14 @@ npm start          # serves dist/ on http://localhost:8080
 
 ## Deploy
 
-The portal deploys to **Cloudflare Pages**: every push to `main` triggers
+The portal deploys to **Netlify**: every push to `main` triggers
 `npm run build` and publishes the `dist/` folder. Security headers travel
-with the output in `_headers`, a format both Cloudflare Pages and Netlify
-honour, so the legacy Netlify site keeps its headers until it is retired.
-Setup and cutover steps: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
+with the output in `_headers`, a format both Netlify and Cloudflare Pages
+honour. A migration to Cloudflare Pages was prepared but is **paused** —
+Netlify works fine and remains the production host; the cutover steps are
+kept in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) in case it is ever revived.
 
-- Production (legacy, until cutover): https://auh-adb-portal.netlify.app
+- Production: https://auh-adb-portal.netlify.app
 
 ## Project structure
 
@@ -141,7 +142,7 @@ retry. No SQL access needed.
    roster and the approved Team Mail ID list are compiled out by default;
    `SHOW_DEMO_LOGIN=1` re-enables them for local development. Never deploy
    such a build — it embeds real staff contact details and document numbers.
-4. **Deploy** — publish `dist/` (Cloudflare Pages; see
+4. **Deploy** — publish `dist/` (Netlify; see
    `docs/DEPLOYMENT.md`). No CDN dependencies: React, ReactDOM and
    supabase-js are self-hosted under `vendor/` with versions pinned by
    `package-lock.json`.
