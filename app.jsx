@@ -641,6 +641,16 @@ function App() {
   }, [nav, currentUser]);
 
 
+  // Auth errors are not guaranteed to carry a readable message: when the
+  // server's error body can't be parsed, supabase-js stringifies it and the
+  // "message" arrives as the literal "{}". Anything like that gets replaced
+  // with the caller's fallback so the banner always says something a person
+  // can act on.
+  const authErrorText = (error, fallback) => {
+    const m = typeof error?.message === "string" ? error.message.trim() : "";
+    return m && m !== "{}" && m !== "[object Object]" ? m : fallback;
+  };
+
   // Log in via Supabase Auth. If the auth user doesn't exist yet (first-ever
   // login for this employee), auto-sign them up with the given password.
   const login = useCallback(async () => {
@@ -700,7 +710,12 @@ function App() {
         }
         const s = await supa.auth.signUp({ email, password: loginPassword });
         if (s.error) {
-          setLoginError(s.error.message || "Invalid email or password");
+          // A 5xx here is almost always the confirmation email failing to
+          // send, which the user can't fix by retyping anything.
+          const fallback = s.error.status >= 500
+            ? "The server could not complete your registration. Nothing is wrong with your email or password — please tell your team lead."
+            : "Invalid email or password";
+          setLoginError(authErrorText(s.error, fallback));
           throttle.recordFailure(email);
           return;
         }
@@ -714,6 +729,10 @@ function App() {
       throttle.recordSuccess(email);
       setLoginError("");
       // onAuthStateChange will load data and set currentUser
+    } catch (e) {
+      // Network drop or an unexpected throw from the client library. Without
+      // this the promise rejected silently and the form just sat there.
+      setLoginError(authErrorText(e, "Sign-in failed — check your connection and try again."));
     } finally {
       setLoginSubmitting(false);
     }
