@@ -84,9 +84,9 @@ export function Prof({ emp, canEdit, onSave, onAdd, isStaff, isMgr, actor, onSen
               }}>{tp}</button>
             ))}
           </div>
-          <input placeholder="Title..." value={af.title} onChange={e => setAf(p => ({ ...p, title:e.target.value }))}
+          <input aria-label="Record title" placeholder="Title…" value={af.title} onChange={e => setAf(p => ({ ...p, title:e.target.value }))}
             style={{ ...ib, marginBottom:10 }} />
-          <textarea placeholder="Description..." value={af.desc} onChange={e => setAf(p => ({ ...p, desc:e.target.value }))}
+          <textarea aria-label="Record description" placeholder="Description…" value={af.desc} onChange={e => setAf(p => ({ ...p, desc:e.target.value }))}
             rows={2} style={{ ...ib, resize:"vertical", fontFamily:"inherit", marginBottom:12 }} />
           <Bt onClick={() => {
             if (af.title.trim()) {

@@ -20,7 +20,7 @@ export const Ring = ({ value, size=120, stroke=10, color="#0b1a2b", track="rgba(
       </svg>
       <div style={{ position:"absolute", inset:0, display:"flex", flexDirection:"column",
         alignItems:"center", justifyContent:"center" }}>
-        <div style={{ fontSize:28, fontWeight:800, color:INK, lineHeight:1 }}>{label}</div>
+        <div style={{ fontSize:28, fontWeight:800, color:INK, lineHeight:1, fontVariantNumeric:"tabular-nums" }}>{label}</div>
         {sub && <div style={{ fontSize:10, fontWeight:700, color:INK, opacity:0.7, marginTop:2, letterSpacing:0.4 }}>{sub}</div>}
       </div>
     </div>
@@ -65,7 +65,11 @@ export const MonthBars = ({ values, color=INK, height=42, active=-1, unit="day" 
 export const Tile = ({ bg, label, value, sub, dark=false, children, onClick }) => {
   const fg = dark ? "#f0f4f8" : INK;
   return (
-    <div onClick={onClick} style={{
+    <div onClick={onClick}
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onKeyDown={onClick ? (e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick(); } }) : undefined}
+      style={{
       background: bg, borderRadius:theme.r.hero, padding:18,
       minHeight:150, cursor: onClick ? "pointer" : "default",
       display:"flex", flexDirection:"column", justifyContent:"space-between",
@@ -74,7 +78,7 @@ export const Tile = ({ bg, label, value, sub, dark=false, children, onClick }) =
       <div style={{ fontSize:11, fontWeight:700, letterSpacing:1, opacity:0.75, textTransform:"uppercase" }}>{label}</div>
       {children ? children : (
         <div>
-          <div style={{ fontSize:34, fontWeight:800, lineHeight:1 }}>{value}</div>
+          <div style={{ fontSize:34, fontWeight:800, lineHeight:1, fontVariantNumeric:"tabular-nums" }}>{value}</div>
           {sub && <div style={{ fontSize:11, opacity:0.7, marginTop:4 }}>{sub}</div>}
         </div>
       )}

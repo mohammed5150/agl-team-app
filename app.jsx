@@ -1324,7 +1324,9 @@ function App() {
             const isA = nav === it.key;
             const bd2 = it.key === "approvals" && pc > 0;
             return (
-              <div key={it.key} className="row-hover" onClick={() => { setNav(it.key); setViewEmployee(null); setShowNotif(false); }}
+              <div key={it.key} className="row-hover" role="button" tabIndex={0} aria-current={isA ? "page" : undefined}
+                onClick={() => { setNav(it.key); setViewEmployee(null); setShowNotif(false); }}
+                onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setNav(it.key); setViewEmployee(null); setShowNotif(false); } }}
                 style={{
                   display:"flex", alignItems:"center", gap:8,
                   padding: sidebarOpen ? "9px 12px" : "9px 0",
@@ -1386,6 +1388,8 @@ function App() {
           </div>
           <div style={{ display:"flex", alignItems:"center", gap:10, position:"relative" }}>
             <div onClick={() => setShowNotif(!showNotif)} className="row-hover" role="button" aria-label="Notifications"
+              tabIndex={0} aria-expanded={showNotif}
+              onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setShowNotif(v => !v); } }}
               style={{ position:"relative", cursor:"pointer", padding:6, borderRadius:8, display:"inline-flex", color:theme.ts }}>
               <GlyphIcon glyph="bell" size={20} />
               {mn.length > 0 && (
@@ -1508,7 +1512,7 @@ function App() {
                 position:"fixed", inset:0, background:"rgba(0,0,0,0.55)", zIndex:94
               }}>
                 <div role="dialog" aria-label="More pages" onClick={e => e.stopPropagation()} style={{
-                  position:"fixed", bottom:0, left:0, right:0, zIndex:95,
+                  position:"fixed", bottom:0, left:0, right:0, zIndex:95, overscrollBehavior:"contain",
                   background:theme.cs, borderTop:`1px solid ${theme.bl}`,
                   borderRadius:`${theme.r.panel}px ${theme.r.panel}px 0 0`,
                   padding:"14px 14px calc(14px + env(safe-area-inset-bottom))",

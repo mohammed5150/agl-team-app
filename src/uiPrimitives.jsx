@@ -85,7 +85,7 @@ export const SC2 = ({ label, value, color, icon, sub }) => (
       <GlyphIcon glyph={icon} size={64} strokeWidth={1.2} />
     </div>
     <div style={{ fontSize:13, color:theme.td, marginBottom:6, fontWeight:500 }}>{label}</div>
-    <div style={{ fontSize:28, fontWeight:800, color }}>{value}</div>
+    <div style={{ fontSize:28, fontWeight:800, color, fontVariantNumeric:"tabular-nums" }}>{value}</div>
     {sub && <div style={{ fontSize:11, color:theme.td, marginTop:4 }}>{sub}</div>}
   </div>
 );
@@ -150,7 +150,7 @@ export const Modal = ({ title, onClose, children, width=560 }) => {
         className="modal-panel"
         style={{
         background:theme.cs, borderRadius:theme.r.panel, padding:24, border:`1px solid ${theme.bl}`,
-        width:"100%", maxWidth:width, maxHeight:"90vh", overflowY:"auto",
+        width:"100%", maxWidth:width, maxHeight:"90vh", overflowY:"auto", overscrollBehavior:"contain",
         boxShadow:"0 24px 80px rgba(0,0,0,0.5)", outline:"none"
       }}>
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>

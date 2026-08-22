@@ -164,6 +164,7 @@ export function LoginPage({
                 name="email"
                 type="email"
                 autoComplete="username"
+                spellCheck={false}
                 value={loginId}
                 onChange={e => setLoginId(e.target.value)}
                 placeholder="your.name@adbsafegate.com"
@@ -237,7 +238,10 @@ export function LoginPage({
             <GlyphIcon glyph="user" size={12} /> DEV: PREFILL EMAIL
           </p>
           {demoAccounts.map(a => (
-            <div key={a.id} className="row-hover" onClick={() => setLoginId(a.id)} style={{
+            <div key={a.id} className="row-hover" role="button" tabIndex={0}
+              onClick={() => setLoginId(a.id)}
+              onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setLoginId(a.id); } }}
+              style={{
               display:"flex", justifyContent:"space-between", alignItems:"center", gap:8,
               padding:"7px 8px", borderRadius:8, cursor:"pointer", fontSize:12
             }}>

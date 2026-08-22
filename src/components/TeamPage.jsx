@@ -383,7 +383,7 @@ export function Team({ employees, onSel, isMgr, isTL, onInvite, onBulkInvite, on
           ))}
         </div>
       )}
-      <input placeholder="Search..." value={s} onChange={e => setS(e.target.value)}
+      <input aria-label="Search employees" placeholder="Search…" value={s} onChange={e => setS(e.target.value)}
         style={{ ...ib, marginBottom:14 }} />
       <div style={{ background:theme.card, borderRadius:14, border:`1px solid ${theme.bd}`, overflow:"hidden" }}>
         <div style={{ overflowX:"auto" }}>

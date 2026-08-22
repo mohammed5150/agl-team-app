@@ -187,7 +187,7 @@ export function DocsMgmt({ employees, onSel }) {
           }}>{s}</button>
         ))}
       </div>
-      <input placeholder="Search employee..." value={sr} onChange={e => setSr(e.target.value)}
+      <input aria-label="Search employees" placeholder="Search employee…" value={sr} onChange={e => setSr(e.target.value)}
         style={{ ...ib, marginBottom:14 }} />
       <div style={{ background:theme.card, borderRadius:14, border:`1px solid ${theme.bd}`, overflow:"hidden" }}>
         <div style={{ overflowX:"auto" }}>

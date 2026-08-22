@@ -77,7 +77,7 @@ export function LvFm({ onSub, onCan, user, leaveRequests }) {
       <div style={{ marginBottom:18 }}>
         <label style={{ display:"block", fontSize:10, color:theme.td, fontWeight:700, marginBottom:5 }}>REASON</label>
         <textarea value={f.reason} onChange={e => setF(p => ({ ...p, reason:e.target.value }))}
-          rows={3} placeholder="Reason..." style={{ ...ib, resize:"vertical", fontFamily:"inherit" }} />
+          rows={3} aria-label="Reason for leave" placeholder="Reason…" style={{ ...ib, resize:"vertical", fontFamily:"inherit" }} />
       </div>
       {live.warnings.length > 0 && (
         <div role="status" aria-live="polite" style={{
@@ -135,7 +135,7 @@ export const LvCd = React.memo(function LvCd({ req, role, viewerId, onAct }) {
       {ca && sa && (
         <div style={{ marginTop:8, background:theme.ch, borderRadius:10, padding:12 }}>
           <textarea value={cm} onChange={e => setCm(e.target.value)}
-            rows={2} placeholder="Comment..." style={{ ...ib, marginBottom:8 }} />
+            rows={2} aria-label="Comment on this request" placeholder="Comment…" style={{ ...ib, marginBottom:8 }} />
           <div style={{ display:"flex", gap:6 }}>
             <Bt onClick={() => { onAct(req.id, "approve", cm); setSa(false); setCm(""); }} small={true} bg={theme.gn}><GlyphIcon glyph="check-square" size={12} /> Approve</Bt>
             <Bt onClick={() => { onAct(req.id, "reject", cm); setSa(false); setCm(""); }} small={true} bg={theme.rd}><GlyphIcon glyph="x-circle" size={12} /> Reject</Bt>

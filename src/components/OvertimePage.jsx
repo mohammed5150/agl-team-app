@@ -127,7 +127,7 @@ export const OtCd = React.memo(function OtCd({ req, role, viewerId, onAct }) {
       {ca && sa && (
         <div style={{ marginTop:8, background:theme.ch, borderRadius:10, padding:12 }}>
           <textarea value={cm} onChange={e => setCm(e.target.value)}
-            rows={2} placeholder="Comment..." style={{ ...ib, marginBottom:8 }} />
+            rows={2} aria-label="Comment on this claim" placeholder="Comment…" style={{ ...ib, marginBottom:8 }} />
           <div style={{ display:"flex", gap:6 }}>
             <Bt onClick={() => { onAct(req.id, "approve", cm); setSa(false); setCm(""); }} small={true} bg={theme.gn}><GlyphIcon glyph="check-square" size={12} /> Approve</Bt>
             <Bt onClick={() => { onAct(req.id, "reject", cm); setSa(false); setCm(""); }} small={true} bg={theme.rd}><GlyphIcon glyph="x-circle" size={12} /> Reject</Bt>

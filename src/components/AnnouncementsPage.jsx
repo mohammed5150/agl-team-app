@@ -52,7 +52,7 @@ export function AnnPg({ user, announcements, onAdd, onDel }) {
           <div style={{ marginBottom:12 }}>
             <label style={{ display:"block", fontSize:10, color:theme.td, fontWeight:700, marginBottom:5 }}>MESSAGE</label>
             <textarea value={form.message} onChange={e => setForm(p => ({ ...p, message:e.target.value }))}
-              rows={5} placeholder="Write the full announcement here..."
+              rows={5} placeholder="Write the full announcement here…"
               style={{ ...ib, resize:"vertical", fontFamily:"inherit" }} />
           </div>
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:12 }}>

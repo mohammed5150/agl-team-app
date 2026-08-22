@@ -261,7 +261,7 @@ export function TrMgmt({ employees }) {
           }}>{s}</button>
         ))}
       </div>
-      <input placeholder="Search..." value={sr} onChange={e => setSr(e.target.value)}
+      <input aria-label="Search certificates" placeholder="Search…" value={sr} onChange={e => setSr(e.target.value)}
         style={{ ...ib, marginBottom:14 }} />
       <div style={{ background:theme.card, borderRadius:14, border:`1px solid ${theme.bd}`, overflow:"hidden" }}>
         <div style={{ overflowX:"auto" }}>
