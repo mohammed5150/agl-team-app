@@ -45,14 +45,14 @@ function ForgotPassword({ initialEmail, onRequest, onBack }) {
         <div role="alert" aria-live="assertive" style={{
           background:"rgba(239,68,68,0.1)", border:"1px solid rgba(239,68,68,0.3)",
           borderRadius:10, padding:"8px 12px", marginBottom:14, color:theme.rd, fontSize:12
-        }}>⚠️ {error}</div>
+        }}><GlyphIcon glyph="alert-triangle" size={13} style={{ verticalAlign:"-2px" }} /> {error}</div>
       )}
       {notice && (
         <div role="status" aria-live="polite" style={{
           background:"rgba(16,185,129,0.1)", border:"1px solid rgba(16,185,129,0.3)",
           borderRadius:10, padding:"10px 12px", marginBottom:14, color:theme.gn,
           fontSize:12, lineHeight:1.6
-        }}>✉️ {notice}</div>
+        }}><GlyphIcon glyph="mail" size={13} style={{ verticalAlign:"-2px" }} /> {notice}</div>
       )}
 
       <form onSubmit={e => { e.preventDefault(); submit(); }} aria-busy={busy}>
@@ -151,7 +151,7 @@ export function LoginPage({
                 background:"rgba(239,68,68,0.1)", border:"1px solid rgba(239,68,68,0.3)",
                 borderRadius:10, padding:"8px 12px", marginBottom:14, color:theme.rd, fontSize:12
               }}
-            >⚠️ {loginError}</div>
+            ><GlyphIcon glyph="alert-triangle" size={13} style={{ verticalAlign:"-2px" }} /> {loginError}</div>
           )}
           <form
             onSubmit={e => { e.preventDefault(); if (!loginSubmitting) login(); }}

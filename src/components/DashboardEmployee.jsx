@@ -142,7 +142,7 @@ export function EDash({ user, announcements, onGoTo }) {
 
       {/* Action Required card (if anything expiring) */}
       {(certsExpiring.length > 0 || docsExpiring.length > 0) && (
-        <Tile bg={theme.cs} dark label="⚠ Action Required">
+        <Tile bg={theme.cs} dark label="Action Required">
           <div style={{ marginTop:8 }}>
             {certsExpiring.slice(0,3).map(x => (
               <div key={"c"+x.id} style={{

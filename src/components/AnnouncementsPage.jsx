@@ -35,7 +35,7 @@ export function AnnPg({ user, announcements, onAdd, onDel }) {
     <div>
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:18, flexWrap:"wrap", gap:10 }}>
         <h2 style={{ fontSize:22, fontWeight:700, color:theme.tx, margin:0 }}>Announcements</h2>
-        {canCompose && <Bt onClick={() => setShowForm(true)} bg={theme.or}>📢 Post Announcement</Bt>}
+        {canCompose && <Bt onClick={() => setShowForm(true)} bg={theme.or}><GlyphIcon glyph="megaphone" size={13} /> Post Announcement</Bt>}
       </div>
 
       {showForm && (
@@ -81,7 +81,7 @@ export function AnnPg({ user, announcements, onAdd, onDel }) {
             </label>
           </div>
           <div style={{ display:"flex", gap:8 }}>
-            <Bt onClick={submit} bg={theme.gn}>📤 Post</Bt>
+            <Bt onClick={submit} bg={theme.gn}><GlyphIcon glyph="send" size={13} /> Post</Bt>
             <Bt onClick={() => setShowForm(false)} outline={true}>Cancel</Bt>
           </div>
         </Modal>
@@ -143,7 +143,7 @@ export const AnnCard = React.memo(function AnnCard({ a, canDel, onDel }) {
         {canDel && (
           <button type="button" aria-label={`Delete announcement: ${a.title}`} onClick={() => onDel(a.id)} style={{
             background:"none", border:"none", color:theme.td, cursor:"pointer", fontSize:14, padding:4
-          }}>🗑️</button>
+          }}><GlyphIcon glyph="trash" size={14} /></button>
         )}
       </div>
       <div style={{ fontSize:13, color:theme.ts, marginTop:10, lineHeight:1.5, whiteSpace:"pre-wrap" }}>{a.message}</div>

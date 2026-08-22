@@ -1,5 +1,6 @@
 import { theme } from "./constants.js";
 import { reportError } from "./errorReporter.js";
+import { GlyphIcon } from "./icons.jsx";
 
 export class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -29,7 +30,7 @@ export class ErrorBoundary extends React.Component {
           justifyContent:"center", background:theme.bg, color:theme.tx, padding:24, textAlign:"center",
           maxWidth:480, margin:"0 auto"
         }}>
-          <div style={{ fontSize:48, marginBottom:12 }}>⚠️</div>
+          <div style={{ marginBottom:12, color:theme.yl }}><GlyphIcon glyph="alert-triangle" size={48} strokeWidth={1.4} /></div>
           <h1 style={{ fontSize:20, marginBottom:8 }}>Something went wrong</h1>
           <p style={{ color:theme.ts, fontSize:14, marginBottom:20, lineHeight:1.5 }}>
             {this.state.err?.message || "An unexpected error occurred."}

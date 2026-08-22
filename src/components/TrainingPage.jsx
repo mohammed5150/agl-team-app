@@ -2,6 +2,7 @@ import { SECTIONS, theme } from "../constants.js";
 import { ROLE_CODES, ROLE_ORDER, designationToRoleCode, TRAINING_CATALOG } from "../trainingCatalog.js";
 import { certSt } from "../helpers.js";
 import { ib, Bd, SC2, Sec } from "../uiPrimitives.jsx";
+import { GlyphIcon } from "../icons.jsx";
 
 const { useState } = React;
 
@@ -91,11 +92,11 @@ export function TrMatrix({ employees }) {
         <button onClick={() => setView("matrix")} style={{
           padding:"8px 16px", borderRadius:10, fontWeight:700, cursor:"pointer", border:"none",
           background: view === "matrix" ? theme.pl : theme.ch, color: view === "matrix" ? "#fff" : theme.tx
-        }}>📋 Course Matrix ({TRAINING_CATALOG.length})</button>
+        }}><GlyphIcon glyph="clipboard" size={12} style={{ verticalAlign:"-2px" }} /> Course Matrix ({TRAINING_CATALOG.length})</button>
         <button onClick={() => setView("gap")} style={{
           padding:"8px 16px", borderRadius:10, fontWeight:700, cursor:"pointer", border:"none",
           background: view === "gap" ? theme.pl : theme.ch, color: view === "gap" ? "#fff" : theme.tx
-        }}>⚠ Compliance Gap</button>
+        }}><GlyphIcon glyph="alert-triangle" size={12} style={{ verticalAlign:"-2px" }} /> Compliance Gap</button>
       </div>
 
       {view === "matrix" ? (
@@ -107,7 +108,7 @@ export function TrMatrix({ employees }) {
               <option value="all">All types</option>
               {types.map(t => <option key={t} value={t}>{t}</option>)}
             </select>
-            <input placeholder="🔍 search course…" value={search} onChange={e => setSearch(e.target.value)}
+            <input placeholder="Search course…" value={search} onChange={e => setSearch(e.target.value)}
               style={{ flex:1, minWidth:200, padding:"8px 12px", background:theme.ch, color:theme.tx,
                 borderRadius:8, border:`1px solid ${theme.bd}`, fontSize:13 }} />
           </div>
@@ -227,11 +228,11 @@ export function TrMgmt({ employees }) {
         <button onClick={() => setTab("certs")} style={{
           padding:"8px 16px", borderRadius:10, fontWeight:700, cursor:"pointer", border:"none",
           background: tab === "certs" ? theme.pl : theme.ch, color: tab === "certs" ? "#fff" : theme.tx
-        }}>🎓 Certificates</button>
+        }}><GlyphIcon glyph="grad-cap" size={12} style={{ verticalAlign:"-2px" }} /> Certificates</button>
         <button onClick={() => setTab("matrix")} style={{
           padding:"8px 16px", borderRadius:10, fontWeight:700, cursor:"pointer", border:"none",
           background: tab === "matrix" ? theme.pl : theme.ch, color: tab === "matrix" ? "#fff" : theme.tx
-        }}>📋 TNA Matrix</button>
+        }}><GlyphIcon glyph="clipboard" size={12} style={{ verticalAlign:"-2px" }} /> TNA Matrix</button>
       </div>
       {tab === "matrix" ? <TrMatrix employees={employees} /> : (
       <>
@@ -260,7 +261,7 @@ export function TrMgmt({ employees }) {
           }}>{s}</button>
         ))}
       </div>
-      <input placeholder="🔍 Search..." value={sr} onChange={e => setSr(e.target.value)}
+      <input placeholder="Search..." value={sr} onChange={e => setSr(e.target.value)}
         style={{ ...ib, marginBottom:14 }} />
       <div style={{ background:theme.card, borderRadius:14, border:`1px solid ${theme.bd}`, overflow:"hidden" }}>
         <div style={{ overflowX:"auto" }}>

@@ -6,6 +6,7 @@ import {
   FINALIZE_CONFIRM_MESSAGE,
 } from "../onboarding.js";
 import { ib, Bt, Sec, Modal } from "../uiPrimitives.jsx";
+import { GlyphIcon } from "../icons.jsx";
 
 const { useState } = React;
 
@@ -174,12 +175,12 @@ export function Onboarding({ emp, onSave, onFinalize, onSkip }) {
             {step === "edit" && <>
               <Bt onClick={goReview} bg={theme.or}>Review →</Bt>
               <Bt onClick={saveDraft} outline={true}>
-                {saved ? "✓ Saved" : "💾 Save & continue later"}
+                {saved ? "✓ Saved" : <><GlyphIcon glyph="save" size={13} /> Save & continue later</>}
               </Bt>
               {onSkip && <Bt onClick={onSkip} outline={true}>Skip for now</Bt>}
             </>}
             {step === "review" && <>
-              <Bt onClick={() => setConfirming(true)} bg={theme.gn}>🔒 Finalize Profile</Bt>
+              <Bt onClick={() => setConfirming(true)} bg={theme.gn}><GlyphIcon glyph="lock" size={13} /> Finalize Profile</Bt>
               <Bt onClick={() => setStep("edit")} outline={true}>← Back to edit</Bt>
             </>}
           </div>

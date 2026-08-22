@@ -1,6 +1,7 @@
 import { SECTIONS, MONTHS, ATT_MONTHS, ATT_YEAR, theme } from "../constants.js";
 import { cH } from "../helpers.js";
 import { ib, Bd, Bt, SC2, Sec, Modal } from "../uiPrimitives.jsx";
+import { GlyphIcon } from "../icons.jsx";
 
 const { useState } = React;
 
@@ -38,7 +39,7 @@ export function AttPg({ employees, selectedMonth, setSelectedMonth, onEditRoster
           }}>{s}</button>
         ))}
       </div>
-      <input placeholder="🔍 Search..." value={sr} onChange={e => setSr(e.target.value)}
+      <input placeholder="Search..." value={sr} onChange={e => setSr(e.target.value)}
         style={{ ...ib, marginBottom:14 }} />
       <div style={{ background:theme.card, borderRadius:14, border:`1px solid ${theme.bd}`, overflow:"hidden" }}>
         <div style={{ overflowX:"auto" }}>
@@ -75,7 +76,7 @@ export function AttPg({ employees, selectedMonth, setSelectedMonth, onEditRoster
                       }}>{pc2}%</span>
                     </td>
                     <td style={{ padding:"10px 12px" }}>
-                      {canEdit && <Bt onClick={() => setEditEmp(e)} small={true} outline={true}>✏️ Edit Roster</Bt>}
+                      {canEdit && <Bt onClick={() => setEditEmp(e)} small={true} outline={true}><GlyphIcon glyph="pencil" size={12} /> Edit Roster</Bt>}
                     </td>
                   </tr>
                 );

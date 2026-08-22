@@ -1,6 +1,7 @@
 import { theme } from "../constants.js";
 import { Bt, Bd, Sec, Modal, ib } from "../uiPrimitives.jsx";
 import { canResetOthersPassword, canOffboardEmployee } from "../authz.js";
+import { GlyphIcon } from "../icons.jsx";
 
 const { useState, useId } = React;
 
@@ -93,27 +94,27 @@ export function AdminActions({ employee, actor, onSendReset, onSetEmploymentStat
         <div role="alert" aria-live="assertive" style={{
           background:"rgba(239,68,68,0.1)", border:"1px solid rgba(239,68,68,0.3)",
           borderRadius:10, padding:"8px 12px", marginBottom:12, color:theme.rd, fontSize:12,
-        }}>⚠️ {error}</div>
+        }}><GlyphIcon glyph="alert-triangle" size={13} /> {error}</div>
       )}
 
       <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
         {mayReset && (
           <Bt small={true} outline={true} disabled={busy || !employee.email}
             onClick={() => run(() => onSendReset(employee))}>
-            ✉️ Send password reset
+            <GlyphIcon glyph="mail" size={13} /> Send password reset
           </Bt>
         )}
         {mayOffboard && status === "active" && (
           <>
             <Bt small={true} bg={theme.yl} disabled={busy}
-              onClick={() => setConfirming("suspended")}>⏸ Suspend</Bt>
+              onClick={() => setConfirming("suspended")}><GlyphIcon glyph="pause" size={13} /> Suspend</Bt>
             <Bt small={true} bg={theme.rd} disabled={busy}
-              onClick={() => setConfirming("offboarded")}>👋 Offboard</Bt>
+              onClick={() => setConfirming("offboarded")}><GlyphIcon glyph="user-minus" size={13} /> Offboard</Bt>
           </>
         )}
         {mayOffboard && status !== "active" && (
           <Bt small={true} bg={theme.gn} disabled={busy}
-            onClick={() => setConfirming("active")}>↩ Reactivate</Bt>
+            onClick={() => setConfirming("active")}><GlyphIcon glyph="undo" size={13} /> Reactivate</Bt>
         )}
       </div>
 

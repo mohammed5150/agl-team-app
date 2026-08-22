@@ -1,6 +1,7 @@
 import { LEAVE_TYPES, STATUS_COLORS, STATUS_LABELS, theme } from "../constants.js";
 import { ib, Bd, Bt, SC2, Empty } from "../uiPrimitives.jsx";
 import { validateLeaveRequest, remainingBalance, BALANCE_FIELDS } from "../validation.js";
+import { GlyphIcon } from "../icons.jsx";
 
 const { useState, useMemo } = React;
 
@@ -36,13 +37,13 @@ export function LvFm({ onSub, onCan, user, leaveRequests }) {
 
   return (
     <div style={{ background:theme.cs, borderRadius:14, padding:22, border:`1px solid ${theme.bl}`, maxWidth:520 }}>
-      <h3 style={{ fontSize:16, fontWeight:700, color:theme.tx, marginBottom:18 }}>📝 Apply for Leave</h3>
+      <h3 style={{ fontSize:16, fontWeight:700, color:theme.tx, marginBottom:18, display:"flex", alignItems:"center", gap:8 }}><GlyphIcon glyph="pencil" size={16} style={{ color:theme.ol }} /> Apply for Leave</h3>
       {errors.length > 0 && (
         <div role="alert" aria-live="assertive" style={{
           background:"rgba(239,68,68,0.1)", border:"1px solid rgba(239,68,68,0.3)",
           borderRadius:8, padding:"8px 12px", marginBottom:12, color:theme.rd, fontSize:12
         }}>
-          {errors.map((e, i) => <div key={i} style={{ marginTop: i ? 4 : 0 }}>⚠️ {e}</div>)}
+          {errors.map((e, i) => <div key={i} style={{ marginTop: i ? 4 : 0 }}><GlyphIcon glyph="alert-triangle" size={13} style={{ verticalAlign:"-2px" }} /> {e}</div>)}
         </div>
       )}
       <div style={{ marginBottom:14 }}>
@@ -88,7 +89,7 @@ export function LvFm({ onSub, onCan, user, leaveRequests }) {
         </div>
       )}
       <div style={{ display:"flex", gap:8 }}>
-        <Bt onClick={submit} bg={theme.gn}>📤 Submit</Bt>
+        <Bt onClick={submit} bg={theme.gn}><GlyphIcon glyph="send" size={13} /> Submit</Bt>
         <Bt onClick={onCan} outline={true}>Cancel</Bt>
       </div>
     </div>
@@ -130,14 +131,14 @@ export const LvCd = React.memo(function LvCd({ req, role, viewerId, onAct }) {
         </div>
       )}
       {ca && !sa && <Bt onClick={() => setSa(true)} small={true}>Take Action</Bt>}
-      {canWithdraw && <Bt onClick={() => onAct(req.id, "withdraw")} small={true} outline={true}>↩ Withdraw</Bt>}
+      {canWithdraw && <Bt onClick={() => onAct(req.id, "withdraw")} small={true} outline={true}><GlyphIcon glyph="undo" size={12} /> Withdraw</Bt>}
       {ca && sa && (
         <div style={{ marginTop:8, background:theme.ch, borderRadius:10, padding:12 }}>
           <textarea value={cm} onChange={e => setCm(e.target.value)}
             rows={2} placeholder="Comment..." style={{ ...ib, marginBottom:8 }} />
           <div style={{ display:"flex", gap:6 }}>
-            <Bt onClick={() => { onAct(req.id, "approve", cm); setSa(false); setCm(""); }} small={true} bg={theme.gn}>✅ Approve</Bt>
-            <Bt onClick={() => { onAct(req.id, "reject", cm); setSa(false); setCm(""); }} small={true} bg={theme.rd}>❌ Reject</Bt>
+            <Bt onClick={() => { onAct(req.id, "approve", cm); setSa(false); setCm(""); }} small={true} bg={theme.gn}><GlyphIcon glyph="check-square" size={12} /> Approve</Bt>
+            <Bt onClick={() => { onAct(req.id, "reject", cm); setSa(false); setCm(""); }} small={true} bg={theme.rd}><GlyphIcon glyph="x-circle" size={12} /> Reject</Bt>
             <Bt onClick={() => { setSa(false); setCm(""); }} small={true} outline={true}>Cancel</Bt>
           </div>
         </div>
@@ -161,7 +162,7 @@ export function LvPg({ user, leaveRequests, onSub, onAct }) {
     <div>
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:18, flexWrap:"wrap", gap:10 }}>
         <h2 style={{ fontSize:22, fontWeight:700, color:theme.tx, margin:0 }}>Leave Management</h2>
-        {isE && <Bt onClick={() => setSf(true)} bg={theme.or}>📝 Apply</Bt>}
+        {isE && <Bt onClick={() => setSf(true)} bg={theme.or}><GlyphIcon glyph="pencil" size={13} /> Apply</Bt>}
       </div>
       {isE && (
         <div style={{ display:"flex", gap:10, flexWrap:"wrap", marginBottom:18 }}>
@@ -222,7 +223,7 @@ export function ApPg({ user, leaveRequests, onAct }) {
         {pn.length > 0 && <Bd text={`${pn.length} Pending`} color={theme.yl} />}
       </div>
       {!pn.length
-        ? <div style={{ textAlign:"center", padding:40, color:theme.td }}>✅ All clear</div>
+        ? <Empty icon="check-square" text="All clear" />
         : pn.map(r => <LvCd key={r.id} req={r} role={user.role} viewerId={user.id} onAct={onAct} />)}
     </div>
   );

@@ -58,7 +58,7 @@ export const Bt = ({ children, onClick, bg=theme.pl, color="#fff", outline=false
     // a thumb — and these are Approve / Reject / Withdraw actions used on a
     // phone out on the airfield.
     minHeight:44,
-    display:"inline-flex", alignItems:"center", justifyContent:"center",
+    display:"inline-flex", alignItems:"center", justifyContent:"center", gap:6,
     borderRadius:theme.r.ctl,
     border: outline ? `1px solid ${theme.bl}` : "none",
     background: disabled ? "rgba(255,255,255,0.05)" : (outline ? "transparent" : bg),

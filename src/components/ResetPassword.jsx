@@ -2,6 +2,7 @@ import { theme } from "../constants.js";
 import { ib, Bt, Logo } from "../uiPrimitives.jsx";
 import { checkPassword, POLICY_SUMMARY } from "../passwordPolicy.js";
 import { PasswordRequirements } from "./PasswordRequirements.jsx";
+import { GlyphIcon } from "../icons.jsx";
 
 const { useState, useId } = React;
 
@@ -59,7 +60,7 @@ export function ResetPassword({ email, onSubmit, onCancel }) {
         }}>
           {done ? (
             <div style={{ textAlign:"center" }}>
-              <div style={{ fontSize:48, marginBottom:10 }} aria-hidden="true">✅</div>
+              <div style={{ marginBottom:10, color:theme.gn }} aria-hidden="true"><GlyphIcon glyph="check-square" size={48} strokeWidth={1.4} /></div>
               <h2 style={{ color:theme.gn, fontSize:19, margin:"0 0 8px" }}>Password updated</h2>
               <p style={{ color:theme.ts, fontSize:13, lineHeight:1.6 }}>
                 You are signed in. Taking you to the portal…
@@ -68,7 +69,7 @@ export function ResetPassword({ email, onSubmit, onCancel }) {
           ) : (
             <>
               <h2 style={{ fontSize:20, fontWeight:700, color:theme.tx, margin:"0 0 6px" }}>
-                🔑 Choose a new password
+                <GlyphIcon glyph="key" size={17} /> Choose a new password
               </h2>
               {email && (
                 <p style={{ color:theme.ts, fontSize:12, margin:"0 0 4px" }}>
@@ -81,7 +82,7 @@ export function ResetPassword({ email, onSubmit, onCancel }) {
                 <div role="alert" aria-live="assertive" style={{
                   background:"rgba(239,68,68,0.1)", border:"1px solid rgba(239,68,68,0.3)",
                   borderRadius:10, padding:"8px 12px", marginBottom:14, color:theme.rd, fontSize:12
-                }}>⚠️ {error}</div>
+                }}><GlyphIcon glyph="alert-triangle" size={13} style={{ verticalAlign:"-2px" }} /> {error}</div>
               )}
 
               <form onSubmit={e => { e.preventDefault(); submit(); }} aria-busy={busy}>

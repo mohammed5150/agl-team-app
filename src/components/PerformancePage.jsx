@@ -2,6 +2,7 @@ import { SECTIONS, theme } from "../constants.js";
 import { RATING_KEYS, gradeFromRating, TIERS, TIER_COLORS } from "../rating.js";
 import { fmtDt } from "../helpers.js";
 import { Bd, Bt, Modal } from "../uiPrimitives.jsx";
+import { GlyphIcon } from "../icons.jsx";
 
 const { useState } = React;
 
@@ -42,7 +43,7 @@ export function PerfEditor({ emp, isMgr, onSave, onClose }) {
         <div key={k} style={{ display:"flex", alignItems:"center", justifyContent:"space-between",
           padding:"12px 0", borderBottom:`1px solid ${theme.bd}` }}>
           <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-            <span style={{ fontSize:18 }}>{icon}</span>
+            <span style={{ color:theme.ol, display:"inline-flex" }}><GlyphIcon glyph={icon} size={18} /></span>
             <span style={{ color:theme.tx, fontSize:14, fontWeight:600 }}>{label}</span>
           </div>
           <StarRow value={r[k]} onChange={v => setR(p => ({ ...p, [k]:v }))} editable={true} />
@@ -58,7 +59,7 @@ export function PerfEditor({ emp, isMgr, onSave, onClose }) {
       {isMgr && (
         <div style={{ padding:"14px 0", borderBottom:`1px solid ${theme.bd}` }}>
           <div style={{ color:theme.tx, fontSize:14, fontWeight:700, marginBottom:8 }}>
-            💰 Salary Tier <span style={{ fontSize:11, color:theme.td, fontWeight:400 }}>(Manager only)</span>
+            <GlyphIcon glyph="coins" size={15} style={{ color:theme.ol }} /> Salary Tier <span style={{ fontSize:11, color:theme.td, fontWeight:400 }}>(Manager only)</span>
           </div>
           <div style={{ display:"flex", gap:8 }}>
             {["", ...TIERS].map(t => (
@@ -73,7 +74,7 @@ export function PerfEditor({ emp, isMgr, onSave, onClose }) {
         </div>
       )}
       <div style={{ padding:"14px 0" }}>
-        <div style={{ color:theme.tx, fontSize:14, fontWeight:700, marginBottom:8 }}>📝 Notes</div>
+        <div style={{ color:theme.tx, fontSize:14, fontWeight:700, marginBottom:8, display:"flex", alignItems:"center", gap:7 }}><GlyphIcon glyph="pencil" size={14} style={{ color:theme.ol }} /> Notes</div>
         <textarea value={r.notes || ""} onChange={e => setR(p => ({ ...p, notes:e.target.value }))}
           rows={3} style={{ width:"100%", padding:10, borderRadius:8, background:theme.ch,
             color:theme.tx, border:`1px solid ${theme.bd}`, resize:"vertical", fontFamily:"inherit", fontSize:13 }} />

@@ -5,6 +5,7 @@ import {
   AUDIT_FILTERS, filterEntries, describeChanges, summarize, actorName,
   tableLabel, toCsv,
 } from "../auditLog.js";
+import { GlyphIcon } from "../icons.jsx";
 
 const { useState, useMemo, useId } = React;
 
@@ -90,7 +91,7 @@ function Entry({ entry, employees }) {
                         {c.label}
                         {c.redacted && (
                           <span title="Value not copied into the audit log"
-                            style={{ marginLeft: 5, color: theme.td, fontSize: 10 }}>🔒</span>
+                            style={{ marginLeft: 5, color: theme.td, display:"inline-flex", verticalAlign:"-1px" }}><GlyphIcon glyph="lock" size={10} /></span>
                         )}
                       </td>
                       <td style={{ padding: "5px 8px", color: theme.td }}>{c.from}</td>
@@ -151,7 +152,7 @@ export function AuditPage({ entries, employees, loading, error, onReload }) {
           Every change to employees, leave, overtime and announcements, with who made
           it. Written by database triggers rather than by the app, so an entry cannot
           be skipped or edited from here — including by the person it records.
-          Document numbers and contact details show as 🔒: the log records that they
+          Document numbers and contact details show as <GlyphIcon glyph="lock" size={11} style={{ verticalAlign:"-1px" }} />: the log records that they
           changed, never what they changed to.
         </p>
 
@@ -188,7 +189,7 @@ export function AuditPage({ entries, employees, loading, error, onReload }) {
             background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)",
             borderRadius: 10, padding: "8px 12px", marginBottom: 12,
             color: theme.rd, fontSize: 12,
-          }}>⚠️ {error}</div>
+          }}><GlyphIcon glyph="alert-triangle" size={13} style={{ verticalAlign:"-2px" }} /> {error}</div>
         )}
 
         {loading ? (

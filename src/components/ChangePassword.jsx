@@ -2,6 +2,7 @@ import { theme } from "../constants.js";
 import { ib, Bt } from "../uiPrimitives.jsx";
 import { checkPassword, POLICY_SUMMARY } from "../passwordPolicy.js";
 import { PasswordRequirements } from "./PasswordRequirements.jsx";
+import { GlyphIcon } from "../icons.jsx";
 
 const { useState, useId } = React;
 
@@ -58,7 +59,7 @@ export function ChPw({ onCh, forced, onOut, user }) {
       display:"flex", flexDirection:"column", alignItems:"center",
       justifyContent:"center", height:"100vh", background:theme.bg
     }}>
-      <div style={{ fontSize:56, marginBottom:12 }} aria-hidden="true">✅</div>
+      <div style={{ marginBottom:12, color:theme.gn }} aria-hidden="true"><GlyphIcon glyph="check-square" size={56} strokeWidth={1.4} /></div>
       <h2 style={{ color:theme.gn, fontSize:20 }}>Password Changed!</h2>
       <p style={{ color:theme.ts, fontSize:13, marginTop:8 }}>Redirecting...</p>
     </div>
@@ -68,12 +69,12 @@ export function ChPw({ onCh, forced, onOut, user }) {
     <div style={{ display:"flex", alignItems:"center", justifyContent:"center", minHeight:"100vh", background:theme.bg }}>
       <div style={{ maxWidth:420, width:"100%", padding:20 }}>
         <div style={{ background:theme.cs, borderRadius:16, padding:28, border:`1px solid ${theme.bd}` }}>
-          <h2 style={{ fontSize:20, fontWeight:700, color:theme.tx, marginBottom:6 }}>🔐 Change Password</h2>
+          <h2 style={{ fontSize:20, fontWeight:700, color:theme.tx, marginBottom:6, display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}><GlyphIcon glyph="key" size={19} style={{ color:theme.ol }} /> Change Password</h2>
           {forced && (
             <div style={{
               background:`${theme.or}15`, border:`1px solid ${theme.or}40`,
               borderRadius:10, padding:12, margin:"12px 0 16px", fontSize:13, color:theme.or
-            }}>⚠️ Please change your initial password</div>
+            }}><GlyphIcon glyph="alert-triangle" size={13} style={{ verticalAlign:"-2px" }} /> Please change your initial password</div>
           )}
           <p style={{ color:theme.td, fontSize:12, marginBottom:20 }}>{POLICY_SUMMARY}</p>
           {er && (

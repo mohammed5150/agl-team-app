@@ -2,6 +2,7 @@ import { SECTIONS, AIRPORTS, BAND_BY_KEY, theme } from "../constants.js";
 import { gradeFromRating, TIER_COLORS, TIERS_CAP, TIER_CAP_COLORS } from "../rating.js";
 import { parseCSV } from "../helpers.js";
 import { ib, Bd, Bt, Modal } from "../uiPrimitives.jsx";
+import { GlyphIcon } from "../icons.jsx";
 
 const { useState } = React;
 
@@ -119,7 +120,7 @@ export function InviteForm({ onInvite, onApproveLogin, onClose }) {
         <div role="alert" style={{
           background:"rgba(239,68,68,0.1)", border:"1px solid rgba(239,68,68,0.3)",
           borderRadius:8, padding:"8px 12px", marginTop:12, color:theme.rd, fontSize:12, lineHeight:1.6
-        }}>⚠️ {err}</div>
+        }}><GlyphIcon glyph="alert-triangle" size={13} style={{ verticalAlign:"-2px" }} /> {err}</div>
       )}
       {notice && (
         <div role="status" style={{
@@ -337,7 +338,7 @@ export function Team({ employees, onSel, isMgr, isTL, onInvite, onBulkInvite, on
         {isMgr && (
           <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
             {onBulkInvite && (
-              <Bt onClick={() => setShowBulk(true)} bg={theme.bu}>📋 Bulk Import (CSV)</Bt>
+              <Bt onClick={() => setShowBulk(true)} bg={theme.bu}><GlyphIcon glyph="clipboard" size={13} /> Bulk Import (CSV)</Bt>
             )}
             {onInvite && (
               <Bt onClick={() => setShowInvite(true)} bg={theme.gn}>+ Invite Employee</Bt>
@@ -382,7 +383,7 @@ export function Team({ employees, onSel, isMgr, isTL, onInvite, onBulkInvite, on
           ))}
         </div>
       )}
-      <input placeholder="🔍 Search..." value={s} onChange={e => setS(e.target.value)}
+      <input placeholder="Search..." value={s} onChange={e => setS(e.target.value)}
         style={{ ...ib, marginBottom:14 }} />
       <div style={{ background:theme.card, borderRadius:14, border:`1px solid ${theme.bd}`, overflow:"hidden" }}>
         <div style={{ overflowX:"auto" }}>

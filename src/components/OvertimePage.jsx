@@ -2,6 +2,7 @@ import { STATUS_COLORS, OT_STATUS_LABELS, theme } from "../constants.js";
 import { approvedHours } from "../overtimeWorkflow.js";
 import { ib, Bd, Bt, SC2, Empty } from "../uiPrimitives.jsx";
 import { validateOvertimeRequest, claimedHoursOn } from "../validation.js";
+import { GlyphIcon } from "../icons.jsx";
 
 const { useState, useMemo } = React;
 
@@ -39,13 +40,13 @@ export function OtFm({ onSub, onCan, user, overtimeRequests, leaveRequests }) {
 
   return (
     <div style={{ background:theme.cs, borderRadius:14, padding:22, border:`1px solid ${theme.bl}`, maxWidth:520 }}>
-      <h3 style={{ fontSize:16, fontWeight:700, color:theme.tx, marginBottom:18 }}>⏰ Claim Overtime</h3>
+      <h3 style={{ fontSize:16, fontWeight:700, color:theme.tx, marginBottom:18, display:"flex", alignItems:"center", gap:8 }}><GlyphIcon glyph="clock" size={16} style={{ color:theme.ol }} /> Claim Overtime</h3>
       {errors.length > 0 && (
         <div role="alert" aria-live="assertive" style={{
           background:"rgba(239,68,68,0.1)", border:"1px solid rgba(239,68,68,0.3)",
           borderRadius:8, padding:"8px 12px", marginBottom:12, color:theme.rd, fontSize:12
         }}>
-          {errors.map((e, i) => <div key={i} style={{ marginTop: i ? 4 : 0 }}>⚠️ {e}</div>)}
+          {errors.map((e, i) => <div key={i} style={{ marginTop: i ? 4 : 0 }}><GlyphIcon glyph="alert-triangle" size={13} style={{ verticalAlign:"-2px" }} /> {e}</div>)}
         </div>
       )}
       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:14 }}>
@@ -84,7 +85,7 @@ export function OtFm({ onSub, onCan, user, overtimeRequests, leaveRequests }) {
         </div>
       )}
       <div style={{ display:"flex", gap:8 }}>
-        <Bt onClick={submit} bg={theme.gn}>📤 Submit</Bt>
+        <Bt onClick={submit} bg={theme.gn}><GlyphIcon glyph="send" size={13} /> Submit</Bt>
         <Bt onClick={onCan} outline={true}>Cancel</Bt>
       </div>
     </div>
@@ -128,8 +129,8 @@ export const OtCd = React.memo(function OtCd({ req, role, viewerId, onAct }) {
           <textarea value={cm} onChange={e => setCm(e.target.value)}
             rows={2} placeholder="Comment..." style={{ ...ib, marginBottom:8 }} />
           <div style={{ display:"flex", gap:6 }}>
-            <Bt onClick={() => { onAct(req.id, "approve", cm); setSa(false); setCm(""); }} small={true} bg={theme.gn}>✅ Approve</Bt>
-            <Bt onClick={() => { onAct(req.id, "reject", cm); setSa(false); setCm(""); }} small={true} bg={theme.rd}>❌ Reject</Bt>
+            <Bt onClick={() => { onAct(req.id, "approve", cm); setSa(false); setCm(""); }} small={true} bg={theme.gn}><GlyphIcon glyph="check-square" size={12} /> Approve</Bt>
+            <Bt onClick={() => { onAct(req.id, "reject", cm); setSa(false); setCm(""); }} small={true} bg={theme.rd}><GlyphIcon glyph="x-circle" size={12} /> Reject</Bt>
             <Bt onClick={() => { setSa(false); setCm(""); }} small={true} outline={true}>Cancel</Bt>
           </div>
         </div>
@@ -152,7 +153,7 @@ export function OtPg({ user, overtimeRequests, leaveRequests, onSub, onAct }) {
     <div>
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:18, flexWrap:"wrap", gap:10 }}>
         <h2 style={{ fontSize:22, fontWeight:700, color:theme.tx, margin:0 }}>Overtime</h2>
-        {isE && <Bt onClick={() => setSf(true)} bg={theme.or}>⏰ Claim</Bt>}
+        {isE && <Bt onClick={() => setSf(true)} bg={theme.or}><GlyphIcon glyph="clock" size={13} /> Claim</Bt>}
       </div>
       {isE && (
         <div style={{ display:"flex", gap:10, flexWrap:"wrap", marginBottom:18 }}>

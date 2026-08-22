@@ -5,6 +5,7 @@ import { canUnlockProfile, canFinalizeProfile, missingRequired, FINALIZE_CONFIRM
 import { ProfileStatusBadge } from "./Onboarding.jsx";
 import { ib, Bd, Bt, Sec, Fd, Empty, Modal } from "../uiPrimitives.jsx";
 import { AdminActions, EmploymentBadge } from "./AdminActions.jsx";
+import { GlyphIcon } from "../icons.jsx";
 
 const { useState, useEffect } = React;
 
@@ -36,7 +37,7 @@ export function Prof({ emp, canEdit, onSave, onAdd, isStaff, isMgr, actor, onSen
       {finalized && (
         <div style={{ background:"rgba(16,185,129,0.1)", border:"1px solid rgba(16,185,129,0.3)",
           borderRadius:12, padding:"10px 14px", marginBottom:14, display:"flex", alignItems:"center", gap:8 }}>
-          <span style={{ fontSize:16 }}>🔒</span>
+          <span style={{ color:theme.gn, display:"inline-flex" }}><GlyphIcon glyph="lock" size={16} /></span>
           <span style={{ color:theme.gn, fontSize:13, fontWeight:600 }}>
             Profile finalized — corrections must go through your Manager
           </span>
@@ -52,13 +53,13 @@ export function Prof({ emp, canEdit, onSave, onAdd, isStaff, isMgr, actor, onSen
           </div>
         </div>
         <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
-          {canEdit && !ed && <Bt onClick={() => setEd(true)}>✏️ Edit</Bt>}
-          {canEdit && <Bt onClick={() => setSaf(!saf)} bg={theme.or} small={true}>{saf ? "Cancel" : "📋 Add Record"}</Bt>}
+          {canEdit && !ed && <Bt onClick={() => setEd(true)}><GlyphIcon glyph="pencil" size={13} /> Edit</Bt>}
+          {canEdit && <Bt onClick={() => setSaf(!saf)} bg={theme.or} small={true}>{saf ? "Cancel" : <><GlyphIcon glyph="clipboard" size={12} /> Add Record</>}</Bt>}
           {!ed && canUnlock && (
-            <Bt onClick={() => onSave({ ...emp, profileFinalized:false })} bg={theme.yl} small={true}>🔓 Unlock</Bt>
+            <Bt onClick={() => onSave({ ...emp, profileFinalized:false })} bg={theme.yl} small={true}><GlyphIcon glyph="unlock" size={12} /> Unlock</Bt>
           )}
           {!ed && !finalized && canFinalize && (
-            <Bt onClick={() => setConfirmFinal(true)} bg={theme.gn} small={true}>🔒 Finalize</Bt>
+            <Bt onClick={() => setConfirmFinal(true)} bg={theme.gn} small={true}><GlyphIcon glyph="lock" size={12} /> Finalize</Bt>
           )}
           {!ed && !finalized && !canFinalize && incomplete.length > 0 && (
             <span style={{ color:theme.td, fontSize:11 }}>
@@ -66,7 +67,7 @@ export function Prof({ emp, canEdit, onSave, onAdd, isStaff, isMgr, actor, onSen
             </span>
           )}
           {ed && <>
-            <Bt onClick={() => { onSave(fm); setEd(false); }} bg={theme.gn}>💾 Save</Bt>
+            <Bt onClick={() => { onSave(fm); setEd(false); }} bg={theme.gn}><GlyphIcon glyph="save" size={13} /> Save</Bt>
             <Bt onClick={() => { setFm({ ...emp }); setEd(false); }} outline={true}>Cancel</Bt>
           </>}
         </div>

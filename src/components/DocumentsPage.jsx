@@ -33,7 +33,7 @@ export function MyDocs({ emp, onAdd, onDel }) {
     <div>
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:18, flexWrap:"wrap", gap:10 }}>
         <h2 style={{ fontSize:22, fontWeight:700, color:theme.tx, margin:0 }}>My Documents</h2>
-        <Bt onClick={() => setShowForm(true)} bg={theme.or}>📄 Add Document</Bt>
+        <Bt onClick={() => setShowForm(true)} bg={theme.or}><GlyphIcon glyph="file-text" size={13} /> Add Document</Bt>
       </div>
 
       <div style={{ display:"flex", gap:12, flexWrap:"wrap", marginBottom:20 }}>
@@ -85,7 +85,7 @@ export function MyDocs({ emp, onAdd, onDel }) {
             </div>
           </div>
           <div style={{ display:"flex", gap:8 }}>
-            <Bt onClick={submit} bg={theme.gn}>💾 Save</Bt>
+            <Bt onClick={submit} bg={theme.gn}><GlyphIcon glyph="save" size={13} /> Save</Bt>
             <Bt onClick={() => setShowForm(false)} outline={true}>Cancel</Bt>
           </div>
         </Modal>
@@ -120,11 +120,11 @@ export function MyDocs({ emp, onAdd, onDel }) {
                     </div>
                     {d.fileName && (
                       <div style={{ fontSize:10, color:theme.bu, marginTop:6, display:"flex", alignItems:"center", gap:4 }}>
-                        📎 {d.fileName}
+                        <GlyphIcon glyph="paperclip" size={12} /> {d.fileName}
                       </div>
                     )}
                     <div style={{ marginTop:10 }}>
-                      <Bt onClick={() => onDel(emp.id, d.id)} small={true} bg={theme.rd}>🗑️ Remove</Bt>
+                      <Bt onClick={() => onDel(emp.id, d.id)} small={true} bg={theme.rd}><GlyphIcon glyph="trash" size={12} /> Remove</Bt>
                     </div>
                   </div>
                 );
@@ -187,7 +187,7 @@ export function DocsMgmt({ employees, onSel }) {
           }}>{s}</button>
         ))}
       </div>
-      <input placeholder="🔍 Search employee..." value={sr} onChange={e => setSr(e.target.value)}
+      <input placeholder="Search employee..." value={sr} onChange={e => setSr(e.target.value)}
         style={{ ...ib, marginBottom:14 }} />
       <div style={{ background:theme.card, borderRadius:14, border:`1px solid ${theme.bd}`, overflow:"hidden" }}>
         <div style={{ overflowX:"auto" }}>

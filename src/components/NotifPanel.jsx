@@ -1,6 +1,7 @@
 import { theme } from "../constants.js";
 import { fmtDt } from "../helpers.js";
 import { subscribePush } from "../supabasePortal.js";
+import { GlyphIcon } from "../icons.jsx";
 
 const { useState } = React;
 
@@ -38,10 +39,10 @@ export function NotifPanel({ notifs, onMarkRead, onMarkAll, onGoTo, currentUser 
       }
     }
   };
-  const iconFor = (tp) => tp === "approved" ? "✅"
-    : tp === "rejected" ? "❌"
-    : tp === "announcement" ? "📢"
-    : "🔔";
+  const iconFor = (tp) => tp === "approved" ? { g:"check-square", c:theme.gn }
+    : tp === "rejected" ? { g:"x-circle", c:theme.rd }
+    : tp === "announcement" ? { g:"megaphone", c:theme.ol }
+    : { g:"bell", c:theme.ts };
   const go = (n) => {
     onMarkRead(n.id);
     if (n.type === "announcement") onGoTo("announcements");
@@ -61,17 +62,17 @@ export function NotifPanel({ notifs, onMarkRead, onMarkAll, onGoTo, currentUser 
           <button onClick={askPerm} style={{
             background:theme.bu, color:"#fff", border:"none", padding:"6px 12px",
             borderRadius:8, fontSize:11, fontWeight:700, cursor:"pointer"
-          }}>🔔 Enable notifications</button>
+          }}><GlyphIcon glyph="bell" size={12} style={{ verticalAlign:"-2px" }} /> Enable notifications</button>
         </div>
       )}
       {notifPerm === "granted" && (
         <div style={{ padding:"6px 14px", fontSize:10, color:theme.gn, background:"rgba(16,185,129,0.08)", borderBottom:`1px solid ${theme.bd}` }}>
-          ✅ Browser notifications enabled
+          <GlyphIcon glyph="check-square" size={11} style={{ verticalAlign:"-2px" }} /> Browser notifications enabled
         </div>
       )}
       {notifPerm === "denied" && (
         <div style={{ padding:"6px 14px", fontSize:10, color:theme.rd, background:"rgba(239,68,68,0.08)", borderBottom:`1px solid ${theme.bd}` }}>
-          🚫 Blocked — enable via browser settings
+          <GlyphIcon glyph="ban" size={11} style={{ verticalAlign:"-2px" }} /> Blocked — enable via browser settings
         </div>
       )}
       <div style={{
@@ -90,7 +91,7 @@ export function NotifPanel({ notifs, onMarkRead, onMarkAll, onGoTo, currentUser 
       </div>
       {notifs.length === 0 ? (
         <div style={{ padding:"30px 16px", textAlign:"center", color:theme.td, fontSize:13 }}>
-          <div style={{ fontSize:28, opacity:0.4, marginBottom:6 }}>📭</div>
+          <div style={{ opacity:0.5, marginBottom:6 }}><GlyphIcon glyph="inbox" size={28} strokeWidth={1.4} /></div>
           No notifications
         </div>
       ) : (
@@ -100,7 +101,7 @@ export function NotifPanel({ notifs, onMarkRead, onMarkAll, onGoTo, currentUser 
             background: n.read ? "transparent" : "rgba(232,112,42,0.06)",
             display:"flex", gap:10
           }}>
-            <div style={{ fontSize:16 }}>{iconFor(n.type)}</div>
+            <div style={{ color:iconFor(n.type).c, display:"flex", paddingTop:2 }}><GlyphIcon glyph={iconFor(n.type).g} size={16} /></div>
             <div style={{ flex:1, minWidth:0 }}>
               <div style={{ fontSize:12, color: n.read ? theme.ts : theme.tx, fontWeight: n.read ? 400 : 600 }}>{n.message}</div>
               <div style={{ fontSize:10, color:theme.td, marginTop:2 }}>{fmtDt(n.date)}</div>
