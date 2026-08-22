@@ -115,8 +115,23 @@ retry. No SQL access needed.
   the Supabase dashboard settings no migration can set, and the known gaps.
 - **`docs/BACKUP_RESTORE.md`** — recovery objectives, what is and is not
   backed up, and the step-by-step restore runbook.
-- **`docs/MONITORING.md`** — uptime checks, front-end error reporting, and
-  what to look at when the portal misbehaves.
+- **`docs/MONITORING.md`** — uptime checks, front-end error reporting, Slack
+  notifications, and what to look at when the portal misbehaves.
+- **`docs/NOTION_SYNC.md`** — the nightly roster/leave export to Notion: what
+  is (and deliberately is not) included, and the Notion-side setup.
+
+## Optional integrations
+
+Both are off by default and the portal behaves identically with neither
+configured — see the linked docs for setup and exactly what data leaves the
+app in each case.
+
+- **Slack** (`supabase/functions/notify-slack`) — posts leave/overtime/
+  onboarding activity to an ops channel, and front-end error summaries to a
+  separate alerts channel. `docs/MONITORING.md` §6.
+- **Notion** (`.github/workflows/notion-sync.yml`) — nightly, non-sensitive
+  roster and leave-calendar summary for visibility outside the portal.
+  `docs/NOTION_SYNC.md`.
 
 ## Publishing checklist (production go-live)
 

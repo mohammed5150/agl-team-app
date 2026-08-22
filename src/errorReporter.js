@@ -112,6 +112,16 @@ export function reportError(report) {
       p.then(r => { if (r?.error) console.warn("[portal] error report rejected:", r.error.message); })
        .catch(() => {});
     }
+
+    // Best-effort Slack alert, same fire-and-forget rule. Routed to the
+    // "alerts" channel (see supabase/functions/notify-slack) so it doesn't mix
+    // with leave/overtime chatter. Deliberately no email/emp_id in the text —
+    // the reporter's identity is stamped server-side, never client-supplied.
+    const routePrefix = currentRoute ? `${currentRoute}: ` : "";
+    const sp = client.functions?.invoke?.("notify-slack", {
+      body: { channel: "alerts", text: `🚨 [${kind}] ${routePrefix}${message}` },
+    });
+    if (sp && typeof sp.then === "function") sp.catch(() => {});
   } catch (e) {
     // Reporting must never throw into the caller.
     try { console.warn("[portal] error reporter failed:", e); } catch { /* nothing left to do */ }

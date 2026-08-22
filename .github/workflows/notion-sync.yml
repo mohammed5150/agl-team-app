@@ -1,0 +1,64 @@
+name: Nightly Notion sync
+
+# Exports a non-sensitive roster and leave-calendar summary to Notion for
+# visibility outside the portal — see scripts/sync-notion.mjs for exactly
+# which columns are (and are deliberately never) included, and
+# docs/NOTION_SYNC.md for the Notion-side database setup this expects.
+
+on:
+  schedule:
+    # 01:30 UTC = 05:30 Gulf Standard Time — shortly after the nightly backup,
+    # so Notion reflects the same night's entries.
+    - cron: "30 1 * * *"
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: "Why this sync is being run by hand"
+        required: false
+        default: "manual run"
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    # Without the secrets this job would "succeed" every night doing nothing,
+    # which is worse than not having it — so skip explicitly and visibly.
+    if: ${{ github.repository_owner != '' }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "20"
+
+      - name: Check the secrets are configured
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          NOTION_ROSTER_DB_ID: ${{ secrets.NOTION_ROSTER_DB_ID }}
+          NOTION_LEAVE_DB_ID: ${{ secrets.NOTION_LEAVE_DB_ID }}
+        run: |
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
+            echo "::error::SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set as repository secrets."
+            exit 1
+          fi
+          if [ -z "$NOTION_TOKEN" ]; then
+            echo "::error::NOTION_TOKEN must be set as a repository secret. See docs/NOTION_SYNC.md."
+            exit 1
+          fi
+          if [ -z "$NOTION_ROSTER_DB_ID" ] && [ -z "$NOTION_LEAVE_DB_ID" ]; then
+            echo "::error::Set at least one of NOTION_ROSTER_DB_ID / NOTION_LEAVE_DB_ID. Nothing to sync otherwise."
+            exit 1
+          fi
+
+      - name: Sync roster and leave calendar to Notion
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          NOTION_ROSTER_DB_ID: ${{ secrets.NOTION_ROSTER_DB_ID }}
+          NOTION_LEAVE_DB_ID: ${{ secrets.NOTION_LEAVE_DB_ID }}
+        run: node scripts/sync-notion.mjs

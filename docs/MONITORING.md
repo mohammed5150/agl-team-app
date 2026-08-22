@@ -18,10 +18,12 @@ it was their phone.
 | Portal reachable | `.github/workflows/uptime.yml`, every ~15 min | Opens a GitHub issue labelled `uptime` |
 | `app.js` served | Same workflow | Same |
 | Supabase reachable | Same workflow (needs `SUPABASE_URL` secret) | Same |
-| Front-end crashes | `src/errorReporter.js` → `client_errors` table | Manager reviews (section 3) |
+| Front-end crashes | `src/errorReporter.js` → `client_errors` table | Manager reviews (section 3); also posts to Slack `#alerts` |
 | Failed saves | Same, `kind = 'sync'` | Same |
 | Who changed what | `audit_log` (see `supabase_audit_log.sql`) | Portal → Audit Trail |
 | Nightly backup ran | `.github/workflows/backup.yml` | Failed workflow run |
+| Nightly Notion sync ran | `.github/workflows/notion-sync.yml` | Failed workflow run |
+| Leave / overtime / onboarding activity | `supabase/functions/notify-slack` | Slack `#ops` (see section 7) |
 
 ---
 
@@ -121,6 +123,12 @@ deploy. Anything with `affected_users > 1` is real.
   numbers. Reporting into the database the app already talks to costs no new
   egress path. If a third-party service is adopted later, that trade-off is
   the thing to re-examine, not an oversight to correct.
+  The one exception is the Slack alert below, and it is scoped on purpose: a
+  one-line `kind + route + message` summary, posted server-side through
+  `notify-slack` from the app's own Supabase project (no new client egress
+  path — the browser still only ever talks to `*.supabase.co`). It never
+  carries the stack trace, `emp_id`, `email`, or anything from `client_errors`
+  itself; that stays manager-only in the database, as above.
 - **No full URLs.** The route recorded is the app's own nav key (`leave`,
   `approvals`), because the URL hash carries employee ids.
 - **No client-supplied identity.** `emp_id`, `email` and `role` are stamped
@@ -155,6 +163,11 @@ The first few are the diagnosis; the rest are cost.
 - [ ] Watch the repository with Issues notifications on
 - [ ] Set a calendar reminder to review `client_error_summary` weekly
 - [ ] Decide whether to schedule pruning (below)
+- [ ] (optional) Set Edge Function secrets `SLACK_WEBHOOK_URL` and
+      `SLACK_ALERTS_WEBHOOK_URL` to enable Slack notifications (section 6)
+- [ ] (optional) Set repository secrets `NOTION_TOKEN`, `NOTION_ROSTER_DB_ID`,
+      `NOTION_LEAVE_DB_ID` to enable the nightly Notion sync
+      (`docs/NOTION_SYNC.md`)
 
 ---
 
@@ -173,7 +186,44 @@ select cron.schedule(
 
 ---
 
-## 6. Still not covered
+## 6. Slack notifications
+
+`supabase/functions/notify-slack` posts to a Slack Incoming Webhook. It is
+invoked the same way `send-push` is — fire-and-forget, from the client, after
+a write already succeeded — for:
+
+- new leave / overtime requests, and each approval or rejection
+- a manager inviting a new joiner (single or bulk)
+- a joiner finalizing their profile
+- front-end error reports (see above) — routed to a separate channel
+
+Two Edge Function secrets, each an Incoming Webhook URL for a Slack channel:
+
+| Secret | Channel | If unset |
+|---|---|---|
+| `SLACK_WEBHOOK_URL` | Operational activity (`#ops` or similar) | No-op — the invoking call still succeeds, nothing is posted |
+| `SLACK_ALERTS_WEBHOOK_URL` | Front-end errors (`#alerts` or similar) | Falls back to `SLACK_WEBHOOK_URL` |
+
+Set them in the Supabase dashboard → Edge Functions → `notify-slack` →
+Secrets. Neither secret is required — the portal works identically with
+neither set, since every call site treats the notification as best-effort and
+never awaits or surfaces its result to the user.
+
+To create a webhook: Slack → a workspace admin → **Apps → Incoming Webhooks →
+Add to Slack**, pick the channel, copy the URL.
+
+---
+
+## 7. Notion sync
+
+See `docs/NOTION_SYNC.md`. A nightly job (`.github/workflows/notion-sync.yml`)
+exports a narrow, non-sensitive roster and leave-calendar summary to Notion —
+entirely separate from Slack and from `client_errors`, and off by default
+until its repository secrets are set.
+
+---
+
+## 8. Still not covered
 
 Named so they are decisions rather than gaps nobody noticed:
 

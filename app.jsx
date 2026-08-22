@@ -16,7 +16,7 @@ import { canSetRatingTier, canViewAuditLog, canOffboardEmployee } from "./src/au
 import { auditFromDb } from "./src/auditLog.js";
 import { classifyPortalLoad, degradedMessage, mergeRoster, LOAD_FAILED_MESSAGE } from "./src/portalLoad.js";
 import { installErrorReporting, setRoute, reportError } from "./src/errorReporter.js";
-import { supa, subscribePush, unsubscribePush, sendPush, diffFieldsById, empToDb, empFromDb, lrToDb, lrFromDb, otToDb, otFromDb, annToDb, annFromDb, nfToDb, nfFromDb, diffById, pushSupported } from "./src/supabasePortal.js";
+import { supa, subscribePush, unsubscribePush, sendPush, sendSlack, diffFieldsById, empToDb, empFromDb, lrToDb, lrFromDb, otToDb, otFromDb, annToDb, annFromDb, nfToDb, nfFromDb, diffById, pushSupported } from "./src/supabasePortal.js";
 import { Logo, Bd, Bt } from "./src/uiPrimitives.jsx";
 import { LoginPage } from "./src/LoginPage.jsx";
 import { ErrorBoundary } from "./src/ErrorBoundary.jsx";
@@ -906,6 +906,7 @@ function App() {
       tier: tier || "",
     };
     setEmployees(p => [...p, newEmp]);
+    sendSlack(`👋 New joiner invited: ${newEmp.name} (${newEmp.email})`);
     return { ok: true, id };
   }, [employees]);
 
@@ -977,9 +978,13 @@ function App() {
     });
 
     setEmployees(acc);
+    const created = outcomes.filter(o => o.status === "created").length;
+    if (created > 0) {
+      sendSlack(`👋 Bulk import: ${created} new joiner${created === 1 ? "" : "s"} invited`);
+    }
     return {
       total: rows.length,
-      created: outcomes.filter(o => o.status === "created").length,
+      created,
       skipped: outcomes.filter(o => o.status === "skipped").length,
       errors:  outcomes.filter(o => o.status === "error").length,
       outcomes,
@@ -1010,6 +1015,7 @@ function App() {
       tlComment:"", mgrComment:"", tlActionDate:"", mgrActionDate:"", tlName:"", mgrName:""
     }, ...p]);
     const lrMsg = `New leave: ${currentUser.name} - ${form.type} (${form.days}d)`;
+    sendSlack(`📅 ${lrMsg}`);
     // Team leads review employee requests; a team lead's own request goes
     // straight to the managers.
     let recipients = newRequestRecipients(currentUser.role, employees);
@@ -1048,6 +1054,7 @@ function App() {
       ]);
     }
     res.pushes.forEach(pu => sendPush(pu.to, pu.title, pu.body, "/"));
+    res.notifs.forEach(n => sendSlack(`📅 ${n.message}`));
   }, [currentUser, employees, leaveRequests]);
 
   const submitOvertime = useCallback(form => {
@@ -1060,6 +1067,7 @@ function App() {
       tlComment:"", tlActionDate:"", tlName:"", compOffDays:0
     }, ...p]);
     const msg = `New overtime: ${currentUser.name} - ${form.hours}h on ${form.workDate}`;
+    sendSlack(`🕐 ${msg}`);
     // Overtime stops at the team lead, so only team leads are notified. If
     // there is none configured, fall back to managers so it is never lost.
     let recipients = newOvertimeRecipients(employees);
@@ -1093,6 +1101,7 @@ function App() {
       ]);
     }
     res.pushes.forEach(pu => sendPush(pu.to, pu.title, pu.body, "/"));
+    res.notifs.forEach(n => sendSlack(`🕐 ${n.message}`));
   }, [currentUser, overtimeRequests]);
 
   // Employee saving their own onboarding draft. sanitizeEmployeeEdit drops
@@ -1117,6 +1126,7 @@ function App() {
     setEmployees(p => p.map(e => e.id === currentUser.id ? { ...e, ...done } : e));
     setCurrentUser(p => ({ ...p, ...done }));
     setNav("dashboard");
+    sendSlack(`✅ ${currentUser.name} finalized their profile`);
   }, [currentUser]);
 
   const editRoster = useCallback((eid, mk, day, newCode) => {

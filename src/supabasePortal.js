@@ -82,6 +82,21 @@ export async function sendPush(toEmpId, title, body, url = "/") {
   }
 }
 
+// Fire-and-forget Slack notification, mirroring sendPush. channel is "ops"
+// (leave/overtime/onboarding activity) or "alerts" (see errorReporter.js) —
+// see supabase/functions/notify-slack for which webhook secret each maps to.
+export async function sendSlack(text, channel = "ops") {
+  if (!supa) return;
+  try {
+    const { error } = await supa.functions.invoke("notify-slack", {
+      body: { text, channel },
+    });
+    if (error) console.warn("[slack] send failed:", error);
+  } catch (e) {
+    console.warn("[slack] send error:", e);
+  }
+}
+
 export const empToDb = e => ({
   id: e.id, email: e.email,
   name: e.name, section: e.section,
