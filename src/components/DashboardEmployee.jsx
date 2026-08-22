@@ -1,7 +1,7 @@
 import { ANN_PRIORITIES, ATT_YEAR, theme } from "../constants.js";
 import { fmtDt } from "../helpers.js";
 import { Bd, Bt, Sec } from "../uiPrimitives.jsx";
-import { PASTEL, INK, Ring, Spark, Tile } from "./charts.jsx";
+import { PASTEL, INK, Ring, MonthBars, Tile } from "./charts.jsx";
 import { WeatherCard } from "./WeatherCard.jsx";
 import { GlyphIcon } from "../icons.jsx";
 
@@ -46,12 +46,15 @@ export function EDash({ user, announcements, onGoTo }) {
   const annualUsedPct = user.annualLeave ? user.usedAnnual / user.annualLeave : 0;
   const annualLeft = user.annualLeave - user.usedAnnual;
 
-  // Sparkline of leave usage (mock monthly distribution from roster)
-  const monthlyLeaves = [0,1,2,3].map(m => {
+  // Leave days per calendar month, from the roster's "L" codes. All twelve
+  // months of the year, not a hardcoded window.
+  const monthlyLeaves = Array.from({ length: 12 }, (_, m) => {
     const r = user.roster?.[`${ATT_YEAR}-${String(m+1).padStart(2,"0")}`] || [];
     return r.filter(d => d.code === "L").length;
   });
-  const currentMonthIdx = today.getMonth();
+  const leaveDaysThisYear = monthlyLeaves.reduce((a, b) => a + b, 0);
+  // Only meaningful while the chart's year is the current year.
+  const currentMonthIdx = today.getFullYear() === ATT_YEAR ? today.getMonth() : -1;
 
   const dateStr = today.toLocaleDateString("en-GB", { weekday:"short", day:"2-digit", month:"short" }).toUpperCase();
 
@@ -126,12 +129,20 @@ export function EDash({ user, announcements, onGoTo }) {
 
       {/* Monthly leave trend + certs status */}
       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14, marginBottom:14 }}>
-        <Tile bg={PASTEL.lilac} label="Leave Usage">
-          <div style={{ flex:1, display:"flex", flexDirection:"column", justifyContent:"flex-end" }}>
-            <Spark values={monthlyLeaves} color={INK} active={currentMonthIdx} />
-            <div style={{ display:"flex", justifyContent:"space-between", marginTop:6, fontSize:10, fontWeight:700, opacity:0.7 }}>
-              {["JAN","FEB","MAR","APR"].map(m => <span key={m}>{m}</span>)}
-            </div>
+        <Tile bg={PASTEL.lilac} label={`Leave taken in ${ATT_YEAR}`}>
+          <div style={{ flex:1, display:"flex", flexDirection:"column", justifyContent:"flex-end", color:INK }}>
+            {leaveDaysThisYear > 0 ? (
+              <>
+                <div style={{ fontSize:12, fontWeight:700, marginBottom:8 }}>
+                  {leaveDaysThisYear} day{leaveDaysThisYear === 1 ? "" : "s"} so far
+                </div>
+                <MonthBars values={monthlyLeaves} color={INK} active={currentMonthIdx} />
+              </>
+            ) : (
+              <div style={{ fontSize:12, fontWeight:600, opacity:0.75, lineHeight:1.5 }}>
+                No leave days on your {ATT_YEAR} roster yet.
+              </div>
+            )}
           </div>
         </Tile>
         <Tile bg={PASTEL.butter} label="Certificates"
