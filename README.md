@@ -117,6 +117,9 @@ retry. No SQL access needed.
   backed up, and the step-by-step restore runbook.
 - **`docs/MONITORING.md`** — uptime checks, front-end error reporting, and
   what to look at when the portal misbehaves.
+- **`docs/SLACK.md`** — optional `send-slack` Edge Function (the second one
+  after `send-push`): posts leave/overtime alerts to a Slack channel via an
+  Incoming Webhook; no-ops safely until `SLACK_WEBHOOK_URL` is configured.
 
 ## Publishing checklist (production go-live)
 

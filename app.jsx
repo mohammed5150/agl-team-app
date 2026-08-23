@@ -5,6 +5,7 @@ import { INITIAL_EMPLOYEES, INITIAL_LEAVE_REQUESTS, INITIAL_ANNOUNCEMENTS, nfId,
 import { nextEmpId } from "./src/helpers.js";
 import { applyLeaveAction, newRequestRecipients } from "./src/leaveWorkflow.js";
 import { applyOvertimeAction, newOvertimeRecipients } from "./src/overtimeWorkflow.js";
+import { formatLeaveEvent, formatOvertimeEvent } from "./src/slackNotify.js";
 import { needsOnboarding, sanitizeEmployeeEdit, canFinalizeProfile, isEmailTaken, normalizeLoginId } from "./src/onboarding.js";
 import { checkApprovedTeamLogin, approveTeamLogin, NOT_REGISTERED_MESSAGE } from "./src/teamDirectory.js";
 import { checkPassword } from "./src/passwordPolicy.js";
@@ -16,7 +17,7 @@ import { canSetRatingTier, canViewAuditLog, canOffboardEmployee } from "./src/au
 import { auditFromDb } from "./src/auditLog.js";
 import { classifyPortalLoad, degradedMessage, mergeRoster, LOAD_FAILED_MESSAGE } from "./src/portalLoad.js";
 import { installErrorReporting, setRoute, reportError } from "./src/errorReporter.js";
-import { supa, subscribePush, unsubscribePush, sendPush, diffFieldsById, empToDb, empFromDb, lrToDb, lrFromDb, otToDb, otFromDb, annToDb, annFromDb, nfToDb, nfFromDb, diffById, pushSupported } from "./src/supabasePortal.js";
+import { supa, subscribePush, unsubscribePush, sendPush, sendSlack, diffFieldsById, empToDb, empFromDb, lrToDb, lrFromDb, otToDb, otFromDb, annToDb, annFromDb, nfToDb, nfFromDb, diffById, pushSupported } from "./src/supabasePortal.js";
 import { Logo, Bd, Bt } from "./src/uiPrimitives.jsx";
 import { LoginPage } from "./src/LoginPage.jsx";
 import { ErrorBoundary } from "./src/ErrorBoundary.jsx";
@@ -1029,6 +1030,11 @@ function App() {
       console.warn("[leave] no teamlead/manager to notify for request", id);
       setSyncError("Leave submitted, but no approver is configured to be notified.");
     }
+    // One Slack post per event, outside the per-recipient loop.
+    sendSlack(formatLeaveEvent("submitted", {
+      empName: currentUser.name, type: form.type,
+      startDate: form.startDate, endDate: form.endDate, days: form.days,
+    }));
   }, [currentUser, nextLrId, employees]);
 
   const leaveAction = useCallback((rid, action, comment) => {
@@ -1048,6 +1054,11 @@ function App() {
       ]);
     }
     res.pushes.forEach(pu => sendPush(pu.to, pu.title, pu.body, "/"));
+    // Slack only on the terminal transitions that matter — skip the quiet
+    // intermediate tl_approved. One post per event, outside the push loop.
+    if (res.updated.status === "approved" || res.updated.status === "rejected") {
+      sendSlack(formatLeaveEvent(res.updated.status, res.updated));
+    }
   }, [currentUser, employees, leaveRequests]);
 
   const submitOvertime = useCallback(form => {
@@ -1077,6 +1088,10 @@ function App() {
       console.warn("[overtime] no teamlead to notify for request", id);
       setSyncError("Overtime submitted, but no approver is configured to be notified.");
     }
+    // One Slack post per event, outside the per-recipient loop.
+    sendSlack(formatOvertimeEvent("submitted", {
+      empName: currentUser.name, hours: form.hours, workDate: form.workDate,
+    }));
   }, [currentUser, nextOtId, employees]);
 
   const overtimeAction = useCallback((rid, action, comment) => {
@@ -1093,6 +1108,10 @@ function App() {
       ]);
     }
     res.pushes.forEach(pu => sendPush(pu.to, pu.title, pu.body, "/"));
+    // One Slack post per event, outside the push loop.
+    if (res.updated.status === "approved" || res.updated.status === "rejected") {
+      sendSlack(formatOvertimeEvent(res.updated.status, res.updated));
+    }
   }, [currentUser, overtimeRequests]);
 
   // Employee saving their own onboarding draft. sanitizeEmployeeEdit drops
