@@ -1,4 +1,6 @@
-#!/usr/bin/env node
+// Run this with `node scripts/preflight.mjs`. No `#!` line on purpose — see
+// scripts/backup-supabase.mjs: a shebang plus a CRLF checkout makes the file
+// unparseable to any vitest suite that imports it.
 //
 // Go-live preflight. Answers one question: is this deployment actually safe to
 // hand to the team?

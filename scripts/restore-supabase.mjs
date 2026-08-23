@@ -1,4 +1,6 @@
-#!/usr/bin/env node
+// Run this with `node scripts/restore-supabase.mjs`. No `#!` line on purpose
+// — see scripts/backup-supabase.mjs: a shebang plus a CRLF checkout makes the
+// file unparseable to any vitest suite that imports it.
 //
 // Restore a backup produced by scripts/backup-supabase.mjs.
 //
