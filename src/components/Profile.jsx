@@ -6,7 +6,7 @@ import { ProfileStatusBadge } from "./Onboarding.jsx";
 import { ib, Bd, Bt, Sec, Fd, Empty, Modal } from "../uiPrimitives.jsx";
 import { AdminActions, EmploymentBadge } from "./AdminActions.jsx";
 
-const { useState, useEffect } = React;
+const { useState, useEffect, useRef } = React;
 
 /* ============================================================
    PROFILE
@@ -31,6 +31,25 @@ export function Prof({ emp, canEdit, onSave, onAdd, isStaff, isMgr, actor, onSen
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { setFm({ ...emp }); }, [emp.id]);
 
+  // Snapshot of `emp` as of the moment editing started (or the employee
+  // switched). `fm` is seeded from it and can go stale while the edit form
+  // stays open — e.g. another action on this same page adds an achievement,
+  // or a manager suspends the account, updating `emp` without touching `fm`.
+  // Save must not spread the whole (possibly stale) `fm` over the record, or
+  // it silently reverts whatever changed underneath it; diffing against this
+  // snapshot keeps the write to only the fields the user actually edited.
+  const baselineRef = useRef({ ...emp });
+  const startEdit = () => { baselineRef.current = { ...emp }; setFm({ ...emp }); setEd(true); };
+  const saveEdit = () => {
+    const patch = { id: emp.id };
+    const baseline = baselineRef.current;
+    for (const k of Object.keys(fm)) {
+      if (fm[k] !== baseline[k]) patch[k] = fm[k];
+    }
+    onSave(patch);
+    setEd(false);
+  };
+
   return (
     <div>
       {finalized && (
@@ -52,7 +71,7 @@ export function Prof({ emp, canEdit, onSave, onAdd, isStaff, isMgr, actor, onSen
           </div>
         </div>
         <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
-          {canEdit && !ed && <Bt onClick={() => setEd(true)}>✏️ Edit</Bt>}
+          {canEdit && !ed && <Bt onClick={startEdit}>✏️ Edit</Bt>}
           {canEdit && <Bt onClick={() => setSaf(!saf)} bg={theme.or} small={true}>{saf ? "Cancel" : "📋 Add Record"}</Bt>}
           {!ed && canUnlock && (
             <Bt onClick={() => onSave({ ...emp, profileFinalized:false })} bg={theme.yl} small={true}>🔓 Unlock</Bt>
@@ -66,7 +85,7 @@ export function Prof({ emp, canEdit, onSave, onAdd, isStaff, isMgr, actor, onSen
             </span>
           )}
           {ed && <>
-            <Bt onClick={() => { onSave(fm); setEd(false); }} bg={theme.gn}>💾 Save</Bt>
+            <Bt onClick={saveEdit} bg={theme.gn}>💾 Save</Bt>
             <Bt onClick={() => { setFm({ ...emp }); setEd(false); }} outline={true}>Cancel</Bt>
           </>}
         </div>

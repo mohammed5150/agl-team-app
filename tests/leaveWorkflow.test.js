@@ -95,10 +95,18 @@ describe("applyLeaveAction — manager", () => {
   });
 
   test("reject moves request to rejected with manager comment", () => {
-    const res = applyLeaveAction(request(), MGR, "reject", "Peak season", NOW, MANAGER_IDS);
+    const res = applyLeaveAction(request({ status: "tl_approved" }), MGR, "reject", "Peak season", NOW, MANAGER_IDS);
 
     expect(res.updated).toMatchObject({ status: "rejected", mgrComment: "Peak season" });
     expect(res.notifs[0].message).toBe("Annual Leave rejected by Manager");
+  });
+
+  test("a manager cannot act on a request still awaiting the team lead", () => {
+    // Mirrors the lr_update_mgr RLS policy and the UI's own gating (LvCd only
+    // offers manager action controls once status is 'tl_approved'): the
+    // manager is the SECOND stage, not a bypass of the first.
+    expect(applyLeaveAction(request(), MGR, "approve", "", NOW, MANAGER_IDS)).toBeNull();
+    expect(applyLeaveAction(request(), MGR, "reject", "", NOW, MANAGER_IDS)).toBeNull();
   });
 });
 

@@ -26,6 +26,14 @@ export function applyLeaveAction(r, actor, action, comment, now, managerIds = []
   }
 
   if (actor.role === "teamlead") {
+    // Only a still-pending request is the team lead's to decide. Without this,
+    // a client whose local copy of the request is stale (a second team lead's
+    // tab that has not yet received the realtime update) can locally replay
+    // 'approve'/'reject' on a request another team lead already resolved,
+    // overwriting the UI with a decision that never really happened until the
+    // RLS-guarded write is rejected out from under it. Mirrors
+    // overtimeWorkflow.js's applyOvertimeAction and the lr_update_tl policy.
+    if (r.status !== "pending") return null;
     if (action === "approve") {
       const m = `${r.empName}'s leave approved by TL`;
       return {
@@ -42,6 +50,11 @@ export function applyLeaveAction(r, actor, action, comment, now, managerIds = []
     };
   }
   if (actor.role === "manager") {
+    // Mirrors lr_update_mgr: a manager may only decide a request the team
+    // lead has already passed up. Without this check, a stale client (open on
+    // a request that is now 'approved' or 'rejected') could locally replay a
+    // decision on top of one that already happened.
+    if (r.status !== "tl_approved") return null;
     if (action === "approve") {
       const m = `${r.type} APPROVED ✅`;
       return {
