@@ -80,7 +80,7 @@ Deno.serve(async (req) => {
     return json({ ok: true });
   } catch (e) {
     console.error("[send-slack] fatal:", e);
-    return json({ error: e instanceof Error ? e.message : String(e) }, 500);
+    return json({ error: "internal error" }, 500);
   }
 });
 
