@@ -267,8 +267,14 @@ describe("table coverage", () => {
     const declared = new Set();
     for (const f of readdirSync(ROOT).filter(n => /^supabase_.*\.sql$/.test(n))) {
       const sql = readFileSync(join(ROOT, f), "utf8");
-      for (const m of sql.matchAll(/create table if not exists (?:public\.)?([a-z_]+)/gi)) {
-        declared.add(m[1].toLowerCase());
+      // Only public-schema tables are reachable by the PostgREST backup, so a
+      // table qualified with another schema (e.g. app.slack_notify_config,
+      // which lives in the private app schema and holds live secrets) is
+      // intentionally not backed up. Capture the optional schema and skip
+      // anything that is not public.
+      for (const m of sql.matchAll(/create table if not exists (?:([a-z_]+)\.)?([a-z_]+)/gi)) {
+        if (m[1] && m[1].toLowerCase() !== "public") continue;
+        declared.add(m[2].toLowerCase());
       }
     }
 
@@ -281,8 +287,14 @@ describe("table coverage", () => {
     const declared = new Set();
     for (const f of readdirSync(ROOT).filter(n => /^supabase_.*\.sql$/.test(n))) {
       const sql = readFileSync(join(ROOT, f), "utf8");
-      for (const m of sql.matchAll(/create table if not exists (?:public\.)?([a-z_]+)/gi)) {
-        declared.add(m[1].toLowerCase());
+      // Only public-schema tables are reachable by the PostgREST backup, so a
+      // table qualified with another schema (e.g. app.slack_notify_config,
+      // which lives in the private app schema and holds live secrets) is
+      // intentionally not backed up. Capture the optional schema and skip
+      // anything that is not public.
+      for (const m of sql.matchAll(/create table if not exists (?:([a-z_]+)\.)?([a-z_]+)/gi)) {
+        if (m[1] && m[1].toLowerCase() !== "public") continue;
+        declared.add(m[2].toLowerCase());
       }
     }
     const phantom = TABLES.filter(t => !declared.has(t)).sort();
