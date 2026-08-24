@@ -19,3 +19,7 @@ app.js
 # Python bytecode (skill scripts under .agents/ generate these when run)
 __pycache__/
 *.pyc
+
+# Local agent tooling — machine-specific, not part of the app.
+.grok/
+.superpowers/

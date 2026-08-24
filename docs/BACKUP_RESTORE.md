@@ -98,11 +98,37 @@ The workflow fails loudly if the export contains zero rows — a wrong key, a
 paused project and a wrong URL all produce an empty backup that would
 otherwise exit 0 and look fine for months.
 
-> **A GitHub artifact is not an off-site backup on its own.** It shares an
-> account boundary with this repository. For the "account compromised" row of
-> the risk table, download a monthly export and keep it somewhere with
-> different credentials — a company OneDrive folder is enough. Put a calendar
-> reminder on it; an undocumented manual step is one nobody does.
+A GitHub artifact is not an off-site backup on its own: it shares an account
+boundary with this repository, so losing or compromising that account loses
+the code and every backup of it together. The workflow therefore copies each
+export to an S3-compatible bucket held under *different* credentials, and
+reads the objects back to prove they arrived and are not empty. A sync can
+exit 0 having copied nothing; writing without reading back is exactly how a
+backup fails silently for months.
+
+Four more repository secrets turn that on:
+
+| Secret | Value |
+|---|---|
+| `OFFSITE_BUCKET` | Bucket name, e.g. `agl-portal-backups` |
+| `OFFSITE_ENDPOINT` | S3 API endpoint, e.g. `https://<account>.r2.cloudflarestorage.com` |
+| `OFFSITE_ACCESS_KEY_ID` | Access key for that bucket |
+| `OFFSITE_SECRET_ACCESS_KEY` | Secret key for that bucket |
+
+Any S3-compatible provider works — Cloudflare R2, Backblaze B2, Wasabi, S3.
+**The credentials must belong to a different provider and account than the one
+hosting this repository.** Pointing them at the same account satisfies the
+configuration check while leaving the risk exactly where it was.
+
+Objects land at `agl-portal/YYYY/MM/<run-id>/`, so backups accumulate by month
+rather than overwriting, and nothing is pruned by the 90-day artifact policy.
+
+Until those secrets exist the nightly run still succeeds — the backup is real
+and the artifact is kept — but it emits a `::warning::` and the run summary
+carries a warning block saying no off-site copy was made. That is deliberate:
+the previous design printed a note asking someone to download a copy by hand
+each month, which is a reminder rather than a control. It fails silently the
+first month everyone is busy, and there is nothing to notice when it does.
 
 ### Manually
 

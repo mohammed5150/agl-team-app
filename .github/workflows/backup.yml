@@ -63,18 +63,100 @@ jobs:
           retention-days: 90
           if-no-files-found: error
 
+      # ---------------------------------------------------------------------
+      # Off-site copy.
+      #
       # A GitHub artifact shares an account boundary with this repository, so
-      # it does not cover the "account compromised" row of the risk table.
-      # docs/BACKUP_RESTORE.md asks for a monthly copy to be pulled somewhere
-      # with different credentials; this is the reminder in the run log.
-      - name: Note the off-site step
+      # it does not cover the "account compromised" row of the risk table in
+      # docs/BACKUP_RESTORE.md — lose the account and you lose the code AND
+      # every backup of it, together. The 90-day retention above means nothing
+      # older survives either.
+      #
+      # This used to be a line of text in the run log asking someone to
+      # download a copy by hand once a month. That is a reminder, not a
+      # control: it fails silently the first month everyone is busy, and it
+      # fails invisibly, which is the worst way for a backup to fail.
+      #
+      # Any S3-compatible bucket works — Cloudflare R2, Backblaze B2, Wasabi,
+      # S3 itself. What matters is that OFFSITE_* are credentials for a
+      # DIFFERENT account than the one hosting this repository. Reusing the
+      # same provider defeats the entire point of the step.
+      # ---------------------------------------------------------------------
+      - name: Is an off-site copy configured?
+        id: offsite_check
+        env:
+          OFFSITE_BUCKET: ${{ secrets.OFFSITE_BUCKET }}
+        run: |
+          if [ -n "$OFFSITE_BUCKET" ]; then
+            echo "configured=true" >> $GITHUB_OUTPUT
+          else
+            echo "configured=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Copy the export off-site
+        if: steps.offsite_check.outputs.configured == 'true'
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.OFFSITE_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.OFFSITE_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          OFFSITE_BUCKET: ${{ secrets.OFFSITE_BUCKET }}
+          OFFSITE_ENDPOINT: ${{ secrets.OFFSITE_ENDPOINT }}
+        run: |
+          set -euo pipefail
+          DEST="s3://$OFFSITE_BUCKET/agl-portal/$(date -u +%Y/%m)/${{ github.run_id }}/"
+          echo "Copying to $DEST"
+          aws s3 sync backups/ "$DEST"             --endpoint-url "$OFFSITE_ENDPOINT"             --only-show-errors
+          echo "OFFSITE_DEST=$DEST" >> $GITHUB_ENV
+
+      # Writing without reading back is how silent backup failures happen: a
+      # sync can exit 0 having copied nothing. Prove the objects are there and
+      # that they are not empty, or fail the run.
+      - name: Verify the off-site copy landed
+        if: steps.offsite_check.outputs.configured == 'true'
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.OFFSITE_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.OFFSITE_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          OFFSITE_ENDPOINT: ${{ secrets.OFFSITE_ENDPOINT }}
+        run: |
+          set -euo pipefail
+          LISTING=$(aws s3 ls --recursive "$OFFSITE_DEST" --endpoint-url "$OFFSITE_ENDPOINT")
+          COUNT=$(echo "$LISTING" | grep -c . || true)
+          BYTES=$(echo "$LISTING" | awk '{s+=$3} END {print s+0}')
+          echo "$LISTING"
+          if [ "$COUNT" -eq 0 ] || [ "$BYTES" -eq 0 ]; then
+            echo "::error::Off-site copy verified EMPTY at $OFFSITE_DEST ($COUNT objects, $BYTES bytes)."
+            exit 1
+          fi
+          echo "Verified $COUNT objects, $BYTES bytes off-site."
+          echo "OFFSITE_COUNT=$COUNT" >> $GITHUB_ENV
+          echo "OFFSITE_BYTES=$BYTES" >> $GITHUB_ENV
+
+      - name: Summarise
         if: success()
         run: |
-          echo "### Backup complete" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Artifact retained for 90 days." >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "On the first run of each month, download this artifact and keep a" >> $GITHUB_STEP_SUMMARY
-          echo "copy somewhere with different credentials — a GitHub artifact does" >> $GITHUB_STEP_SUMMARY
-          echo "not survive this account being compromised." >> $GITHUB_STEP_SUMMARY
-          echo "See \`docs/BACKUP_RESTORE.md\` section 4." >> $GITHUB_STEP_SUMMARY
+          {
+            echo "### Backup complete"
+            echo ""
+            echo "GitHub artifact retained for 90 days."
+            echo ""
+            if [ "${{ steps.offsite_check.outputs.configured }}" = "true" ]; then
+              echo "Off-site copy: **verified** — $OFFSITE_COUNT objects, $OFFSITE_BYTES bytes"
+              echo ""
+              echo "\`$OFFSITE_DEST\`"
+            else
+              echo "> [!WARNING]"
+              echo "> **No off-site copy was made.** This backup exists only inside the"
+              echo "> account that hosts this repository, so it does not survive that"
+              echo "> account being lost or compromised — the case it was written for."
+              echo ">"
+              echo "> Set \`OFFSITE_BUCKET\`, \`OFFSITE_ENDPOINT\`, \`OFFSITE_ACCESS_KEY_ID\`"
+              echo "> and \`OFFSITE_SECRET_ACCESS_KEY\` as repository secrets, using a"
+              echo "> provider that is not this one. See docs/BACKUP_RESTORE.md section 4."
+            fi
+          } >> $GITHUB_STEP_SUMMARY
+
+      - name: Warn loudly when there is no off-site copy
+        if: steps.offsite_check.outputs.configured != 'true'
+        run: |
+          echo "::warning title=No off-site backup::This backup lives only in the GitHub account that hosts the repo. Configure OFFSITE_* secrets — see docs/BACKUP_RESTORE.md section 4."
