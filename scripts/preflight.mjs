@@ -170,7 +170,7 @@ console.log("\nRLS holds against an anonymous caller");
 // ---------------------------------------------------------------
 for (const table of ["employees", "leave_requests", "overtime_requests",
                      "notifications", "audit_log", "client_errors",
-                     "approved_team_logins"]) {
+                     "approved_team_logins", "announcements"]) {
   const r = await mustDenyAnon(table);
   record(r.ok, `${table} is not anonymously readable`, r.detail);
 }
