@@ -1,7 +1,7 @@
 // Post-build gate. Runs in CI (`npm run ci`) and should run before any deploy.
 //
 // A production bundle is a public document: anyone can fetch /app.js from the
-// Netlify URL without signing in. Two categories of thing must therefore never
+// deployed URL without signing in. Two categories of thing must therefore never
 // survive into it, and both HAVE been in it at some point:
 //
 //   1. The seeded demo roster — names, mobile numbers, passport and Emirates ID
@@ -105,7 +105,9 @@ if (source.includes("DEV: PREFILL EMAIL")) {
 
 // --- 5. Static assets the deploy needs -----------------------------------
 
-for (const asset of ["index.html", "manifest.json", "sw.js", "vendor"]) {
+// _headers is load-bearing: without it in the publish directory, neither
+// Cloudflare Pages nor Netlify sends the CSP or clickjacking headers at all.
+for (const asset of ["index.html", "manifest.json", "sw.js", "vendor", "_headers"]) {
   if (!fs.existsSync(path.join(ROOT, "dist", asset))) {
     failures.push(`dist/${asset} is missing`);
   }

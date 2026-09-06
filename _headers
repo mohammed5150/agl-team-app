@@ -1,53 +1,25 @@
-# Response headers for Cloudflare Pages.
+# Response headers for every route. This file is the single source of truth
+# for the portal's security headers: build.js copies it into dist/, and both
+# Cloudflare Pages and Netlify read it from the publish directory, so the same
+# rules apply on either host during and after the migration off Netlify.
 #
 # WHY THIS FILE EXISTS
-# netlify.toml serves these headers on Netlify. Cloudflare Pages does not read
-# netlify.toml — it reads a `_headers` file from the root of the published
-# output directory, which build.js copies this into alongside index.html.
+# index.html already carries a <meta http-equiv="Content-Security-Policy">.
+# A meta CSP is honoured for most directives, but the spec requires user agents
+# to IGNORE frame-ancestors when it arrives that way — it takes effect only as
+# an HTTP response header. The portal was therefore declaring clickjacking
+# protection it did not actually have. Serving the policy as a real header is
+# what closes that, and lets the transport/browser headers below be set too.
 #
-# Keeping both means the site can be served from either host, and the move from
-# one to the other is a DNS change rather than a code change.
+# KEEP THE HEADER POLICY AND THE META POLICY IN SYNC. A browser receiving both
+# enforces the INTERSECTION of them, so tightening a directive in one place and
+# not the other breaks the app in a way that is painful to trace.
+# tests/securityHeaders.test.js fails the suite if they disagree on any shared
+# directive. Rationale for each header lives in docs/SECURITY.md §7.
 #
-# KEEP ALL THREE POLICIES IN SYNC
-# The CSP now exists in three places:
-#
-#   index.html   <meta http-equiv> — covers a locally opened file and any host
-#                that serves no headers at all
-#   netlify.toml the real header on Netlify
-#   _headers     the real header on Cloudflare Pages
-#
-# A browser given both a meta policy and a header policy enforces the
-# INTERSECTION, so tightening one and not the others breaks the app in a way
-# that is painful to trace. tests/securityHeaders.test.js fails the suite if
-# any two of them disagree on a shared directive — that test is the reason
-# three copies is survivable rather than reckless.
-#
-# EVERY COMMENT LIVES UP HERE, ABOVE THE RULE, ON PURPOSE
-# The block below contains header lines and nothing else. A `#` line indented
-# inside a rule is accepted by some parsers and treated as the end of the rule
-# by others, and the failure mode is not an error — it is a deploy that quietly
-# serves fewer headers than it should. Not worth the risk for a tidier layout.
-#
-# WHAT THE HEADERS ARE FOR
-#   Content-Security-Policy   verbatim copy of the netlify.toml policy.
-#                             connect-src carries the Supabase REST + realtime
-#                             origins and the Open-Meteo endpoint behind the
-#                             dashboard weather card; everything else is
-#                             same-origin because React, react-dom and
-#                             supabase-js are all vendored.
-#   X-Frame-Options           frame-ancestors covers modern browsers; this
-#                             covers the ones that only understand the legacy
-#                             header. SAMEORIGIN matches frame-ancestors 'self'.
-#   X-Content-Type-Options    no MIME sniffing.
-#   Referrer-Policy           employee IDs and roster views appear in the URL
-#                             hash. Send the origin only when leaving the site,
-#                             never the path.
-#   Permissions-Policy        the portal asks for none of these, so an injected
-#                             script cannot ask on its behalf either.
-#   Strict-Transport-Security HTTPS only, pinned for a year. No preload — that
-#                             is a one-way submission to the browser preload
-#                             list and belongs to a deliberate decision about
-#                             the domain, not to a headers commit.
+# connect-src carries the Supabase REST + realtime origins and the Open-Meteo
+# forecast endpoint behind the dashboard weather card; everything else is
+# same-origin because React, react-dom and supabase-js are all vendored.
 
 /*
   Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.open-meteo.com; frame-ancestors 'self'; form-action 'self'; object-src 'none'; base-uri 'self';

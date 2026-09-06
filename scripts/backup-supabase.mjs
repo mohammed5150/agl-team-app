@@ -1,4 +1,8 @@
-#!/usr/bin/env node
+// Run this with `node scripts/backup-supabase.mjs`. There is deliberately no
+// `#!` line: Vite's shebang strip does not account for a CRLF checkout, so a
+// shebang here makes tests/backup.test.js fail to even load on Windows with a
+// bare "SyntaxError: Invalid or unexpected token" and no stack. Nothing execs
+// this file directly (it is not chmod +x), so the shebang bought nothing.
 //
 // Logical backup of every portal table to a timestamped JSON directory.
 //
