@@ -38,11 +38,11 @@ export function Prof({ emp, canEdit, onSave, onAdd, isStaff, isMgr, actor, onSen
   // Save must not spread the whole (possibly stale) `fm` over the record, or
   // it silently reverts whatever changed underneath it; diffing against this
   // snapshot keeps the write to only the fields the user actually edited.
-  const baselineRef = useRef({ ...emp });
+  const baselineRef = useRef(null);
   const startEdit = () => { baselineRef.current = { ...emp }; setFm({ ...emp }); setEd(true); };
   const saveEdit = () => {
     const patch = { id: emp.id };
-    const baseline = baselineRef.current;
+    const baseline = baselineRef.current || emp;
     for (const k of Object.keys(fm)) {
       if (fm[k] !== baseline[k]) patch[k] = fm[k];
     }
