@@ -26,11 +26,6 @@ export function Prof({ emp, canEdit, onSave, onAdd, isStaff, isMgr, actor, onSen
   const canFinalize = canFinalizeProfile(actor, emp);
   const incomplete  = missingRequired(emp);
 
-  // Reset the form only when switching to a different employee — depending on
-  // the whole `emp` object would clobber in-progress edits on every save.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { setFm({ ...emp }); }, [emp.id]);
-
   // Snapshot of `emp` as of the moment editing started (or the employee
   // switched). `fm` is seeded from it and can go stale while the edit form
   // stays open — e.g. another action on this same page adds an achievement,
@@ -39,6 +34,16 @@ export function Prof({ emp, canEdit, onSave, onAdd, isStaff, isMgr, actor, onSen
   // it silently reverts whatever changed underneath it; diffing against this
   // snapshot keeps the write to only the fields the user actually edited.
   const baselineRef = useRef(null);
+
+  // Reset the form only when switching to a different employee — depending on
+  // the whole `emp` object would clobber in-progress edits on every save.
+  // Also drop any in-progress edit and its baseline: leaving `ed`/baselineRef
+  // pointing at the previous employee would let a save on the new profile
+  // diff against the old one's snapshot and ship a patch built from fields
+  // that only differ because they belong to a different person.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { setFm({ ...emp }); setEd(false); baselineRef.current = null; }, [emp.id]);
+
   const startEdit = () => { baselineRef.current = { ...emp }; setFm({ ...emp }); setEd(true); };
   const saveEdit = () => {
     const patch = { id: emp.id };
