@@ -7,7 +7,20 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    # Development happens on Windows; only Linux was ever tested. That gap hid
+    # a real defect for months: tests/backup.test.js collected ZERO tests on a
+    # Windows checkout (CRLF + a shebang Vite could not strip) and the suite
+    # quietly reported 699 tests where this matrix reports 724. .gitattributes
+    # now pins eol=lf, and this job is what proves it stays fixed.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    # bash on both runners, so `VAR=x cmd` and friends behave identically.
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v5
@@ -30,7 +43,14 @@ jobs:
       # every render for every user: the fault only exists once a browser
       # evaluates the bundle. This step opens the build we just made and
       # insists it actually comes up. See scripts/smoke.mjs.
-      - name: Install Chromium for the smoke test
+      #
+      # --with-deps installs OS packages and is Linux-only; on Windows the
+      # browser download alone is enough.
+      - name: Install Chromium for the smoke test (Linux)
+        if: runner.os == 'Linux'
         run: npx playwright install --with-deps chromium
+      - name: Install Chromium for the smoke test (Windows)
+        if: runner.os == 'Windows'
+        run: npx playwright install chromium
       - name: Smoke test the built app in a browser
         run: npm run smoke

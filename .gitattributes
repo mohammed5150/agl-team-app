@@ -1,0 +1,21 @@
+# Git stores text blobs as LF and, with core.autocrlf=true, hands Windows a
+# CRLF working tree. Most tools cope. The ones that do not fail in ways that
+# are very hard to read: tests/backup.test.js could not be loaded at all on
+# Windows — "SyntaxError: Invalid or unexpected token", no file, no line, no
+# stack — because Vite's shebang strip does not account for a CR before the
+# newline. Linux CI checked out LF, so it stayed green for as long as the file
+# existed. Pinning eol=lf means every checkout matches what CI tests.
+* text=auto eol=lf
+
+# Binary formats: never inspected for line endings, never rewritten.
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.ico   binary
+*.pdf   binary
+*.woff  binary
+*.woff2 binary
+*.zip   binary
+*.pptx  binary
+*.xlsx  binary
+*.xlsb  binary
