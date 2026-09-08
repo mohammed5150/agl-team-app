@@ -78,10 +78,14 @@ async function launch() {
   try {
     return await chromium.launch();
   } catch (e) {
-    // Some environments ship a browser outside playwright's own store.
-    const override = process.env.SMOKE_CHROMIUM_PATH;
-    if (override && fs.existsSync(override)) {
-      return chromium.launch({ executablePath: override });
+    // Some environments ship a browser outside playwright's own store, or a
+    // store revision that doesn't match the pinned playwright (Claude Code web
+    // symlinks its Chromium at /opt/pw-browsers/chromium for exactly this case).
+    const candidates = [process.env.SMOKE_CHROMIUM_PATH, "/opt/pw-browsers/chromium"];
+    for (const path of candidates) {
+      if (path && fs.existsSync(path)) {
+        return chromium.launch({ executablePath: path });
+      }
     }
     throw e;
   }
