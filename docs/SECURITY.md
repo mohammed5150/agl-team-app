@@ -190,6 +190,12 @@ refactor that reintroduces a leak by a different route fails too.
 It is loud on purpose. **Never deploy a bundle built with it** — it carries
 real staff contact details and document numbers.
 
+CI also runs `npm run audit` (`npm audit --omit=dev --audit-level=high`) as a
+separate step, ahead of lint. It is not part of `npm run ci` — a security
+advisory on a package is a decision to make, not something a local dev run
+should silently block on — but a PR fails if a production dependency carries
+a high or critical advisory.
+
 ---
 
 ## 9. Known gaps
@@ -211,7 +217,6 @@ Named so they are decisions rather than things nobody noticed.
 - **`documents` holds metadata only.** No file contents are stored, so there is
   no file-access control to get wrong — but also no actual documents. If
   Supabase Storage is ever adopted, bucket policies become a new surface.
-- **No dependency scanning beyond CodeQL.** `npm audit` is not in CI.
 
 ---
 
