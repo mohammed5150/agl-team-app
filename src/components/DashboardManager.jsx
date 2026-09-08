@@ -63,7 +63,7 @@ export function MDash({ user, employees, leaveRequests, announcements, pc, onGoT
 
       {/* Pinned banner */}
       {pinnedAnn.length > 0 && pinnedAnn.map(a => {
-        const pr = ANN_PRIORITIES.find(p => p.key === a.priority);
+        const pr = ANN_PRIORITIES.find(p => p.key === a.priority) || ANN_PRIORITIES[0];
         return (
           <div key={a.id} onClick={() => onGoTo("announcements")} style={{
             background:`linear-gradient(135deg, ${pr.color}22, ${pr.color}08)`,

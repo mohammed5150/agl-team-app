@@ -6,7 +6,7 @@ import { ProfileStatusBadge } from "./Onboarding.jsx";
 import { ib, Bd, Bt, Sec, Fd, Empty, Modal } from "../uiPrimitives.jsx";
 import { AdminActions, EmploymentBadge } from "./AdminActions.jsx";
 
-const { useState, useEffect } = React;
+const { useState, useEffect, useRef } = React;
 
 /* ============================================================
    PROFILE
@@ -26,10 +26,34 @@ export function Prof({ emp, canEdit, onSave, onAdd, isStaff, isMgr, actor, onSen
   const canFinalize = canFinalizeProfile(actor, emp);
   const incomplete  = missingRequired(emp);
 
+  // Snapshot of `emp` as of the moment editing started (or the employee
+  // switched). `fm` is seeded from it and can go stale while the edit form
+  // stays open — e.g. another action on this same page adds an achievement,
+  // or a manager suspends the account, updating `emp` without touching `fm`.
+  // Save must not spread the whole (possibly stale) `fm` over the record, or
+  // it silently reverts whatever changed underneath it; diffing against this
+  // snapshot keeps the write to only the fields the user actually edited.
+  const baselineRef = useRef(null);
+
   // Reset the form only when switching to a different employee — depending on
   // the whole `emp` object would clobber in-progress edits on every save.
+  // Also drop any in-progress edit and its baseline: leaving `ed`/baselineRef
+  // pointing at the previous employee would let a save on the new profile
+  // diff against the old one's snapshot and ship a patch built from fields
+  // that only differ because they belong to a different person.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { setFm({ ...emp }); }, [emp.id]);
+  useEffect(() => { setFm({ ...emp }); setEd(false); baselineRef.current = null; }, [emp.id]);
+
+  const startEdit = () => { baselineRef.current = { ...emp }; setFm({ ...emp }); setEd(true); };
+  const saveEdit = () => {
+    const patch = { id: emp.id };
+    const baseline = baselineRef.current || emp;
+    for (const k of Object.keys(fm)) {
+      if (fm[k] !== baseline[k]) patch[k] = fm[k];
+    }
+    onSave(patch);
+    setEd(false);
+  };
 
   return (
     <div>
@@ -52,7 +76,7 @@ export function Prof({ emp, canEdit, onSave, onAdd, isStaff, isMgr, actor, onSen
           </div>
         </div>
         <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
-          {canEdit && !ed && <Bt onClick={() => setEd(true)}>✏️ Edit</Bt>}
+          {canEdit && !ed && <Bt onClick={startEdit}>✏️ Edit</Bt>}
           {canEdit && <Bt onClick={() => setSaf(!saf)} bg={theme.or} small={true}>{saf ? "Cancel" : "📋 Add Record"}</Bt>}
           {!ed && canUnlock && (
             <Bt onClick={() => onSave({ ...emp, profileFinalized:false })} bg={theme.yl} small={true}>🔓 Unlock</Bt>
@@ -66,7 +90,7 @@ export function Prof({ emp, canEdit, onSave, onAdd, isStaff, isMgr, actor, onSen
             </span>
           )}
           {ed && <>
-            <Bt onClick={() => { onSave(fm); setEd(false); }} bg={theme.gn}>💾 Save</Bt>
+            <Bt onClick={saveEdit} bg={theme.gn}>💾 Save</Bt>
             <Bt onClick={() => { setFm({ ...emp }); setEd(false); }} outline={true}>Cancel</Bt>
           </>}
         </div>

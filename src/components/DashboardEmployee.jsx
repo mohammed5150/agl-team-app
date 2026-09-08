@@ -80,7 +80,7 @@ export function EDash({ user, announcements, onGoTo }) {
 
       {/* Pinned announcement (if any) */}
       {pinnedAnn.map(a => {
-        const pr = ANN_PRIORITIES.find(p => p.key === a.priority);
+        const pr = ANN_PRIORITIES.find(p => p.key === a.priority) || ANN_PRIORITIES[0];
         return (
           <div key={a.id} onClick={() => onGoTo("announcements")} style={{
             background:`linear-gradient(135deg, ${pr.color}22, ${pr.color}08)`,
@@ -177,7 +177,7 @@ export function EDash({ user, announcements, onGoTo }) {
       {latestAnn.length > 0 && (
         <Sec title="Announcements" icon="📢" action={<Bt onClick={() => onGoTo("announcements")} small={true} outline={true}>View all</Bt>}>
           {latestAnn.map(a => {
-            const pr = ANN_PRIORITIES.find(p => p.key === a.priority);
+            const pr = ANN_PRIORITIES.find(p => p.key === a.priority) || ANN_PRIORITIES[0];
             return (
               <div key={a.id} style={{ padding:"10px 0", borderBottom:`1px solid ${theme.bd}` }}>
                 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:8, flexWrap:"wrap" }}>

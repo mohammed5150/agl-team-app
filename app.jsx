@@ -1277,7 +1277,13 @@ function App() {
     const apply = e => {
       const prev = e.rating || {};
       const next = { ...prev, ...patch, updatedAt: new Date().toISOString(), updatedBy: currentUser.name };
-      if (!canSetRatingTier(currentUser)) delete next.tier;
+      // A non-manager's patch must not touch the salary tier at all — not even
+      // to erase it. Deleting the key here would wipe a manager-set tier every
+      // time a team lead saves an unrelated star rating, since PerfEditor's
+      // local state always carries the existing tier value along in `patch`.
+      // Restoring the pre-existing value (rather than deleting the key)
+      // preserves it regardless of what the disallowed patch contained.
+      if (!canSetRatingTier(currentUser)) next.tier = prev.tier;
       return { ...e, rating: next };
     };
     setEmployees(p => p.map(e => e.id === empId ? apply(e) : e));
