@@ -14,6 +14,12 @@ const STATIC_ASSETS = [
   // the publish directory, so it must ship inside dist/ to take effect.
   "_headers",
   "index.html",
+  // Cloudflare Pages reads response headers from a `_headers` file at the root
+  // of the published directory, so it has to be copied in like any other
+  // asset. Netlify takes the same headers from netlify.toml in the repo root
+  // and ignores this file; shipping both is what lets either host serve the
+  // site. Harmless on Netlify — it is served as a static file nobody requests.
+  "_headers",
   "manifest.json",
   "sw.js",
   "icon-192.png",
