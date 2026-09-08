@@ -82,6 +82,16 @@ export async function sendPush(toEmpId, title, body, url = "/") {
   }
 }
 
+export async function sendSlack({ text, title, level = "info" }) {
+  if (!supa || !text) return;
+  try {
+    const { error } = await supa.functions.invoke("send-slack", { body: { text, title, level } });
+    if (error) console.warn("[slack] send failed:", error);
+  } catch (e) {
+    console.warn("[slack] send error:", e);
+  }
+}
+
 export const empToDb = e => ({
   id: e.id, email: e.email,
   name: e.name, section: e.section,

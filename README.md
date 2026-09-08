@@ -15,8 +15,12 @@ npm start          # serves dist/ on http://localhost:8080
 
 ## Deploy
 
-This repo is connected to Netlify continuous deploy. Every push to `main`
-triggers `npm run build` and publishes the `dist/` folder.
+The portal deploys to **Netlify**: every push to `main` triggers
+`npm run build` and publishes the `dist/` folder. Security headers travel
+with the output in `_headers`, a format both Netlify and Cloudflare Pages
+honour. A migration to Cloudflare Pages was prepared but is **paused** —
+Netlify works fine and remains the production host; the cutover steps are
+kept in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) in case it is ever revived.
 
 - Production: https://auh-adb-portal.netlify.app
 
@@ -113,6 +117,9 @@ retry. No SQL access needed.
   backed up, and the step-by-step restore runbook.
 - **`docs/MONITORING.md`** — uptime checks, front-end error reporting, and
   what to look at when the portal misbehaves.
+- **`docs/SLACK.md`** — optional `send-slack` Edge Function (the second one
+  after `send-push`): posts leave/overtime alerts to a Slack channel via an
+  Incoming Webhook; no-ops safely until `SLACK_WEBHOOK_URL` is configured.
 
 ## Publishing checklist (production go-live)
 
@@ -138,9 +145,10 @@ retry. No SQL access needed.
    roster and the approved Team Mail ID list are compiled out by default;
    `SHOW_DEMO_LOGIN=1` re-enables them for local development. Never deploy
    such a build — it embeds real staff contact details and document numbers.
-4. **Deploy** — publish `dist/` (Netlify). No CDN dependencies: React,
-   ReactDOM and supabase-js are self-hosted under `vendor/` with versions
-   pinned by `package-lock.json`.
+4. **Deploy** — publish `dist/` (Netlify; see
+   `docs/DEPLOYMENT.md`). No CDN dependencies: React, ReactDOM and
+   supabase-js are self-hosted under `vendor/` with versions pinned by
+   `package-lock.json`.
 5. **Passwords** — ensure every employee has set a personal password; the
    shared onboarding password must not remain valid on real accounts. Members
    who are locked out now use **Forgot your password?** rather than needing an

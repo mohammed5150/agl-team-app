@@ -20,6 +20,9 @@ app.js
 __pycache__/
 *.pyc
 
+# Local password export (generated locally, must not be committed)
+scratchpad_out/
+
 # Local agent tooling — machine-specific, not part of the app.
 .grok/
 .superpowers/

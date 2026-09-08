@@ -19,7 +19,7 @@ away", which meant the honest answer was "we lose it".
 | Supabase project paused (billing lapse) | Plausible | Unpause; **no data loss** — but the portal is down meanwhile |
 | Supabase project deleted, or account compromised | Unlikely, severe | **Off-platform JSON export** (`scripts/backup-supabase.mjs`) |
 | Supabase regional outage | Unlikely | Wait it out, or restore the export into a new project |
-| Netlify / front-end lost | Plausible | Rebuild from git; the front end holds no state |
+| Hosting / front-end lost | Plausible | Rebuild from git; the front end holds no state |
 
 Supabase's own Point-In-Time Recovery is the first line of defence and handles
 the top two rows better than anything here can. **It does not help with rows

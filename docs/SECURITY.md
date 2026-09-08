@@ -163,7 +163,7 @@ or new project starts without them.
 
 ## 7. Browser-side controls
 
-- **CSP** — declared in both `index.html` (meta) and `netlify.toml` (header).
+- **CSP** — declared in both `index.html` (meta) and `_headers` (header).
   `frame-ancestors` only works as a header; the meta tag is ignored for it, so
   both exist and `tests/securityHeaders.test.js` fails the suite if they
   disagree on a shared directive.
@@ -174,7 +174,7 @@ or new project starts without them.
 - No CDN: React, ReactDOM and supabase-js are vendored with versions pinned by
   `package-lock.json`, so a compromised CDN cannot serve script into the page.
 - HSTS, `X-Content-Type-Options`, `Referrer-Policy` and `Permissions-Policy`
-  are set in `netlify.toml`.
+  are set in `_headers`.
 
 ---
 
@@ -189,6 +189,12 @@ refactor that reintroduces a leak by a different route fails too.
 `ALLOW_DEMO_BUNDLE=1` is the deliberate escape hatch for a local demo build.
 It is loud on purpose. **Never deploy a bundle built with it** — it carries
 real staff contact details and document numbers.
+
+CI also runs `npm run audit` (`npm audit --omit=dev --audit-level=high`) as a
+separate step, ahead of lint. It is not part of `npm run ci` — a security
+advisory on a package is a decision to make, not something a local dev run
+should silently block on — but a PR fails if a production dependency carries
+a high or critical advisory.
 
 ---
 
@@ -211,7 +217,6 @@ Named so they are decisions rather than things nobody noticed.
 - **`documents` holds metadata only.** No file contents are stored, so there is
   no file-access control to get wrong — but also no actual documents. If
   Supabase Storage is ever adopted, bucket policies become a new surface.
-- **No dependency scanning beyond CodeQL.** `npm audit` is not in CI.
 
 ---
 

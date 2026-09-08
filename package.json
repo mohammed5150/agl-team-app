@@ -10,7 +10,8 @@
     "ci": "eslint . && vitest run && node build.js && node scripts/verify-dist.js && node scripts/smoke.mjs",
     "dev": "esbuild app.jsx --bundle --outfile=app.js --loader:.jsx=jsx --watch --jsx-factory=React.createElement --jsx-fragment=React.Fragment --define:__SHOW_DEMO__=true --define:__EMBED_TEAM_DIRECTORY__=true --define:__APP_VERSION__=\"dev\"",
     "start": "serve dist -l 8080",
-    "preflight": "node scripts/preflight.mjs"
+    "preflight": "node scripts/preflight.mjs",
+    "audit": "npm audit --omit=dev --audit-level=high"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.2",

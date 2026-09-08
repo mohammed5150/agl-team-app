@@ -3,19 +3,20 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
-// The browser is the boundary these headers defend, and Netlify only sends
-// them if netlify.toml says so. These assertions pin the guarantees, so an
+// The browser is the boundary these headers defend, and the host only sends
+// them if _headers says so (Cloudflare Pages and Netlify both read that file
+// from the publish directory). These assertions pin the guarantees, so an
 // edit that drops one fails the suite instead of quietly shipping the hole
 // back — the same reason tests/onboardingMigration.test.js pins the SQL.
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
-const toml = readFileSync(join(ROOT, "netlify.toml"), "utf8");
+const headersFile = readFileSync(join(ROOT, "_headers"), "utf8");
 const html = readFileSync(join(ROOT, "index.html"), "utf8");
 
-/** Value of a header from the netlify.toml [headers.values] block. */
+/** Value of a header from the _headers /* rule ("  Name: value" lines). */
 function header(name) {
-  const m = toml.match(new RegExp(`^\\s*${name}\\s*=\\s*"([^"]*)"`, "m"));
-  return m ? m[1] : null;
+  const m = headersFile.match(new RegExp(`^\\s+${name}:\\s*(.*)$`, "m"));
+  return m ? m[1].trim() : null;
 }
 
 /** "a 'self'; b 'none'" -> Map { a => "'self'", b => "'none'" } */
@@ -38,14 +39,17 @@ const metaCsp = (html.match(
   /<meta\s+http-equiv=(["'])Content-Security-Policy\1\s+content="([^"]*)"/i,
 ) || [])[2];
 
-describe("netlify.toml applies headers to every response", () => {
-  it("declares a headers block scoped to /*", () => {
-    expect(toml).toMatch(/\[\[headers\]\]/);
-    expect(toml).toMatch(/for\s*=\s*"\/\*"/);
+describe("_headers applies headers to every response", () => {
+  it("declares a rule scoped to /*", () => {
+    // The rule line itself is unindented; header lines under it are indented.
+    expect(headersFile).toMatch(/^\/\*$/m);
   });
 
-  it("does not override the build settings held in the Netlify UI", () => {
-    expect(toml).not.toMatch(/^\s*\[build\]/m);
+  it("ships inside the publish directory", () => {
+    // Both hosts read _headers from the deployed output, not the repo root,
+    // so build.js must copy it into dist/ or no header is ever sent.
+    const build = readFileSync(join(ROOT, "build.js"), "utf8");
+    expect(build).toMatch(/"_headers"/);
   });
 });
 
@@ -90,7 +94,7 @@ describe("the header policy and the meta policy cannot drift apart", () => {
     //
     // api.open-meteo.com is the dashboard weather card. It is read-only and
     // unauthenticated, and receives a latitude and a longitude and nothing
-    // else — see src/weather.js and the note in netlify.toml.
+    // else — see src/weather.js and the note in _headers.
     const connect = directives(headerCsp).get("connect-src");
     expect(new Set(connect.split(/\s+/).filter(Boolean))).toEqual(new Set([
       "'self'",
