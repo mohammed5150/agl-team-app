@@ -1,6 +1,7 @@
 import { theme } from "../constants.js";
 import { Bt, Bd, Sec, Modal, ib } from "../uiPrimitives.jsx";
 import { canResetOthersPassword, canOffboardEmployee } from "../authz.js";
+import { Ic } from "./icons.jsx";
 
 const { useState, useId } = React;
 
@@ -72,7 +73,7 @@ export function AdminActions({ employee, actor, onSendReset, onSetEmploymentStat
   };
 
   return (
-    <Sec title="Account" icon="🔧">
+    <Sec title="Account" icon={<Ic name="wrench" size={15} />}>
       <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:14, flexWrap:"wrap" }}>
         <span style={{ color:theme.td, fontSize:12 }}>Status</span>
         <Bd text={meta.label} color={meta.color} />
@@ -87,33 +88,33 @@ export function AdminActions({ employee, actor, onSendReset, onSetEmploymentStat
         <div role="status" aria-live="polite" style={{
           background:"rgba(16,185,129,0.1)", border:"1px solid rgba(16,185,129,0.3)",
           borderRadius:10, padding:"8px 12px", marginBottom:12, color:theme.gn, fontSize:12,
-        }}>✓ {notice}</div>
+        }}><Ic name="check" size={12} style={{ marginRight:6 }} />{notice}</div>
       )}
       {error && (
         <div role="alert" aria-live="assertive" style={{
           background:"rgba(239,68,68,0.1)", border:"1px solid rgba(239,68,68,0.3)",
           borderRadius:10, padding:"8px 12px", marginBottom:12, color:theme.rd, fontSize:12,
-        }}>⚠️ {error}</div>
+        }}><Ic name="alert" size={12} style={{ marginRight:6 }} />{error}</div>
       )}
 
       <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
         {mayReset && (
           <Bt small={true} outline={true} disabled={busy || !employee.email}
             onClick={() => run(() => onSendReset(employee))}>
-            ✉️ Send password reset
+            <Ic name="mail" size={13} />Send password reset
           </Bt>
         )}
         {mayOffboard && status === "active" && (
           <>
             <Bt small={true} bg={theme.yl} disabled={busy}
-              onClick={() => setConfirming("suspended")}>⏸ Suspend</Bt>
+              onClick={() => setConfirming("suspended")}><Ic name="pause" size={13} />Suspend</Bt>
             <Bt small={true} bg={theme.rd} disabled={busy}
-              onClick={() => setConfirming("offboarded")}>👋 Offboard</Bt>
+              onClick={() => setConfirming("offboarded")}><Ic name="user-minus" size={13} />Offboard</Bt>
           </>
         )}
         {mayOffboard && status !== "active" && (
           <Bt small={true} bg={theme.gn} disabled={busy}
-            onClick={() => setConfirming("active")}>↩ Reactivate</Bt>
+            onClick={() => setConfirming("active")}><Ic name="rotate-ccw" size={13} />Reactivate</Bt>
         )}
       </div>
 

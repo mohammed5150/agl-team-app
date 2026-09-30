@@ -1,6 +1,7 @@
 import { STATUS_COLORS, STATUS_LABELS, MONTHS, ATT_YEAR, theme } from "../constants.js";
 import { countsAsOnLeave } from "../leaveWorkflow.js";
 import { Bd, Sec, Empty } from "../uiPrimitives.jsx";
+import { Ic } from "./icons.jsx";
 
 const { useState } = React;
 
@@ -119,9 +120,9 @@ export function LeaveCalendar({ leaveRequests }) {
       </div>
 
       {selDay != null && (
-        <Sec title={`${dayStr} - ${dayDetails.length} on leave`} icon="📅">
+        <Sec title={`${dayStr} - ${dayDetails.length} on leave`} icon={<Ic name="calendar" size={15} />}>
           {dayDetails.length === 0
-            ? <Empty icon="✅" text="Everyone is on duty" />
+            ? <Empty icon={<Ic name="check-circle" size={32} />} text="Everyone is on duty" />
             : dayDetails.map(r => (
               <div key={r.id} style={{
                 display:"flex", justifyContent:"space-between", alignItems:"center",
