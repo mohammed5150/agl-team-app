@@ -127,6 +127,13 @@ retry. No SQL access needed.
 - **`docs/SLACK.md`** — optional `send-slack` Edge Function (the second one
   after `send-push`): posts leave/overtime alerts to a Slack channel via an
   Incoming Webhook; no-ops safely until `SLACK_WEBHOOK_URL` is configured.
+- **`docs/DATABASE.md`** — the schema: tables, views, guard functions, the
+  role model, and the rules for writing a new migration.
+- **`docs/API.md`** — the portal's entire API surface (Supabase auth,
+  PostgREST, RPCs, Edge Functions, web push, external APIs) and how to add an
+  endpoint.
+- **`docs/CODE_STYLE.md`** — coding conventions and the lint rules that exist
+  because something shipped broken.
 
 ## Publishing checklist (production go-live)
 

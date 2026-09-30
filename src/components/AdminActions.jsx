@@ -4,7 +4,7 @@ import { canResetOthersPassword, canOffboardEmployee } from "../authz.js";
 
 const { useState, useId } = React;
 
-export const STATUS_META = {
+const STATUS_META = {
   active:     { label: "Active",     color: theme.gn },
   suspended:  { label: "Suspended",  color: theme.yl },
   offboarded: { label: "Offboarded", color: theme.td },

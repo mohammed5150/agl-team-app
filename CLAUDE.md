@@ -63,9 +63,9 @@ Do not weaken these; each one is a scar.
 
 ## Keep the two CSPs in sync
 
-The policy is declared twice: a `<meta http-equiv>` in `index.html` and an HTTP header in `netlify.toml`. Both are needed — `frame-ancestors` is ignored when delivered via meta. A browser given both enforces the **intersection**, so tightening one and not the other breaks the app confusingly. `tests/securityHeaders.test.js` fails if they disagree on a shared directive.
+The policy is declared twice: a `<meta http-equiv>` in `index.html` and an HTTP header in the `_headers` file (copied into `dist/` by the build; both Netlify and Cloudflare Pages read that format). Both are needed — `frame-ancestors` is ignored when delivered via meta. A browser given both enforces the **intersection**, so tightening one and not the other breaks the app confusingly. `tests/securityHeaders.test.js` fails if they disagree on a shared directive.
 
-`netlify.toml` deliberately has **no `[build]` section**; the build command and publish dir live in the Netlify UI.
+There is deliberately no `netlify.toml`; the build command and publish dir live in the Netlify UI.
 
 ## Line endings are pinned, and that is load-bearing
 
@@ -84,7 +84,6 @@ CRLF checkout a shebang makes the file unparseable to vitest.
 
 ## Gotchas
 
-- **`scripts/assemble-app.mjs` and `scripts/split-modules.mjs` are stale one-shot refactor scripts.** They slice `app.jsx` by hardcoded line numbers reaching to 4163; the file is now ~1488 lines. They are not wired to any npm script. Running them will produce garbage — read them for history only.
 - **`app.js` at the repo root is a gitignored build artifact** written by `npm run dev`. The deployed bundle is `dist/app.js`. Don't edit either.
 - **`src/supabasePortal.js` commits the Supabase URL, the publishable key and the VAPID public key on purpose** — all three are public by design. The service-role key lives only in GitHub secrets (backup / uptime workflows) and must never enter the bundle.
 - Some Supabase settings cannot be set by any migration (password minimum 12, leaked-password protection, redirect URLs). `npm run preflight` reports the four it cannot verify on every run; `docs/SECURITY.md` §6 is the full list.

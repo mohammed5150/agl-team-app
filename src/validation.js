@@ -29,9 +29,9 @@ import { OT_TERMINAL_STATUSES } from "./overtimeWorkflow.js";
 
 export const MAX_LEAVE_DAYS = 90;
 /** How far back a leave request may be dated. Sick leave is often after the fact. */
-export const MAX_LEAVE_BACKDATE_DAYS = 90;
+const MAX_LEAVE_BACKDATE_DAYS = 90;
 /** How far ahead. A year is generous; beyond that it is a planning artefact. */
-export const MAX_LEAVE_FUTURE_DAYS = 365;
+const MAX_LEAVE_FUTURE_DAYS = 365;
 
 export const MIN_OT_HOURS = 0.5;
 export const MAX_OT_HOURS = 12;
@@ -329,7 +329,7 @@ export const OVERTIME_STATUSES = ["pending", "approved", "rejected", "withdrawn"
  * Mirrors the lr_update_* RLS policies; anything not listed is refused by the
  * database, so the UI must not offer it.
  */
-export const LEAVE_TRANSITIONS = {
+const LEAVE_TRANSITIONS = {
   pending:     ["tl_approved", "rejected", "withdrawn"],
   tl_approved: ["approved", "rejected"],
   approved:    [],
@@ -337,7 +337,7 @@ export const LEAVE_TRANSITIONS = {
   withdrawn:   [],
 };
 
-export const OVERTIME_TRANSITIONS = {
+const OVERTIME_TRANSITIONS = {
   pending:   ["approved", "rejected", "withdrawn"],
   approved:  [],
   rejected:  [],

@@ -9,7 +9,7 @@ const { useState } = React;
    TEAM LIST
    ============================================================ */
 
-export function InviteForm({ onInvite, onApproveLogin, onClose }) {
+function InviteForm({ onInvite, onApproveLogin, onClose }) {
   const [fm, setFm] = useState({
     email: "", name: "", section: SECTIONS[0] || "",
     designation: "", role: "employee", tier: ""
@@ -151,7 +151,7 @@ export function InviteForm({ onInvite, onApproveLogin, onClose }) {
   );
 }
 
-export function BulkInviteForm({ onBulkInvite, onClose }) {
+function BulkInviteForm({ onBulkInvite, onClose }) {
   const [csv, setCsv] = useState("");
   const [preview, setPreview] = useState(null);  // { columns, rows } | null
   const [result,  setResult]  = useState(null);  // outcome from onBulkInvite | null

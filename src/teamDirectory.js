@@ -125,9 +125,6 @@ export const NOT_REGISTERED_MESSAGE =
   "This email address is not registered for the Team Portal. " +
   "Please contact your administrator.";
 
-export const APPROVAL_UNAVAILABLE_MESSAGE =
-  "We could not check your address just now. Try again in a moment.";
-
 /**
  * Approve a Team Mail ID so a new joiner can be invited and can sign in.
  *
