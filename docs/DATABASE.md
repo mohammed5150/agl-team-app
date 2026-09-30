@@ -57,11 +57,12 @@ manager-only), `guard_employee_profile_lock` (finalized profiles),
 `overtime_requests` broke every overtime approval),
 `guard_notification_immutable`, and `record_audit`.
 
-**RPCs callable from the client** — `is_approved_team_login`,
-`approve_team_login`, `set_employment_status`, `list_team_logins`,
-`revoke_team_login`, `record_profile_unlock`. `supabase_grant_hardening.sql`
-revoked the default PUBLIC EXECUTE on the guard functions — a new function
-needs its grants stated explicitly.
+**RPCs called from the client** — `is_approved_team_login`,
+`approve_team_login`, `set_employment_status` (see `docs/API.md` §4).
+`list_team_logins`, `revoke_team_login` and `record_profile_unlock` exist
+server-side for the same manager flows but have no client call site today.
+`supabase_grant_hardening.sql` revoked the default PUBLIC EXECUTE on the
+guard functions — a new function needs its grants stated explicitly.
 
 **Maintenance** — `prune_audit_log`, `prune_client_errors`.
 

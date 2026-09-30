@@ -31,8 +31,8 @@ reasons behind the ones that exist because something broke.
   no globals, no fetches at import time. This is what makes them unit-testable;
   keep new logic in `src/`, not in `app.jsx`.
 - **`src/components/*.jsx`** hold page-level components imported by the shell.
-- One-off scripts live in `scripts/`; `assemble-app.mjs` and
-  `split-modules.mjs` are stale history — never run them.
+- Operational scripts live in `scripts/` (smoke, preflight, verify-dist,
+  backup/restore); every call site goes through `node`.
 
 ## 3. Lint rules that are load-bearing
 

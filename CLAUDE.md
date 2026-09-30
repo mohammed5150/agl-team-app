@@ -63,9 +63,9 @@ Do not weaken these; each one is a scar.
 
 ## Keep the two CSPs in sync
 
-The policy is declared twice: a `<meta http-equiv>` in `index.html` and an HTTP header in `netlify.toml`. Both are needed — `frame-ancestors` is ignored when delivered via meta. A browser given both enforces the **intersection**, so tightening one and not the other breaks the app confusingly. `tests/securityHeaders.test.js` fails if they disagree on a shared directive.
+The policy is declared twice: a `<meta http-equiv>` in `index.html` and an HTTP header in the `_headers` file (copied into `dist/` by the build; both Netlify and Cloudflare Pages read that format). Both are needed — `frame-ancestors` is ignored when delivered via meta. A browser given both enforces the **intersection**, so tightening one and not the other breaks the app confusingly. `tests/securityHeaders.test.js` fails if they disagree on a shared directive.
 
-`netlify.toml` deliberately has **no `[build]` section**; the build command and publish dir live in the Netlify UI.
+There is deliberately no `netlify.toml`; the build command and publish dir live in the Netlify UI.
 
 ## Line endings are pinned, and that is load-bearing
 

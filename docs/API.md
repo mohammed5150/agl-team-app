@@ -61,8 +61,8 @@ Row shapes are translated by the `*ToDb`/`*FromDb` mappers in
 
 | RPC | Purpose |
 |---|---|
-| `is_approved_team_login(email)` | Pre-check during invite/sign-up |
-| `approve_team_login(email)` | Manager approves a Team Mail ID from the invite form (no SQL access needed) |
+| `is_approved_team_login(p_email)` | Pre-check during invite/sign-up |
+| `approve_team_login(p_email, p_label)` | Manager approves a Team Mail ID from the invite form (no SQL access needed); the label is optional context, passed as `null` when absent |
 | `set_employment_status(...)` | Offboarding — deactivates, never deletes |
 
 `list_team_logins`, `revoke_team_login` and `record_profile_unlock` exist
@@ -91,7 +91,7 @@ both. Feature-detection is `pushSupported` — never assume the APIs exist
 
 | API | Where | Notes |
 |---|---|---|
-| Open-Meteo `api.open-meteo.com/v1/forecast` | `src/weather.js` | Dashboard weather. No key, no PII sent. Its origin must stay in the `connect-src` of **both** CSPs (`index.html` meta and `netlify.toml` header — they must agree, `tests/securityHeaders.test.js` enforces it). |
+| Open-Meteo `api.open-meteo.com/v1/forecast` | `src/weather.js` | Dashboard weather. No key, no PII sent. Its origin must stay in the `connect-src` of **both** CSPs (`index.html` meta and the `_headers` HTTP header file — they must agree, `tests/securityHeaders.test.js` enforces it). |
 
 ## 8. Adding a new endpoint
 

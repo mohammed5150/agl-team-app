@@ -186,29 +186,7 @@ employees[6].actions = [
   { id:1, type:"warning", title:"Verbal Warning - PPE", date:"2026-03-15", by:"Mohammed Faheem", desc:"Not wearing safety harness at height" }
 ];
 
-const teamlead = {
-  id:"TL-001", email:"mohammed.faheem@adbsafegate.com",
-  name:"Mohammed Faheem", role:"teamlead", designation:"Team Leader", section:"All", shift:"General",
-  nationality:"Indian", mobile:"+971 50 222 0001", empNo:"ADB-2001",
-  dob:"1985-03-20", maritalStatus:"Married", address:"Abu Dhabi, UAE", joinDate:"2015-06-01",
-  emergencyContact:"+971 50 222 0002", emergencyName:"N/A",
-  passportNo:"", passportExpiry:"", visaExpiry:"",
-  eidNo:"784-XXXX-XXXXXXX-X", eidExpiry:"2028-12-31",
-  annualLeave:30, usedAnnual:5, sickLeave:15, usedSick:1, compOff:2,
-  documents:[], training:[]
-};
 
-const manager = {
-  id:"MGR-001", email:"ragesh.menon@example.invalid",
-  name:"Ragesh Menon", role:"manager", designation:"Maintenance Manager", section:"All", shift:"General",
-  nationality:"Indian", mobile:"+971 50 333 0001", empNo:"ADB-3001",
-  dob:"1980-07-10", maritalStatus:"Married", address:"Abu Dhabi, UAE", joinDate:"2012-01-15",
-  emergencyContact:"+971 50 333 0002", emergencyName:"N/A",
-  passportNo:"", passportExpiry:"", visaExpiry:"",
-  eidNo:"784-XXXX-XXXXXXX-X", eidExpiry:"2028-12-31",
-  annualLeave:30, usedAnnual:3, sickLeave:15, usedSick:0, compOff:0,
-  documents:[], training:[]
-};
 
 const leaveRequests = [
   { id:"LR-001", empId:"EMP-001", empName:"Amarnath Munderi", section:"AGL 12hrs", type:"Annual Leave",
@@ -256,14 +234,14 @@ const notifications = [
   { id:"NF-SEED-003", to:"EMP-049", type:"approved", message:"Annual Leave APPROVED ✅", read:true, date:"2026-04-11T09:30:00" }
 ];
 
-  return { employees, teamlead, manager, leaveRequests, announcements, notifications };
+  return { employees, leaveRequests, announcements, notifications };
 }
 
 // Demo/seed data (real team roster) is compiled OUT of production bundles:
 // build.js defines __SHOW_DEMO__=false unless SHOW_DEMO_LOGIN is explicitly
 // enabled, and esbuild then drops buildSeed() entirely via dead-code
 // elimination. Tooling that does not define the symbol (vitest) gets seeds.
-const EMPTY = { employees: [], teamlead: null, manager: null, leaveRequests: [], announcements: [], notifications: [] };
+const EMPTY = { employees: [], leaveRequests: [], announcements: [], notifications: [] };
 const seed = (typeof __SHOW_DEMO__ !== "undefined" ? __SHOW_DEMO__ : true) ? buildSeed() : EMPTY;
 
 export const INITIAL_EMPLOYEES      = seed.employees;
