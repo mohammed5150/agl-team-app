@@ -5,6 +5,7 @@ import {
   AUDIT_FILTERS, filterEntries, describeChanges, summarize, actorName,
   tableLabel, toCsv,
 } from "../auditLog.js";
+import { Ic } from "./icons.jsx";
 
 const { useState, useMemo, useId } = React;
 
@@ -90,7 +91,7 @@ function Entry({ entry, employees }) {
                         {c.label}
                         {c.redacted && (
                           <span title="Value not copied into the audit log"
-                            style={{ marginLeft: 5, color: theme.td, fontSize: 10 }}>🔒</span>
+                            style={{ marginLeft: 5, color: theme.td, fontSize: 10 }}><Ic name="lock" size={10} /></span>
                         )}
                       </td>
                       <td style={{ padding: "5px 8px", color: theme.td }}>{c.from}</td>
@@ -139,7 +140,7 @@ export function AuditPage({ entries, employees, loading, error, onReload }) {
     <div>
       <Sec
         title="Audit Trail"
-        icon="🧾"
+        icon={<Ic name="file-text" size={15} />}
         action={
           <div style={{ display: "flex", gap: 8 }}>
             <Bt onClick={onReload} outline={true} small={true}>Refresh</Bt>
@@ -151,7 +152,7 @@ export function AuditPage({ entries, employees, loading, error, onReload }) {
           Every change to employees, leave, overtime and announcements, with who made
           it. Written by database triggers rather than by the app, so an entry cannot
           be skipped or edited from here — including by the person it records.
-          Document numbers and contact details show as 🔒: the log records that they
+          Document numbers and contact details show a lock mark: the log records that they
           changed, never what they changed to.
         </p>
 
@@ -188,7 +189,7 @@ export function AuditPage({ entries, employees, loading, error, onReload }) {
             background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)",
             borderRadius: 10, padding: "8px 12px", marginBottom: 12,
             color: theme.rd, fontSize: 12,
-          }}>⚠️ {error}</div>
+          }}><Ic name="alert" size={12} style={{ marginRight:6 }} />{error}</div>
         )}
 
         {loading ? (
@@ -197,7 +198,7 @@ export function AuditPage({ entries, employees, loading, error, onReload }) {
           </div>
         ) : shown.length === 0 ? (
           <Empty
-            icon="🧾"
+            icon={<Ic name="file-text" size={15} />}
             text={
               entries?.length
                 ? "No entries match this filter"

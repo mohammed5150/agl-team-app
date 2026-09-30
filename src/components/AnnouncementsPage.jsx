@@ -1,6 +1,7 @@
 import { SECTIONS, ANN_PRIORITIES, theme } from "../constants.js";
 import { fmtDt } from "../helpers.js";
 import { ib, Bd, Bt, Sec, Modal, Empty } from "../uiPrimitives.jsx";
+import { Ic } from "./icons.jsx";
 
 const { useState } = React;
 
@@ -34,7 +35,7 @@ export function AnnPg({ user, announcements, onAdd, onDel }) {
     <div>
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:18, flexWrap:"wrap", gap:10 }}>
         <h2 style={{ fontSize:22, fontWeight:700, color:theme.tx, margin:0 }}>Announcements</h2>
-        {canCompose && <Bt onClick={() => setShowForm(true)} bg={theme.or}>📢 Post Announcement</Bt>}
+        {canCompose && <Bt onClick={() => setShowForm(true)} bg={theme.or}><Ic name="megaphone" size={14} />Post Announcement</Bt>}
       </div>
 
       {showForm && (
@@ -76,11 +77,11 @@ export function AnnPg({ user, announcements, onAdd, onDel }) {
               <input type="checkbox" checked={form.pinned}
                 onChange={e => setForm(p => ({ ...p, pinned:e.target.checked }))}
                 style={{ width:16, height:16, accentColor:theme.or }} />
-              📌 Pin to top (shows on dashboards)
+              Pin to top (shows on dashboards)
             </label>
           </div>
           <div style={{ display:"flex", gap:8 }}>
-            <Bt onClick={submit} bg={theme.gn}>📤 Post</Bt>
+            <Bt onClick={submit} bg={theme.gn}><Ic name="send" size={13} />Post</Bt>
             <Bt onClick={() => setShowForm(false)} outline={true}>Cancel</Bt>
           </div>
         </Modal>
@@ -107,13 +108,13 @@ export function AnnPg({ user, announcements, onAdd, onDel }) {
       </div>
 
       {pinned.length > 0 && (
-        <Sec title="Pinned" icon="📌">
+        <Sec title="Pinned" icon={<Ic name="pin" size={15} />}>
           {pinned.map(a => <AnnCard key={a.id} a={a} canDel={canCompose} onDel={onDel} />)}
         </Sec>
       )}
 
       {regular.length > 0
-        ? <Sec title="Recent" icon="📢">
+        ? <Sec title="Recent" icon={<Ic name="megaphone" size={15} />}>
             {regular.map(a => <AnnCard key={a.id} a={a} canDel={canCompose} onDel={onDel} />)}
           </Sec>
         : pinned.length === 0 && <Empty text="No announcements" />}
@@ -136,7 +137,7 @@ const AnnCard = React.memo(function AnnCard({ a, canDel, onDel }) {
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:10, flexWrap:"wrap" }}>
         <div style={{ flex:1, minWidth:0 }}>
           <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
-            {a.pinned && <span style={{ fontSize:12 }}>📌</span>}
+            {a.pinned && <Ic name="pin" size={12} />}
             <div style={{ fontSize:14, fontWeight:700, color:theme.tx }}>{a.title}</div>
             <Bd text={pr.label.toUpperCase()} color={pr.color} />
           </div>
@@ -147,7 +148,7 @@ const AnnCard = React.memo(function AnnCard({ a, canDel, onDel }) {
         {canDel && (
           <button type="button" aria-label={`Delete announcement: ${a.title}`} onClick={() => onDel(a.id)} style={{
             background:"none", border:"none", color:theme.td, cursor:"pointer", fontSize:14, padding:4
-          }}>🗑️</button>
+          }}><Ic name="trash" size={14} /></button>
         )}
       </div>
       <div style={{ fontSize:13, color:theme.ts, marginTop:10, lineHeight:1.5, whiteSpace:"pre-wrap" }}>{a.message}</div>

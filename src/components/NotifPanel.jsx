@@ -1,6 +1,7 @@
 import { theme } from "../constants.js";
 import { fmtDt } from "../helpers.js";
 import { subscribePush } from "../supabasePortal.js";
+import { Ic } from "./icons.jsx";
 
 const { useState } = React;
 
@@ -29,19 +30,19 @@ export function NotifPanel({ notifs, onMarkRead, onMarkAll, onGoTo, currentUser 
       try {
         const reg = await navigator.serviceWorker?.getRegistration();
         if (reg?.showNotification) {
-          await reg.showNotification("ADB Portal", { body: "Push notifications enabled ✅", icon: "/icon-192.png" });
+          await reg.showNotification("ADB Portal", { body: "Push notifications enabled", icon: "/icon-192.png" });
         } else if ("Notification" in window) {
-          new Notification("ADB Portal", { body: "Push notifications enabled ✅", icon: "/icon-192.png" });
+          new Notification("ADB Portal", { body: "Push notifications enabled", icon: "/icon-192.png" });
         }
       } catch (e) {
         console.warn("[notif] confirmation toast:", e);
       }
     }
   };
-  const iconFor = (tp) => tp === "approved" ? "✅"
-    : tp === "rejected" ? "❌"
-    : tp === "announcement" ? "📢"
-    : "🔔";
+  const iconFor = (tp) => tp === "approved" ? "check-circle"
+    : tp === "rejected" ? "x-circle"
+    : tp === "announcement" ? "megaphone"
+    : "bell";
   const go = (n) => {
     onMarkRead(n.id);
     if (n.type === "announcement") onGoTo("announcements");
@@ -61,17 +62,17 @@ export function NotifPanel({ notifs, onMarkRead, onMarkAll, onGoTo, currentUser 
           <button onClick={askPerm} style={{
             background:theme.bu, color:"#fff", border:"none", padding:"6px 12px",
             borderRadius:8, fontSize:11, fontWeight:700, cursor:"pointer"
-          }}>🔔 Enable notifications</button>
+          }}><Ic name="bell" size={12} style={{ marginRight:5 }} />Enable notifications</button>
         </div>
       )}
       {notifPerm === "granted" && (
         <div style={{ padding:"6px 14px", fontSize:10, color:theme.gn, background:"rgba(16,185,129,0.08)", borderBottom:`1px solid ${theme.bd}` }}>
-          ✅ Browser notifications enabled
+          Browser notifications enabled
         </div>
       )}
       {notifPerm === "denied" && (
         <div style={{ padding:"6px 14px", fontSize:10, color:theme.rd, background:"rgba(239,68,68,0.08)", borderBottom:`1px solid ${theme.bd}` }}>
-          🚫 Blocked — enable via browser settings
+          Blocked — enable via browser settings
         </div>
       )}
       <div style={{
@@ -90,7 +91,7 @@ export function NotifPanel({ notifs, onMarkRead, onMarkAll, onGoTo, currentUser 
       </div>
       {notifs.length === 0 ? (
         <div style={{ padding:"30px 16px", textAlign:"center", color:theme.td, fontSize:13 }}>
-          <div style={{ fontSize:28, opacity:0.4, marginBottom:6 }}>📭</div>
+          <div style={{ opacity:0.4, marginBottom:6 }}><Ic name="inbox" size={26} /></div>
           No notifications
         </div>
       ) : (

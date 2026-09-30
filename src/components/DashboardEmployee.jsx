@@ -3,6 +3,7 @@ import { fmtDt } from "../helpers.js";
 import { Bd, Bt, Sec } from "../uiPrimitives.jsx";
 import { PASTEL, INK, Ring, Spark, Tile } from "./charts.jsx";
 import { WeatherCard } from "./WeatherCard.jsx";
+import { Ic } from "./icons.jsx";
 
 /* ============================================================
    EMPLOYEE DASHBOARD
@@ -88,7 +89,7 @@ export function EDash({ user, announcements, onGoTo }) {
             padding:"14px 16px", marginBottom:16, cursor:"pointer"
           }}>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:8, marginBottom:4 }}>
-              <div style={{ fontSize:13, fontWeight:800, color:theme.tx }}>📌 {a.title}</div>
+              <div style={{ fontSize:13, fontWeight:800, color:theme.tx }}><Ic name="pin" size={12} style={{ marginRight:5 }} />{a.title}</div>
               <Bd text={pr.label.toUpperCase()} color={pr.color} />
             </div>
             <div style={{ fontSize:12, color:theme.ts }}>
@@ -141,7 +142,7 @@ export function EDash({ user, announcements, onGoTo }) {
 
       {/* Action Required card (if anything expiring) */}
       {(certsExpiring.length > 0 || docsExpiring.length > 0) && (
-        <Tile bg={theme.cs} dark label="⚠ Action Required">
+        <Tile bg={theme.cs} dark label="Action Required">
           <div style={{ marginTop:8 }}>
             {certsExpiring.slice(0,3).map(x => (
               <div key={"c"+x.id} style={{
@@ -175,7 +176,7 @@ export function EDash({ user, announcements, onGoTo }) {
 
       {/* Latest announcements list */}
       {latestAnn.length > 0 && (
-        <Sec title="Announcements" icon="📢" action={<Bt onClick={() => onGoTo("announcements")} small={true} outline={true}>View all</Bt>}>
+        <Sec title="Announcements" icon={<Ic name="megaphone" size={15} />} action={<Bt onClick={() => onGoTo("announcements")} small={true} outline={true}>View all</Bt>}>
           {latestAnn.map(a => {
             const pr = ANN_PRIORITIES.find(p => p.key === a.priority) || ANN_PRIORITIES[0];
             return (
@@ -192,7 +193,7 @@ export function EDash({ user, announcements, onGoTo }) {
       )}
 
       {user.achievements?.length > 0 && (
-        <Sec title="My Achievements" icon="🏆">
+        <Sec title="My Achievements" icon={<Ic name="award" size={15} />}>
           {user.achievements.map(a => (
             <div key={a.id} style={{
               background:"rgba(16,185,129,0.08)", border:"1px solid rgba(16,185,129,0.2)",

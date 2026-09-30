@@ -5,6 +5,7 @@ import { canUnlockProfile, canFinalizeProfile, missingRequired, FINALIZE_CONFIRM
 import { ProfileStatusBadge } from "./Onboarding.jsx";
 import { ib, Bd, Bt, Sec, Fd, Empty, Modal } from "../uiPrimitives.jsx";
 import { AdminActions, EmploymentBadge } from "./AdminActions.jsx";
+import { Ic } from "./icons.jsx";
 
 const { useState, useEffect, useRef } = React;
 
@@ -60,7 +61,7 @@ export function Prof({ emp, canEdit, onSave, onAdd, isStaff, isMgr, actor, onSen
       {finalized && (
         <div style={{ background:"rgba(16,185,129,0.1)", border:"1px solid rgba(16,185,129,0.3)",
           borderRadius:12, padding:"10px 14px", marginBottom:14, display:"flex", alignItems:"center", gap:8 }}>
-          <span style={{ fontSize:16 }}>🔒</span>
+          <Ic name="lock" size={15} />
           <span style={{ color:theme.gn, fontSize:13, fontWeight:600 }}>
             Profile finalized — corrections must go through your Manager
           </span>
@@ -76,13 +77,13 @@ export function Prof({ emp, canEdit, onSave, onAdd, isStaff, isMgr, actor, onSen
           </div>
         </div>
         <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
-          {canEdit && !ed && <Bt onClick={startEdit}>✏️ Edit</Bt>}
-          {canEdit && <Bt onClick={() => setSaf(!saf)} bg={theme.or} small={true}>{saf ? "Cancel" : "📋 Add Record"}</Bt>}
+          {canEdit && !ed && <Bt onClick={startEdit}><Ic name="pencil" size={13} />Edit</Bt>}
+          {canEdit && <Bt onClick={() => setSaf(!saf)} bg={theme.or} small={true}>{saf ? "Cancel" : "Add Record"}</Bt>}
           {!ed && canUnlock && (
-            <Bt onClick={() => onSave({ ...emp, profileFinalized:false })} bg={theme.yl} small={true}>🔓 Unlock</Bt>
+            <Bt onClick={() => onSave({ ...emp, profileFinalized:false })} bg={theme.yl} small={true}><Ic name="unlock" size={12} />Unlock</Bt>
           )}
           {!ed && !finalized && canFinalize && (
-            <Bt onClick={() => setConfirmFinal(true)} bg={theme.gn} small={true}>🔒 Finalize</Bt>
+            <Bt onClick={() => setConfirmFinal(true)} bg={theme.gn} small={true}><Ic name="lock" size={12} />Finalize</Bt>
           )}
           {!ed && !finalized && !canFinalize && incomplete.length > 0 && (
             <span style={{ color:theme.td, fontSize:11 }}>
@@ -90,7 +91,7 @@ export function Prof({ emp, canEdit, onSave, onAdd, isStaff, isMgr, actor, onSen
             </span>
           )}
           {ed && <>
-            <Bt onClick={saveEdit} bg={theme.gn}>💾 Save</Bt>
+            <Bt onClick={saveEdit} bg={theme.gn}><Ic name="save" size={13} />Save</Bt>
             <Bt onClick={() => { setFm({ ...emp }); setEd(false); }} outline={true}>Cancel</Bt>
           </>}
         </div>
@@ -140,7 +141,7 @@ export function Prof({ emp, canEdit, onSave, onAdd, isStaff, isMgr, actor, onSen
       </div>
 
       <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))", gap:16 }}>
-        <Sec title="Personal" icon="👤">
+        <Sec title="Personal" icon={<Ic name="user" size={15} />}>
           <Fd label="Name" value={fm.name} editing={ed} onChange={up("name")} />
           <Fd label="Nationality" value={fm.nationality} editing={ed} onChange={up("nationality")} />
           <Fd label="Mobile" value={fm.mobile} editing={ed} onChange={up("mobile")} />
@@ -150,17 +151,17 @@ export function Prof({ emp, canEdit, onSave, onAdd, isStaff, isMgr, actor, onSen
         </Sec>
         {/* Employment data is management-controlled: editable by staff only,
             and frozen for employees at the database level too. */}
-        <Sec title="Employment" icon="🏢">
+        <Sec title="Employment" icon={<Ic name="briefcase" size={15} />}>
           <Fd label="Employee No" value={fm.empNo} editing={ed && isStaff} onChange={up("empNo")} />
           <Fd label="Designation" value={fm.designation} editing={ed && isStaff} onChange={up("designation")} />
           <Fd label="Section" value={fm.section} editing={ed && isStaff} onChange={up("section")} />
           <Fd label="Email (login ID)" value={fm.email} editing={false} onChange={() => {}} />
         </Sec>
-        <Sec title="Emergency Contact" icon="🚨">
+        <Sec title="Emergency Contact" icon={<Ic name="alert" size={15} />}>
           <Fd label="Contact Name" value={fm.emergencyName} editing={ed} onChange={up("emergencyName")} />
           <Fd label="Contact Number" value={fm.emergencyContact} editing={ed} onChange={up("emergencyContact")} />
         </Sec>
-        <Sec title="Documents" icon="📄">
+        <Sec title="Documents" icon={<Ic name="file-text" size={15} />}>
           <Fd label="Passport No" value={fm.passportNo} editing={ed} onChange={up("passportNo")} />
           <Fd label="Passport Expiry" value={fm.passportExpiry} editing={ed} onChange={up("passportExpiry")} type="date" />
           <Fd label="Visa Expiry" value={fm.visaExpiry} editing={ed} onChange={up("visaExpiry")} type="date" />
@@ -170,7 +171,7 @@ export function Prof({ emp, canEdit, onSave, onAdd, isStaff, isMgr, actor, onSen
       </div>
 
       {isStaff && (
-        <Sec title="Capability Tier" icon="🎯">
+        <Sec title="Capability Tier" icon={<Ic name="target" size={15} />}>
           {isMgr && ed ? (
             <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
               {["", ...TIERS_CAP].map(t => (
@@ -196,7 +197,7 @@ export function Prof({ emp, canEdit, onSave, onAdd, isStaff, isMgr, actor, onSen
       )}
 
       <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))", gap:16 }}>
-        <Sec title="Achievements" icon="🏆">
+        <Sec title="Achievements" icon={<Ic name="award" size={15} />}>
           {(!emp.achievements || !emp.achievements.length)
             ? <Empty text="No records" />
             : emp.achievements.map(a => (
@@ -210,7 +211,7 @@ export function Prof({ emp, canEdit, onSave, onAdd, isStaff, isMgr, actor, onSen
               </div>
             ))}
         </Sec>
-        <Sec title="Warnings & Actions" icon="⚠️">
+        <Sec title="Warnings & Actions" icon={<Ic name="alert" size={15} />}>
           {((!emp.warnings || !emp.warnings.length) && (!emp.actions || !emp.actions.length))
             ? <Empty text="No records" />
             : <>
@@ -255,7 +256,7 @@ export function Prof({ emp, canEdit, onSave, onAdd, isStaff, isMgr, actor, onSen
         />
       )}
 
-      <Sec title="Training & Certifications" icon="🎓">
+      <Sec title="Training & Certifications" icon={<Ic name="graduation" size={15} />}>
         {(!emp.training || !emp.training.length)
           ? <Empty text="No records" />
           : emp.training.map(tr => {

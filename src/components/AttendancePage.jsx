@@ -1,6 +1,7 @@
 import { SECTIONS, MONTHS, ATT_MONTHS, ATT_YEAR, theme } from "../constants.js";
 import { cH } from "../helpers.js";
 import { ib, Bd, Bt, SC2, Sec, Modal } from "../uiPrimitives.jsx";
+import { Ic } from "./icons.jsx";
 
 const { useState } = React;
 
@@ -38,7 +39,7 @@ export function AttPg({ employees, selectedMonth, setSelectedMonth, onEditRoster
           }}>{s}</button>
         ))}
       </div>
-      <input placeholder="🔍 Search..." value={sr} onChange={e => setSr(e.target.value)}
+      <input placeholder="Search..." value={sr} onChange={e => setSr(e.target.value)}
         style={{ ...ib, marginBottom:14 }} />
       <div style={{ background:theme.card, borderRadius:14, border:`1px solid ${theme.bd}`, overflow:"hidden" }}>
         <div style={{ overflowX:"auto" }}>
@@ -75,7 +76,7 @@ export function AttPg({ employees, selectedMonth, setSelectedMonth, onEditRoster
                       }}>{pc2}%</span>
                     </td>
                     <td style={{ padding:"10px 12px" }}>
-                      {canEdit && <Bt onClick={() => setEditEmp(e)} small={true} outline={true}>✏️ Edit Roster</Bt>}
+                      {canEdit && <Bt onClick={() => setEditEmp(e)} small={true} outline={true}><Ic name="pencil" size={12} />Edit Roster</Bt>}
                     </td>
                   </tr>
                 );
@@ -132,7 +133,7 @@ function RosterEditor({ emp, mk, onEdit }) {
         marginTop:16, padding:12, background:"rgba(56,189,248,0.06)",
         borderRadius:8, fontSize:11, color:theme.ts, borderLeft:`3px solid ${theme.bu}`
       }}>
-        ℹ️ Changes save automatically. Working hours and % compliance recalculate on close.
+        Changes save automatically. Working hours and % compliance recalculate on close.
       </div>
     </div>
   );
@@ -151,7 +152,7 @@ export function MyAtt({ emp, selectedMonth, setSelectedMonth }) {
   return (
     <div>
       <h2 style={{ fontSize:22, fontWeight:700, color:theme.tx, marginBottom:16 }}>My Attendance</h2>
-      <Sec title="Monthly Working Hours" icon="📊">
+      <Sec title="Monthly Working Hours" icon={<Ic name="chart" size={15} />}>
         <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))", gap:10 }}>
           {ms.map(x => (
             <div key={x.m} onClick={() => setSelectedMonth(x.idx)} role="button" tabIndex={0} onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSelectedMonth(x.idx); } }} style={{
@@ -173,12 +174,12 @@ export function MyAtt({ emp, selectedMonth, setSelectedMonth }) {
         </div>
       </Sec>
       <div style={{ display:"flex", gap:10, flexWrap:"wrap", marginBottom:18 }}>
-        <SC2 label="Scheduled" value={`${h.sc}h`} color={theme.bu} icon="📋" />
-        <SC2 label="Worked" value={`${h.w}h`} color={theme.gn} icon="✅" />
-        <SC2 label="Day" value={h.mc} color={theme.gn} icon="☀️" />
-        <SC2 label="Night" value={h.nc} color={theme.pu} icon="🌙" />
+        <SC2 label="Scheduled" value={`${h.sc}h`} color={theme.bu} icon={<Ic name="clipboard" size={44} />} />
+        <SC2 label="Worked" value={`${h.w}h`} color={theme.gn} icon={<Ic name="check-circle" size={44} />} />
+        <SC2 label="Day" value={h.mc} color={theme.gn} icon={<Ic name="sun" size={44} />} />
+        <SC2 label="Night" value={h.nc} color={theme.pu} icon={<Ic name="moon" size={44} />} />
       </div>
-      <Sec title={`${MONTHS[selectedMonth]} ${ATT_YEAR} Roster`} icon="📋">
+      <Sec title={`${MONTHS[selectedMonth]} ${ATT_YEAR} Roster`} icon={<Ic name="clipboard" size={15} />}>
         <div style={{ display:"flex", gap:5, flexWrap:"wrap" }}>
           {ro.map(d => {
             const dn = ["SU","MO","TU","WE","TH","FR","SA"][new Date(d.date).getDay()];

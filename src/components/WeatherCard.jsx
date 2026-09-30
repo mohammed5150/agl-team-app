@@ -78,7 +78,7 @@ export function WeatherCard({ user, canSwitchSite = false }) {
     }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
         <div style={{ fontSize: 13, fontWeight: 700, color: theme.tx }}>
-          🌤️ Airfield Weather
+          Airfield Weather
         </div>
         {canSwitchSite ? (
           <select
@@ -105,7 +105,7 @@ export function WeatherCard({ user, canSwitchSite = false }) {
 
       {state.status === "error" && (
         <div style={{ fontSize: 12, color: theme.td }}>
-          🛰️ Weather unavailable right now — everything else on this page still works.
+          Weather unavailable right now — everything else on this page still works.
         </div>
       )}
 

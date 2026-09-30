@@ -39,13 +39,13 @@ export const SHIFT_HOURS = {
 };
 
 export const DOC_TYPES = [
-  { key:"passport", label:"Passport", icon:"📘" },
-  { key:"visa", label:"UAE Visa", icon:"📝" },
-  { key:"eid", label:"Emirates ID", icon:"🆔" },
-  { key:"license", label:"Driving Licence", icon:"🚗" },
-  { key:"medical", label:"Medical Fitness", icon:"🏥" },
-  { key:"airport", label:"Airport Pass", icon:"🛫" },
-  { key:"other", label:"Other", icon:"📄" }
+  { key:"passport", label:"Passport", icon:"book" },
+  { key:"visa", label:"UAE Visa", icon:"file-text" },
+  { key:"eid", label:"Emirates ID", icon:"id-card" },
+  { key:"license", label:"Driving Licence", icon:"car" },
+  { key:"medical", label:"Medical Fitness", icon:"cross" },
+  { key:"airport", label:"Airport Pass", icon:"plane" },
+  { key:"other", label:"Other", icon:"file" }
 ];
 
 export const ANN_PRIORITIES = [

@@ -173,7 +173,7 @@ describe("the advice lines", () => {
   it("treats extreme heat by what it feels like, not the raw reading", () => {
     // 40°C air but 47°C apparent — humidity is doing the damage.
     const out = banter({ tempC: 40, feelsC: 47, windKph: 10, gustKph: 12, humidity: 80, code: 0 }, winter);
-    expect(out.some(l => l.icon === "🥵")).toBe(true);
+    expect(out.some(l => l.icon === "🌡️")).toBe(true);
   });
 
   it("raises the midday-break reminder only in season and only when hot", () => {
@@ -202,7 +202,7 @@ describe("the advice lines", () => {
   it("still warns about heat even when something worse is also happening", () => {
     // Heat is operational, not banter — a storm does not make 49°C safe.
     const out = banter({ tempC: 44, feelsC: 49, windKph: 55, gustKph: 70, humidity: 60, code: 95 }, winter);
-    expect(out.some(l => l.icon === "🥵")).toBe(true);
+    expect(out.some(l => l.icon === "🌡️")).toBe(true);
     expect(out.some(l => /thunderstorm/i.test(l.text))).toBe(true);
   });
 
