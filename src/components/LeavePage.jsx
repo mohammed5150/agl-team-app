@@ -8,7 +8,7 @@ const { useState, useMemo } = React;
    LEAVE FORM / CARD / PAGE / APPROVALS
    ============================================================ */
 
-export function LvFm({ onSub, onCan, user, leaveRequests }) {
+function LvFm({ onSub, onCan, user, leaveRequests }) {
   const [f, setF] = useState({ type:"Annual Leave", startDate:"", endDate:"", reason:"" });
   const [errors, setErrors] = useState([]);
   const days = f.startDate && f.endDate

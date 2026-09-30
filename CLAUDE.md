@@ -84,7 +84,6 @@ CRLF checkout a shebang makes the file unparseable to vitest.
 
 ## Gotchas
 
-- **`scripts/assemble-app.mjs` and `scripts/split-modules.mjs` are stale one-shot refactor scripts.** They slice `app.jsx` by hardcoded line numbers reaching to 4163; the file is now ~1488 lines. They are not wired to any npm script. Running them will produce garbage — read them for history only.
 - **`app.js` at the repo root is a gitignored build artifact** written by `npm run dev`. The deployed bundle is `dist/app.js`. Don't edit either.
 - **`src/supabasePortal.js` commits the Supabase URL, the publishable key and the VAPID public key on purpose** — all three are public by design. The service-role key lives only in GitHub secrets (backup / uptime workflows) and must never enter the bundle.
 - Some Supabase settings cannot be set by any migration (password minimum 12, leaked-password protection, redirect URLs). `npm run preflight` reports the four it cannot verify on every run; `docs/SECURITY.md` §6 is the full list.

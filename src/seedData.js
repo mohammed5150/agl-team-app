@@ -267,8 +267,6 @@ const EMPTY = { employees: [], teamlead: null, manager: null, leaveRequests: [],
 const seed = (typeof __SHOW_DEMO__ !== "undefined" ? __SHOW_DEMO__ : true) ? buildSeed() : EMPTY;
 
 export const INITIAL_EMPLOYEES      = seed.employees;
-export const TEAMLEAD_USER          = seed.teamlead;
-export const MANAGER_USER           = seed.manager;
 export const INITIAL_LEAVE_REQUESTS = seed.leaveRequests;
 export const INITIAL_ANNOUNCEMENTS  = seed.announcements;
 export const INITIAL_NOTIFICATIONS  = seed.notifications;

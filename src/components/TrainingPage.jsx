@@ -64,7 +64,7 @@ export function MyTr({ emp }) {
   );
 }
 
-export function TrMatrix({ employees }) {
+function TrMatrix({ employees }) {
   const [typeFilter, setTypeFilter] = useState("all");
   const [search, setSearch] = useState("");
   const [view, setView] = useState("matrix"); // "matrix" or "gap"

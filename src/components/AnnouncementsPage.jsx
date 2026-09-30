@@ -121,7 +121,7 @@ export function AnnPg({ user, announcements, onAdd, onDel }) {
   );
 }
 
-export const AnnCard = React.memo(function AnnCard({ a, canDel, onDel }) {
+const AnnCard = React.memo(function AnnCard({ a, canDel, onDel }) {
   // Falls back to the first entry (info) rather than crashing the whole page
   // when a.priority holds a value ANN_PRIORITIES doesn't recognise — the CHECK
   // constraint in supabase_validation.sql only guards this once that migration

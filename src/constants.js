@@ -3,14 +3,13 @@ export const SECTIONS = ["AGL 12hrs", "AGL 8hrs", "Helpdesk", "Systems", "High M
 // Performance bands from the manpower salary standardisation exercise
 // (final, 14-Jul-2026). Grade titles and descriptions only — no salary or
 // invoice figures are carried into the app.
-export const BANDS = [
+const BANDS = [
   { key: "A", grade: "AGL Supervisor / Expert", desc: "Expert / lead material",   color: "#a78bfa" },
   { key: "B", grade: "Senior AGL Technician",   desc: "Proficient — independent", color: "#38bdf8" },
   { key: "C", grade: "AGL Technician",          desc: "Competent — routine duties", color: "#10b981" },
   { key: "D", grade: "FMV Driver (dedicated)",  desc: "Dedicated — full movement-area permit", color: "#f5a623" },
   { key: "E", grade: "Helper",                  desc: "Below requirement",        color: "#94a3b8" }
 ];
-export const BAND_KEYS = BANDS.map(b => b.key);
 export const BAND_BY_KEY = Object.fromEntries(BANDS.map(b => [b.key, b]));
 
 // Airports covered by the AGL maintenance contract.

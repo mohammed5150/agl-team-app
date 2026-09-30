@@ -12,7 +12,7 @@ import { STATUS_LABELS, OT_STATUS_LABELS } from "./constants.js";
 export const REDACTED = "[redacted]";
 
 /** Human names for the columns a manager is most often asked about. */
-export const COLUMN_LABELS = {
+const COLUMN_LABELS = {
   role: "Role",
   tier: "Capability tier",
   band: "Performance band",
@@ -70,7 +70,7 @@ export function columnLabel(col) {
   return col.replace(/_/g, " ").replace(/^./, c => c.toUpperCase());
 }
 
-export const TABLE_LABELS = {
+const TABLE_LABELS = {
   employees: "Employee",
   leave_requests: "Leave request",
   overtime_requests: "Overtime request",

@@ -11,7 +11,7 @@ const { useState, useMemo } = React;
    approves it, so no manager tab or action controls exist here.
    ============================================================ */
 
-export function OtFm({ onSub, onCan, user, overtimeRequests, leaveRequests }) {
+function OtFm({ onSub, onCan, user, overtimeRequests, leaveRequests }) {
   const [f, setF] = useState({ workDate: "", hours: "", reason: "" });
   const [errors, setErrors] = useState([]);
   const hours = Number(f.hours) || 0;
@@ -91,7 +91,7 @@ export function OtFm({ onSub, onCan, user, overtimeRequests, leaveRequests }) {
   );
 }
 
-export const OtCd = React.memo(function OtCd({ req, role, viewerId, onAct }) {
+const OtCd = React.memo(function OtCd({ req, role, viewerId, onAct }) {
   const [cm, setCm] = useState("");
   const [sa, setSa] = useState(false);
   // Only a team lead acts, and only while pending. Managers get no controls.

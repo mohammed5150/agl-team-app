@@ -1,4 +1,4 @@
-export const NE = [
+const NE = [
   { key:"dashboard", label:"Dashboard", icon:"📊" },
   { key:"profile", label:"My Profile", icon:"👤" },
   { key:"leave", label:"Leave", icon:"📅" },
@@ -10,7 +10,7 @@ export const NE = [
   { key:"changepw", label:"Settings", icon:"⚙️" }
 ];
 
-export const NM = [
+const NM = [
   { key:"dashboard", label:"Dashboard", icon:"📊" },
   { key:"team", label:"Employees", icon:"👥" },
   { key:"performance", label:"Performance", icon:"🏆" },

@@ -94,7 +94,7 @@ export function AttPg({ employees, selectedMonth, setSelectedMonth, onEditRoster
   );
 }
 
-export function RosterEditor({ emp, mk, onEdit }) {
+function RosterEditor({ emp, mk, onEdit }) {
   const ro = emp.roster?.[mk] || [];
   const cc = { M:theme.gn, N:theme.pu, O:theme.td, L:theme.yl };
   const cycle = { M:"N", N:"O", O:"L", L:"M" };

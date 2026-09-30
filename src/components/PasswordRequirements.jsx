@@ -1,5 +1,5 @@
 import { theme } from "../constants.js";
-import { checkPassword, passwordStrength, STRENGTH_LABELS, RULES } from "../passwordPolicy.js";
+import { checkPassword, passwordStrength, STRENGTH_LABELS } from "../passwordPolicy.js";
 
 /**
  * Live requirement checklist + strength meter.
@@ -59,4 +59,3 @@ export function PasswordRequirements({ password, identity = {}, showWhenEmpty = 
   );
 }
 
-export { RULES };

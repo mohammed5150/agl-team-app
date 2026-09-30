@@ -9,7 +9,7 @@ const { useState } = React;
    PERFORMANCE / RATINGS (TL + Manager)
    ============================================================ */
 
-export function StarRow({ value, onChange, editable }) {
+function StarRow({ value, onChange, editable }) {
   return (
     <div style={{ display:"flex", gap:4 }}>
       {[1,2,3,4,5].map(n => (
@@ -26,7 +26,7 @@ export function StarRow({ value, onChange, editable }) {
   );
 }
 
-export function PerfEditor({ emp, isMgr, onSave, onClose }) {
+function PerfEditor({ emp, isMgr, onSave, onClose }) {
   const [r, setR] = useState({
     knowledge: 0, experience: 0, loyalty: 0, capability: 0, tier:"", notes:"",
     ...(emp.rating || {})
