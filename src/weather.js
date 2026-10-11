@@ -149,24 +149,24 @@ export function banter(c, now = new Date()) {
   // alongside a storm. Only the banter is suppressed.
   if (Number.isFinite(t)) {
     if (feels >= 45) {
-      out.push({ icon: "🥵", text: `Feels like ${Math.round(feels)}°C. The apron is a griddle. Water, shade, buddy checks — no heroics today.` });
+      out.push({ icon: "🌡️", text: `Feels like ${Math.round(feels)}°C. The apron is a griddle. Water, shade, buddy checks — no heroics today.` });
     } else if (feels >= 40) {
-      out.push({ icon: "🔥", text: `Feels like ${Math.round(feels)}°C. Hydrate like it is part of the job, because today it is.` });
+      out.push({ icon: "🌡️", text: `Feels like ${Math.round(feels)}°C. Hydrate like it is part of the job, because today it is.` });
     } else if (!severe) {
       if (t >= 33) {
-        out.push({ icon: "😅", text: "Warm one. Normal service for this place — keep the water bottle within reach." });
+        out.push({ icon: "🌡️", text: "Warm one. Normal service for this place — keep the water bottle within reach." });
       } else if (t >= 22) {
-        out.push({ icon: "😎", text: "Genuinely pleasant out. Enjoy it. It is not contractual and it will not last." });
+        out.push({ icon: "☀️", text: "Genuinely pleasant out. Enjoy it. It is not contractual and it will not last." });
       } else if (t >= 15) {
-        out.push({ icon: "🧥", text: "Cool by local standards. Somebody on shift is definitely wearing a jacket." });
+        out.push({ icon: "🌡️", text: "Cool by local standards. Somebody on shift is definitely wearing a jacket." });
       } else {
-        out.push({ icon: "🥶", text: "Cold for Abu Dhabi. Expect strong opinions about it in the crew room." });
+        out.push({ icon: "🌡️", text: "Cold for Abu Dhabi. Expect strong opinions about it in the crew room." });
       }
     }
   }
 
   if (!severe && hum >= 75 && feels >= 32) {
-    out.push({ icon: "💦", text: `${Math.round(hum)}% humidity. It is not the heat, it is the soup.` });
+    out.push({ icon: "💧", text: `${Math.round(hum)}% humidity. It is not the heat, it is the soup.` });
   }
 
   if (inMiddayBreakSeason(now) && feels >= 38) {

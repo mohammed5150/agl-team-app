@@ -2,6 +2,7 @@ import { LEAVE_TYPES, STATUS_LABELS, theme } from "../constants.js";
 import { ib, Bt, Bd, SC2, Empty } from "../uiPrimitives.jsx";
 import { validateLeaveRequest, remainingBalance, BALANCE_FIELDS } from "../validation.js";
 import { rqLabel, RqGrid2, RqAmount, RqFormShell, RqCd, RqHead, RqTabs } from "./requestShared.jsx";
+import { Ic } from "./icons.jsx";
 
 const { useState, useMemo } = React;
 
@@ -39,7 +40,7 @@ export function LvFm({ onSub, onCan, user, leaveRequests }) {
   };
 
   return (
-    <RqFormShell title="📝 Apply for Leave" errors={errors} warnings={live.warnings}
+    <RqFormShell title="Apply for Leave" errors={errors} warnings={live.warnings}
       onSubmit={submit} onCancel={onCan}>
       <div style={{ marginBottom:14 }}>
         <label style={rqLabel}>TYPE</label>
@@ -105,11 +106,11 @@ export function LvPg({ user, leaveRequests, onSub, onAct }) {
   return (
     <div>
       <RqHead title="Leave Management"
-        action={isE && <Bt onClick={() => setSf(true)} bg={theme.or}>📝 Apply</Bt>} />
+        action={isE && <Bt onClick={() => setSf(true)} bg={theme.or}><Ic name="plus" size={14} />Apply</Bt>} />
       {isE && (
         <div style={{ display:"flex", gap:10, flexWrap:"wrap", marginBottom:18 }}>
-          <SC2 label="Annual Left" value={user.annualLeave - user.usedAnnual} color={theme.gn} icon="🏖️" />
-          <SC2 label="Sick Left" value={user.sickLeave - user.usedSick} color={theme.rd} icon="🤒" />
+          <SC2 label="Annual Left" value={user.annualLeave - user.usedAnnual} color={theme.gn} icon={<Ic name="sun" size={44} />} />
+          <SC2 label="Sick Left" value={user.sickLeave - user.usedSick} color={theme.rd} icon={<Ic name="cross" size={44} />} />
         </div>
       )}
       {sf && (
@@ -137,7 +138,7 @@ export function ApPg({ user, leaveRequests, onAct }) {
         {pn.length > 0 && <Bd text={`${pn.length} Pending`} color={theme.yl} />}
       </div>
       {!pn.length
-        ? <div style={{ textAlign:"center", padding:40, color:theme.td }}>✅ All clear</div>
+        ? <div style={{ textAlign:"center", padding:40, color:theme.td }}><Ic name="check-circle" size={14} style={{ marginRight:6 }} />All clear</div>
         : pn.map(r => <LvCd key={r.id} req={r} role={user.role} viewerId={user.id} onAct={onAct} />)}
     </div>
   );

@@ -38,6 +38,7 @@ import { Onboarding } from "./src/components/Onboarding.jsx";
 import { Team } from "./src/components/TeamPage.jsx";
 import { AuditPage } from "./src/components/AuditPage.jsx";
 import { MyTr, TrMgmt } from "./src/components/TrainingPage.jsx";
+import { Ic } from "./src/components/icons.jsx";
 
 const { useState, useCallback, useEffect, useRef } = React;
 
@@ -1174,7 +1175,7 @@ function App() {
       : employees.filter(e => e.section === a.target).map(e => e.id);
     setNotifications(p => [
       ...targets.map((eid) => ({ id: nfId(), to:eid, type:"announcement",
-        message:`📢 ${a.title}`, read:false, date:new Date().toISOString(), annId:id
+        message:`${a.title}`, read:false, date:new Date().toISOString(), annId:id
       })),
       ...p
     ]);
@@ -1398,14 +1399,14 @@ function App() {
           <div style={{ display:"flex", alignItems:"center", gap:12 }}>
             <button onClick={() => setSidebarOpen(!sidebarOpen)} style={{
               background:"none", border:"none", color:theme.td, cursor:"pointer", fontSize:18
-            }}>☰</button>
+            }}><Ic name="menu" size={18} /></button>
             <h1 style={{ color:theme.tx, fontSize:16, fontWeight:700, margin:0 }}>
               {viewEmployee ? viewEmployee.name : (ni.find(n => n.key === nav)?.label || "")}
             </h1>
           </div>
           <div style={{ display:"flex", alignItems:"center", gap:10, position:"relative" }}>
             <div onClick={() => setShowNotif(!showNotif)} style={{ position:"relative", cursor:"pointer", padding:4 }}>
-              <span style={{ fontSize:18 }}>🔔</span>
+              <Ic name="bell" size={18} />
               {mn.length > 0 && (
                 <span style={{
                   position:"absolute", top:-2, right:-4, width:16, height:16, borderRadius:"50%",
@@ -1437,7 +1438,7 @@ function App() {
         }}>
           {viewEmployee ? (
             <div className="fade-in">
-              <Bt onClick={() => setViewEmployee(null)} outline={true} small={true}>← Back</Bt>
+              <Bt onClick={() => setViewEmployee(null)} outline={true} small={true}><Ic name="arrow-left" size={13} />Back</Bt>
               <div style={{ marginTop:12 }}>
                 <Prof emp={viewEmployee} actor={currentUser} canEdit={iM} isStaff={iM} isMgr={iMgr} onSave={saveProfile} onAdd={addEmployeeAction} onAddDoc={addDoc} onDelDoc={delDoc}
                   onSendReset={sendResetFor} onSetEmploymentStatus={setEmploymentStatus} />
@@ -1483,10 +1484,10 @@ function App() {
           display:"flex", gap:10, alignItems:"center", maxWidth:"90vw",
           boxShadow:"0 8px 30px rgba(0,0,0,0.5)"
         }}>
-          ⚠️ {loadNotice}
+          <Ic name="alert" size={12} style={{ marginRight:6 }} />{loadNotice}
           <button onClick={() => setLoadNotice("")} aria-label="Dismiss" style={{
             background:"none", border:"none", color:theme.ts, cursor:"pointer", fontSize:14, fontWeight:700
-          }}>✕</button>
+          }}><Ic name="x" size={14} /></button>
         </div>
       )}
 
@@ -1497,10 +1498,10 @@ function App() {
           color:"#fecaca", padding:"10px 16px", borderRadius:12, fontSize:12,
           display:"flex", gap:10, alignItems:"center", boxShadow:"0 8px 30px rgba(0,0,0,0.5)"
         }}>
-          ⚠️ {syncError} — your last change may not be saved. Check your connection.
+          <Ic name="alert" size={12} style={{ marginRight:6 }} />{syncError} — your last change may not be saved. Check your connection.
           <button onClick={() => setSyncError("")} aria-label="Dismiss" style={{
             background:"none", border:"none", color:"#fecaca", cursor:"pointer", fontSize:14, fontWeight:700
-          }}>✕</button>
+          }}><Ic name="x" size={14} /></button>
         </div>
       )}
     </div>

@@ -1,4 +1,5 @@
 import { theme } from "./constants.js";
+import { Ic } from "./components/icons.jsx";
 
 const { useId, useRef, useEffect } = React;
 
@@ -57,7 +58,7 @@ export const Bt = ({ children, onClick, bg=theme.pl, color="#fff", outline=false
     // a thumb — and these are Approve / Reject / Withdraw actions used on a
     // phone out on the airfield.
     minHeight:44,
-    display:"inline-flex", alignItems:"center", justifyContent:"center",
+    display:"inline-flex", alignItems:"center", justifyContent:"center", gap:6,
     borderRadius:10,
     border: outline ? `1px solid ${theme.bl}` : "none",
     background: disabled ? "rgba(255,255,255,0.05)" : (outline ? "transparent" : bg),
@@ -76,7 +77,7 @@ export const SC2 = ({ label, value, color, icon, sub }) => (
   }}>
     <div style={{ position:"absolute", top:-8, right:-8, fontSize:48, opacity:0.06 }}>{icon}</div>
     <div style={{ fontSize:13, color:theme.td, marginBottom:6, fontWeight:500 }}>{label}</div>
-    <div style={{ fontSize:28, fontWeight:800, color }}>{value}</div>
+    <div style={{ fontSize:28, fontWeight:800, color, fontVariantNumeric:"tabular-nums" }}>{value}</div>
     {sub && <div style={{ fontSize:11, color:theme.td, marginTop:4 }}>{sub}</div>}
   </div>
 );
@@ -156,9 +157,9 @@ export const Modal = ({ title, onClose, children, width=560 }) => {
   );
 };
 
-export const Empty = ({ icon="📭", text="No records yet" }) => (
+export const Empty = ({ icon=<Ic name="inbox" size={32} />, text="No records yet" }) => (
   <div style={{ textAlign:"center", padding:"30px 16px", color:theme.td }}>
-    <div style={{ fontSize:32, marginBottom:8, opacity:0.5 }}>{icon}</div>
+    <div style={{ marginBottom:8, opacity:0.5 }}>{icon}</div>
     <div style={{ fontSize:13 }}>{text}</div>
   </div>
 );

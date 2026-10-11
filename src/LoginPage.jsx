@@ -1,6 +1,7 @@
 import { theme } from "./constants.js";
 import { Logo, ib } from "./uiPrimitives.jsx";
 import { POLICY_SUMMARY } from "./passwordPolicy.js";
+import { Ic } from "./components/icons.jsx";
 
 const { useId, useState } = React;
 
@@ -44,14 +45,14 @@ function ForgotPassword({ initialEmail, onRequest, onBack }) {
         <div role="alert" aria-live="assertive" style={{
           background:"rgba(239,68,68,0.1)", border:"1px solid rgba(239,68,68,0.3)",
           borderRadius:10, padding:"8px 12px", marginBottom:14, color:theme.rd, fontSize:12
-        }}>⚠️ {error}</div>
+        }}><Ic name="alert" size={12} style={{ marginRight:6 }} />{error}</div>
       )}
       {notice && (
         <div role="status" aria-live="polite" style={{
           background:"rgba(16,185,129,0.1)", border:"1px solid rgba(16,185,129,0.3)",
           borderRadius:10, padding:"10px 12px", marginBottom:14, color:theme.gn,
           fontSize:12, lineHeight:1.6
-        }}>✉️ {notice}</div>
+        }}><Ic name="mail" size={12} style={{ marginRight:6 }} />{notice}</div>
       )}
 
       <form onSubmit={e => { e.preventDefault(); submit(); }} aria-busy={busy}>
@@ -84,7 +85,7 @@ function ForgotPassword({ initialEmail, onRequest, onBack }) {
             background:"none", border:"none", color:theme.bu,
             fontSize:12, cursor:"pointer", padding:4, textDecoration:"underline"
           }}
-        >← Back to sign in</button>
+        >&larr; Back to sign in</button>
       </div>
     </>
   );
@@ -106,9 +107,9 @@ export function LoginPage({
   // account, including these, sets its own via Supabase Auth. Compiled out of
   // production builds by the __SHOW_DEMO__ define (build.js).
   const demoAccounts = (typeof __SHOW_DEMO__ !== "undefined" ? __SHOW_DEMO__ : true) ? [
-    { id:"amarnath.munderi@adbsafegate.com", l:"Employee (Amarnath)", i:"👷" },
-    { id:"mohammed.faheem@adbsafegate.com", l:"Team Leader (Faheem)", i:"👨‍💼" },
-    { id:"ragesh.menon@adbsafegate.com", l:"Manager (Ragesh)", i:"👔" }
+    { id:"amarnath.munderi@adbsafegate.com", l:"Employee (Amarnath)" },
+    { id:"mohammed.faheem@adbsafegate.com", l:"Team Leader (Faheem)" },
+    { id:"ragesh.menon@adbsafegate.com", l:"Manager (Ragesh)" }
   ] : [];
 
   return (
@@ -146,7 +147,7 @@ export function LoginPage({
                 background:"rgba(239,68,68,0.1)", border:"1px solid rgba(239,68,68,0.3)",
                 borderRadius:10, padding:"8px 12px", marginBottom:14, color:theme.rd, fontSize:12
               }}
-            >⚠️ {loginError}</div>
+            ><Ic name="alert" size={12} style={{ marginRight:6 }} />{loginError}</div>
           )}
           <form
             onSubmit={e => { e.preventDefault(); if (!loginSubmitting) login(); }}
@@ -212,13 +213,13 @@ export function LoginPage({
           marginTop:18, background:"rgba(17,31,48,0.6)", borderRadius:12,
           padding:14, border:`1px solid ${theme.bd}`
         }}>
-          <p style={{ color:theme.td, fontSize:10, fontWeight:700, letterSpacing:1, marginBottom:8 }}>👤 DEV: PREFILL EMAIL</p>
+          <p style={{ color:theme.td, fontSize:10, fontWeight:700, letterSpacing:1, marginBottom:8 }}>DEV: PREFILL EMAIL</p>
           {demoAccounts.map(a => (
             <div key={a.id} onClick={() => setLoginId(a.id)} style={{
               display:"flex", justifyContent:"space-between", padding:"7px 8px",
               borderRadius:8, cursor:"pointer", fontSize:12
             }}>
-              <span style={{ color:theme.ts }}>{a.i} {a.l}</span>
+              <span style={{ color:theme.ts }}>{a.l}</span>
               <span style={{ color:theme.or, fontFamily:"monospace", fontSize:9 }}>{a.id}</span>
             </div>
           ))}

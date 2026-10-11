@@ -1,5 +1,6 @@
 import { STATUS_COLORS, theme } from "../constants.js";
 import { ib, Bd, Bt } from "../uiPrimitives.jsx";
+import { Ic } from "./icons.jsx";
 
 const { useState } = React;
 
@@ -14,7 +15,7 @@ const { useState } = React;
    ============================================================ */
 
 // Label style for form fields (TYPE / START / HOURS / REASON ...).
-export const rqLabel = { display:"block", fontSize:10, color:theme.td, fontWeight:700, marginBottom:5 };
+export const rqLabel = { display:"block", fontSize:10, color:theme.td, fontWeight:700, marginBottom:5, letterSpacing:1 };
 
 // Two-column field grid (START|END, WORK DATE|HOURS).
 export function RqGrid2({ children }) {
@@ -42,7 +43,7 @@ export function RqFormShell({ title, errors, warnings, onSubmit, onCancel, child
           background:"rgba(239,68,68,0.1)", border:"1px solid rgba(239,68,68,0.3)",
           borderRadius:8, padding:"8px 12px", marginBottom:12, color:theme.rd, fontSize:12
         }}>
-          {errors.map((e, i) => <div key={i} style={{ marginTop: i ? 4 : 0 }}>⚠️ {e}</div>)}
+          {errors.map((e, i) => <div key={i} style={{ marginTop: i ? 4 : 0 }}><Ic name="alert" size={12} style={{ marginRight:6 }} />{e}</div>)}
         </div>
       )}
       {children}
@@ -52,11 +53,11 @@ export function RqFormShell({ title, errors, warnings, onSubmit, onCancel, child
           borderRadius:8, padding:"8px 12px", marginBottom:14,
           color:theme.yl, fontSize:12, lineHeight:1.6
         }}>
-          {warnings.map((w, i) => <div key={i} style={{ marginTop: i ? 4 : 0 }}>ℹ️ {w}</div>)}
+          {warnings.map((w, i) => <div key={i} style={{ marginTop: i ? 4 : 0 }}><Ic name="info" size={12} style={{ marginRight:6 }} />{w}</div>)}
         </div>
       )}
       <div style={{ display:"flex", gap:8 }}>
-        <Bt onClick={onSubmit} bg={theme.gn}>📤 Submit</Bt>
+        <Bt onClick={onSubmit} bg={theme.gn}><Ic name="send" size={13} />Submit</Bt>
         <Bt onClick={onCancel} outline={true}>Cancel</Bt>
       </div>
     </div>
@@ -97,14 +98,14 @@ export function RqCd({ req, viewerId, onAct, ca, statusLabel, detail, comments }
         </div>
       ))}
       {ca && !sa && <Bt onClick={() => setSa(true)} small={true}>Take Action</Bt>}
-      {canWithdraw && <Bt onClick={() => onAct(req.id, "withdraw")} small={true} outline={true}>↩ Withdraw</Bt>}
+      {canWithdraw && <Bt onClick={() => onAct(req.id, "withdraw")} small={true} outline={true}><Ic name="undo" size={13} />Withdraw</Bt>}
       {ca && sa && (
         <div style={{ marginTop:8, background:theme.ch, borderRadius:10, padding:12 }}>
           <textarea value={cm} onChange={e => setCm(e.target.value)}
             rows={2} placeholder="Comment..." style={{ ...ib, marginBottom:8 }} />
           <div style={{ display:"flex", gap:6 }}>
-            <Bt onClick={() => { onAct(req.id, "approve", cm); setSa(false); setCm(""); }} small={true} bg={theme.gn}>✅ Approve</Bt>
-            <Bt onClick={() => { onAct(req.id, "reject", cm); setSa(false); setCm(""); }} small={true} bg={theme.rd}>❌ Reject</Bt>
+            <Bt onClick={() => { onAct(req.id, "approve", cm); setSa(false); setCm(""); }} small={true} bg={theme.gn}><Ic name="check" size={13} />Approve</Bt>
+            <Bt onClick={() => { onAct(req.id, "reject", cm); setSa(false); setCm(""); }} small={true} bg={theme.rd}><Ic name="x" size={13} />Reject</Bt>
             <Bt onClick={() => { setSa(false); setCm(""); }} small={true} outline={true}>Cancel</Bt>
           </div>
         </div>

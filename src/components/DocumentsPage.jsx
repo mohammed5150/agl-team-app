@@ -1,6 +1,7 @@
 import { SECTIONS, DOC_TYPES, theme } from "../constants.js";
 import { certSt } from "../helpers.js";
 import { ib, Bd, Bt, SC2, Sec, Modal, Empty } from "../uiPrimitives.jsx";
+import { Ic } from "./icons.jsx";
 
 const { useState } = React;
 
@@ -32,14 +33,14 @@ export function MyDocs({ emp, onAdd, onDel }) {
     <div>
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:18, flexWrap:"wrap", gap:10 }}>
         <h2 style={{ fontSize:22, fontWeight:700, color:theme.tx, margin:0 }}>My Documents</h2>
-        <Bt onClick={() => setShowForm(true)} bg={theme.or}>📄 Add Document</Bt>
+        <Bt onClick={() => setShowForm(true)} bg={theme.or}><Ic name="plus" size={14} />Add Document</Bt>
       </div>
 
       <div style={{ display:"flex", gap:12, flexWrap:"wrap", marginBottom:20 }}>
-        <SC2 label="Total" value={docs.length} color={theme.bu} icon="📁" />
-        <SC2 label="Valid" value={valid} color={theme.gn} icon="✅" />
-        <SC2 label="Expiring" value={expiring} color={theme.yl} icon="⚠️" />
-        <SC2 label="Expired" value={expired} color={theme.rd} icon="❌" />
+        <SC2 label="Total" value={docs.length} color={theme.bu} icon={<Ic name="folder" size={44} />} />
+        <SC2 label="Valid" value={valid} color={theme.gn} icon={<Ic name="check-circle" size={44} />} />
+        <SC2 label="Expiring" value={expiring} color={theme.yl} icon={<Ic name="alert" size={44} />} />
+        <SC2 label="Expired" value={expired} color={theme.rd} icon={<Ic name="x-circle" size={44} />} />
       </div>
 
       {showForm && (
@@ -80,19 +81,19 @@ export function MyDocs({ emp, onAdd, onDel }) {
             <input value={form.fileName} onChange={e => setForm(p => ({ ...p, fileName:e.target.value }))}
               placeholder="e.g. passport_scan.pdf" style={ib} />
             <div style={{ fontSize:10, color:theme.td, marginTop:4 }}>
-              ℹ️ In production, this would be a real file upload to secure storage.
+              In production, this would be a real file upload to secure storage.
             </div>
           </div>
           <div style={{ display:"flex", gap:8 }}>
-            <Bt onClick={submit} bg={theme.gn}>💾 Save</Bt>
+            <Bt onClick={submit} bg={theme.gn}><Ic name="save" size={13} />Save</Bt>
             <Bt onClick={() => setShowForm(false)} outline={true}>Cancel</Bt>
           </div>
         </Modal>
       )}
 
-      <Sec title="My Documents" icon="📁">
+      <Sec title="My Documents" icon={<Ic name="folder" size={15} />}>
         {docs.length === 0
-          ? <Empty icon="📁" text="No documents uploaded. Click 'Add Document' to upload passport, visa, EID, etc." />
+          ? <Empty icon={<Ic name="folder" size={32} />} text="No documents uploaded. Click 'Add Document' to upload passport, visa, EID, etc." />
           : <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(260px,1fr))", gap:12 }}>
               {docs.map(d => {
                 const st = certSt(d.expiryDate);
@@ -119,11 +120,11 @@ export function MyDocs({ emp, onAdd, onDel }) {
                     </div>
                     {d.fileName && (
                       <div style={{ fontSize:10, color:theme.bu, marginTop:6, display:"flex", alignItems:"center", gap:4 }}>
-                        📎 {d.fileName}
+                        <Ic name="paperclip" size={11} style={{ marginRight:5 }} />{d.fileName}
                       </div>
                     )}
                     <div style={{ marginTop:10 }}>
-                      <Bt onClick={() => onDel(emp.id, d.id)} small={true} bg={theme.rd}>🗑️ Remove</Bt>
+                      <Bt onClick={() => onDel(emp.id, d.id)} small={true} bg={theme.rd}><Ic name="trash" size={12} />Remove</Bt>
                     </div>
                   </div>
                 );
@@ -161,10 +162,10 @@ export function DocsMgmt({ employees, onSel }) {
         Track passport, visa, EID, airport pass and medical fitness expiry across the team.
       </p>
       <div style={{ display:"flex", gap:12, flexWrap:"wrap", marginBottom:20 }}>
-        <SC2 label="Total Docs" value={ac.length} color={theme.bu} icon="📁" />
-        <SC2 label="Valid" value={tv} color={theme.gn} icon="✅" />
-        <SC2 label="Expiring (90d)" value={tx2} color={theme.yl} icon="⚠️" />
-        <SC2 label="Expired" value={te} color={theme.rd} icon="❌" />
+        <SC2 label="Total Docs" value={ac.length} color={theme.bu} icon={<Ic name="folder" size={44} />} />
+        <SC2 label="Valid" value={tv} color={theme.gn} icon={<Ic name="check-circle" size={44} />} />
+        <SC2 label="Expiring (90d)" value={tx2} color={theme.yl} icon={<Ic name="alert" size={44} />} />
+        <SC2 label="Expired" value={te} color={theme.rd} icon={<Ic name="x-circle" size={44} />} />
       </div>
       <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:12 }}>
         {["all","expired","expiring","valid"].map(s => (
@@ -186,7 +187,7 @@ export function DocsMgmt({ employees, onSel }) {
           }}>{s}</button>
         ))}
       </div>
-      <input placeholder="🔍 Search employee..." value={sr} onChange={e => setSr(e.target.value)}
+      <input placeholder="Search employee..." value={sr} onChange={e => setSr(e.target.value)}
         style={{ ...ib, marginBottom:14 }} />
       <div style={{ background:theme.card, borderRadius:14, border:`1px solid ${theme.bd}`, overflow:"hidden" }}>
         <div style={{ overflowX:"auto" }}>

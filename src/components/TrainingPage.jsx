@@ -2,6 +2,7 @@ import { SECTIONS, theme } from "../constants.js";
 import { ROLE_CODES, ROLE_ORDER, designationToRoleCode, TRAINING_CATALOG } from "../trainingCatalog.js";
 import { certSt } from "../helpers.js";
 import { ib, Bd, SC2, Sec } from "../uiPrimitives.jsx";
+import { Ic } from "./icons.jsx";
 
 const { useState } = React;
 
@@ -18,12 +19,12 @@ export function MyTr({ emp }) {
     <div>
       <h2 style={{ fontSize:22, fontWeight:700, color:theme.tx, marginBottom:16 }}>My Training & Certifications</h2>
       <div style={{ display:"flex", gap:12, flexWrap:"wrap", marginBottom:20 }}>
-        <SC2 label="Total" value={tr.length} color={theme.bu} icon="🎓" />
-        <SC2 label="Valid" value={valid} color={theme.gn} icon="✅" />
-        <SC2 label="Expiring" value={expiring} color={theme.yl} icon="⚠️" />
-        <SC2 label="Expired" value={expired} color={theme.rd} icon="❌" />
+        <SC2 label="Total" value={tr.length} color={theme.bu} icon={<Ic name="graduation" size={44} />} />
+        <SC2 label="Valid" value={valid} color={theme.gn} icon={<Ic name="check-circle" size={44} />} />
+        <SC2 label="Expiring" value={expiring} color={theme.yl} icon={<Ic name="alert" size={44} />} />
+        <SC2 label="Expired" value={expired} color={theme.rd} icon={<Ic name="x-circle" size={44} />} />
       </div>
-      <Sec title="Certificates" icon="📜">
+      <Sec title="Certificates" icon={<Ic name="award" size={15} />}>
         {tr.map(x => {
           const st = certSt(x.certExpiry);
           return (
@@ -91,11 +92,11 @@ function TrMatrix({ employees }) {
         <button onClick={() => setView("matrix")} style={{
           padding:"8px 16px", borderRadius:10, fontWeight:700, cursor:"pointer", border:"none",
           background: view === "matrix" ? theme.pl : theme.ch, color: view === "matrix" ? "#fff" : theme.tx
-        }}>📋 Course Matrix ({TRAINING_CATALOG.length})</button>
+        }}>Course Matrix ({TRAINING_CATALOG.length})</button>
         <button onClick={() => setView("gap")} style={{
           padding:"8px 16px", borderRadius:10, fontWeight:700, cursor:"pointer", border:"none",
           background: view === "gap" ? theme.pl : theme.ch, color: view === "gap" ? "#fff" : theme.tx
-        }}>⚠ Compliance Gap</button>
+        }}>Compliance Gap</button>
       </div>
 
       {view === "matrix" ? (
@@ -107,7 +108,7 @@ function TrMatrix({ employees }) {
               <option value="all">All types</option>
               {types.map(t => <option key={t} value={t}>{t}</option>)}
             </select>
-            <input placeholder="🔍 search course…" value={search} onChange={e => setSearch(e.target.value)}
+            <input placeholder="Search course…" value={search} onChange={e => setSearch(e.target.value)}
               style={{ flex:1, minWidth:200, padding:"8px 12px", background:theme.ch, color:theme.tx,
                 borderRadius:8, border:`1px solid ${theme.bd}`, fontSize:13 }} />
           </div>
@@ -227,18 +228,18 @@ export function TrMgmt({ employees }) {
         <button onClick={() => setTab("certs")} style={{
           padding:"8px 16px", borderRadius:10, fontWeight:700, cursor:"pointer", border:"none",
           background: tab === "certs" ? theme.pl : theme.ch, color: tab === "certs" ? "#fff" : theme.tx
-        }}>🎓 Certificates</button>
+        }}>Certificates</button>
         <button onClick={() => setTab("matrix")} style={{
           padding:"8px 16px", borderRadius:10, fontWeight:700, cursor:"pointer", border:"none",
           background: tab === "matrix" ? theme.pl : theme.ch, color: tab === "matrix" ? "#fff" : theme.tx
-        }}>📋 TNA Matrix</button>
+        }}>TNA Matrix</button>
       </div>
       {tab === "matrix" ? <TrMatrix employees={employees} /> : (
       <>
       <div style={{ display:"flex", gap:12, flexWrap:"wrap", marginBottom:20 }}>
-        <SC2 label="Total Certs" value={ac.length} color={theme.bu} icon="🎓" />
-        <SC2 label="Expired" value={te} color={theme.rd} icon="❌" />
-        <SC2 label="Expiring (90d)" value={tx2} color={theme.yl} icon="⚠️" />
+        <SC2 label="Total Certs" value={ac.length} color={theme.bu} icon={<Ic name="graduation" size={44} />} />
+        <SC2 label="Expired" value={te} color={theme.rd} icon={<Ic name="x-circle" size={44} />} />
+        <SC2 label="Expiring (90d)" value={tx2} color={theme.yl} icon={<Ic name="alert" size={44} />} />
       </div>
       <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:12 }}>
         {["all","expired","expiring","valid"].map(s => (
@@ -260,7 +261,7 @@ export function TrMgmt({ employees }) {
           }}>{s}</button>
         ))}
       </div>
-      <input placeholder="🔍 Search..." value={sr} onChange={e => setSr(e.target.value)}
+      <input placeholder="Search..." value={sr} onChange={e => setSr(e.target.value)}
         style={{ ...ib, marginBottom:14 }} />
       <div style={{ background:theme.card, borderRadius:14, border:`1px solid ${theme.bd}`, overflow:"hidden" }}>
         <div style={{ overflowX:"auto" }}>

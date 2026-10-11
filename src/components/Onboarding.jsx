@@ -6,6 +6,7 @@ import {
   FINALIZE_CONFIRM_MESSAGE,
 } from "../onboarding.js";
 import { ib, Bt, Sec, Modal } from "../uiPrimitives.jsx";
+import { Ic } from "./icons.jsx";
 
 const { useState } = React;
 
@@ -57,9 +58,9 @@ const FIELD_TYPE = {
 };
 
 const GROUPS = [
-  { title:"Personal", icon:"👤", fields:["name","nationality","dob","maritalStatus","mobile","address"] },
-  { title:"Emergency contact", icon:"🚨", fields:["emergencyName","emergencyContact"] },
-  { title:"Documents", icon:"📄", fields:["passportNo","passportExpiry","visaExpiry","eidNo","eidExpiry"] },
+  { title:"Personal", icon:"user", fields:["name","nationality","dob","maritalStatus","mobile","address"] },
+  { title:"Emergency contact", icon:"alert", fields:["emergencyName","emergencyContact"] },
+  { title:"Documents", icon:"file", fields:["passportNo","passportExpiry","visaExpiry","eidNo","eidExpiry"] },
 ];
 
 function FieldRow({ f, value, onChange, readOnly }) {
@@ -174,13 +175,13 @@ export function Onboarding({ emp, onSave, onFinalize, onSkip }) {
             {step === "edit" && <>
               <Bt onClick={goReview} bg={theme.or}>Review →</Bt>
               <Bt onClick={saveDraft} outline={true}>
-                {saved ? "✓ Saved" : "💾 Save & continue later"}
+                {saved ? "Saved" : "Save & continue later"}
               </Bt>
               {onSkip && <Bt onClick={onSkip} outline={true}>Skip for now</Bt>}
             </>}
             {step === "review" && <>
-              <Bt onClick={() => setConfirming(true)} bg={theme.gn}>🔒 Finalize Profile</Bt>
-              <Bt onClick={() => setStep("edit")} outline={true}>← Back to edit</Bt>
+              <Bt onClick={() => setConfirming(true)} bg={theme.gn}><Ic name="lock" size={13} />Finalize Profile</Bt>
+              <Bt onClick={() => setStep("edit")} outline={true}><Ic name="arrow-left" size={13} />Back to edit</Bt>
             </>}
           </div>
 

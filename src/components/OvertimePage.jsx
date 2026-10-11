@@ -3,6 +3,7 @@ import { approvedHours } from "../overtimeWorkflow.js";
 import { ib, Bt, SC2, Empty } from "../uiPrimitives.jsx";
 import { validateOvertimeRequest, claimedHoursOn } from "../validation.js";
 import { rqLabel, RqGrid2, RqAmount, RqFormShell, RqCd, RqHead, RqTabs } from "./requestShared.jsx";
+import { Ic } from "./icons.jsx";
 
 const { useState, useMemo } = React;
 
@@ -41,7 +42,7 @@ export function OtFm({ onSub, onCan, user, overtimeRequests, leaveRequests }) {
   };
 
   return (
-    <RqFormShell title="⏰ Claim Overtime" errors={errors} warnings={live.warnings}
+    <RqFormShell title="Claim Overtime" errors={errors} warnings={live.warnings}
       onSubmit={submit} onCancel={onCan}>
       <RqGrid2>
         <div>
@@ -102,11 +103,11 @@ export function OtPg({ user, overtimeRequests, leaveRequests, onSub, onAct }) {
   return (
     <div>
       <RqHead title="Overtime"
-        action={isE && <Bt onClick={() => setSf(true)} bg={theme.or}>⏰ Claim</Bt>} />
+        action={isE && <Bt onClick={() => setSf(true)} bg={theme.or}><Ic name="plus" size={14} />Claim</Bt>} />
       {isE && (
         <div style={{ display:"flex", gap:10, flexWrap:"wrap", marginBottom:18 }}>
-          <SC2 label="Approved Hours" value={approvedHours(overtimeRequests, user.id)} color={theme.gn} icon="⏱️" />
-          <SC2 label="Pending" value={my.filter(r => r.status === "pending").length} color={theme.yl} icon="⏳" />
+          <SC2 label="Approved Hours" value={approvedHours(overtimeRequests, user.id)} color={theme.gn} icon={<Ic name="clock" size={44} />} />
+          <SC2 label="Pending" value={my.filter(r => r.status === "pending").length} color={theme.yl} icon={<Ic name="hourglass" size={44} />} />
         </div>
       )}
       {!isE && (

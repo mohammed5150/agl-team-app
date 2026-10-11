@@ -6,6 +6,7 @@ import { SECTIONS, STATUS_COLORS, STATUS_LABELS, ANN_PRIORITIES, theme } from ".
 import { Bd, Bt, Sec, Empty } from "../uiPrimitives.jsx";
 import { PASTEL, INK, Ring, Tile } from "./charts.jsx";
 import { WeatherCard } from "./WeatherCard.jsx";
+import { Ic } from "./icons.jsx";
 
 export function MDash({ user, employees, leaveRequests, announcements, pc, onGoTo }) {
   const h = new Date().getHours();
@@ -71,7 +72,7 @@ export function MDash({ user, employees, leaveRequests, announcements, pc, onGoT
             padding:"14px 16px", marginBottom:16, cursor:"pointer"
           }}>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:8, marginBottom:4 }}>
-              <div style={{ fontSize:13, fontWeight:800, color:theme.tx }}>📌 {a.title}</div>
+              <div style={{ fontSize:13, fontWeight:800, color:theme.tx }}><Ic name="pin" size={12} style={{ marginRight:5 }} />{a.title}</div>
               <Bd text={pr.label.toUpperCase()} color={pr.color} />
             </div>
             <div style={{ fontSize:12, color:theme.ts }}>
@@ -133,7 +134,7 @@ export function MDash({ user, employees, leaveRequests, announcements, pc, onGoT
 
       {/* Recent activity + on leave today */}
       <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))", gap:14 }}>
-        <Sec title="Recent Leave" icon="📋" action={<Bt onClick={() => onGoTo("leave")} small={true} outline={true}>View all</Bt>}>
+        <Sec title="Recent Leave" icon={<Ic name="clipboard" size={15} />} action={<Bt onClick={() => onGoTo("leave")} small={true} outline={true}>View all</Bt>}>
           {leaveRequests.slice(0, 4).map(r => (
             <div key={r.id} style={{
               display:"flex", justifyContent:"space-between", alignItems:"center",
@@ -148,9 +149,9 @@ export function MDash({ user, employees, leaveRequests, announcements, pc, onGoT
           ))}
         </Sec>
 
-        <Sec title="On Leave Today" icon="🏖️" action={<Bt onClick={() => onGoTo("calendar")} small={true} outline={true}>Calendar</Bt>}>
+        <Sec title="On Leave Today" icon={<Ic name="calendar" size={15} />} action={<Bt onClick={() => onGoTo("calendar")} small={true} outline={true}>Calendar</Bt>}>
           {onLeaveToday.length === 0
-            ? <Empty icon="📅" text="Everyone is on duty" />
+            ? <Empty icon={<Ic name="calendar" size={32} />} text="Everyone is on duty" />
             : onLeaveToday.map(r => (
               <div key={r.id} style={{
                 display:"flex", justifyContent:"space-between", alignItems:"center",

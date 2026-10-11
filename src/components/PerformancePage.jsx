@@ -58,7 +58,7 @@ function PerfEditor({ emp, isMgr, onSave, onClose }) {
       {isMgr && (
         <div style={{ padding:"14px 0", borderBottom:`1px solid ${theme.bd}` }}>
           <div style={{ color:theme.tx, fontSize:14, fontWeight:700, marginBottom:8 }}>
-            💰 Salary Tier <span style={{ fontSize:11, color:theme.td, fontWeight:400 }}>(Manager only)</span>
+            Salary Tier <span style={{ fontSize:11, color:theme.td, fontWeight:400 }}>(Manager only)</span>
           </div>
           <div style={{ display:"flex", gap:8 }}>
             {["", ...TIERS].map(t => (
@@ -73,7 +73,7 @@ function PerfEditor({ emp, isMgr, onSave, onClose }) {
         </div>
       )}
       <div style={{ padding:"14px 0" }}>
-        <div style={{ color:theme.tx, fontSize:14, fontWeight:700, marginBottom:8 }}>📝 Notes</div>
+        <div style={{ color:theme.tx, fontSize:14, fontWeight:700, marginBottom:8 }}>Notes</div>
         <textarea value={r.notes || ""} onChange={e => setR(p => ({ ...p, notes:e.target.value }))}
           rows={3} style={{ width:"100%", padding:10, borderRadius:8, background:theme.ch,
             color:theme.tx, border:`1px solid ${theme.bd}`, resize:"vertical", fontFamily:"inherit", fontSize:13 }} />

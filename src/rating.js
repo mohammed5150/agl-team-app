@@ -1,9 +1,9 @@
 // Rating helpers
 export const RATING_KEYS = [
-  { k:"knowledge",  label:"Knowledge",  icon:"📘" },
-  { k:"experience", label:"Experience", icon:"🏅" },
-  { k:"loyalty",    label:"Loyalty",    icon:"🤝" },
-  { k:"capability", label:"Capability", icon:"🛠️" },
+  { k:"knowledge",  label:"Knowledge",  icon:"book" },
+  { k:"experience", label:"Experience", icon:"award" },
+  { k:"loyalty",    label:"Loyalty",    icon:"heart" },
+  { k:"capability", label:"Capability", icon:"wrench" },
 ];
 export const gradeFromRating = r => {
   if (!r) return null;
