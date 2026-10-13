@@ -2,6 +2,12 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Rules for every task
+
+* Always run `npm run ci` before finishing a task.
+* Never push to `main`. Open a draft PR for every change.
+* Never set `SHOW_DEMO_LOGIN`.
+
 ## Commands
 
 ```bash
