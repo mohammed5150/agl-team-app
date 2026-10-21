@@ -171,68 +171,17 @@ revoke all on function public.guard_employee_profile_lock() from public, anon, a
 -- No change required; documented for reviewers.
 
 -- ---------------------------------------------------------------
--- e. Team Mail ID mapping
+-- e. Team Mail ID mapping — moved out of the repository
 --
--- The employees table currently carries derived @adbsafegate.ae
--- addresses. The Team Mail ID is the permanent login ID, so these rows
--- are repointed at their real addresses.
+-- This section used to repoint the twelve confirmed employees rows at
+-- their real Team Mail IDs, listed inline. Those are personal email
+-- addresses and this repository is public, so the data now lives in
+-- supabase_team_onboarding_data.local.sql, which is gitignored. See
+-- supabase_team_onboarding_data.example.sql for its shape.
 --
--- ONLY the twelve confirmed mappings are applied. Two Team Mail IDs
--- remain UNRESOLVED and are deliberately absent:
---
---   praveen6273@gmail.com
---       roster holds two candidates — Praveen Arunachalam (EMP-052)
---       and Praveen Koothoor (EMP-080)
---   jjijosebastian311@gmail.com
---       labelled "Jiji"; roster holds Jiji Varghese (EMP-020) and
---       Jijo Sebastian (EMP-057), and the address reads "jijosebastian"
---
--- Do not add either until the owner confirms which person it belongs
--- to. An incorrect mapping hands one employee another's login.
---
--- Guarded so it is idempotent and can never collide: a row is only
--- updated when the target address is not already held by a different
--- employee.
+-- An existing deployment already holds the mapping; nothing to do.
+-- A new or empty project: run the local data file after this one.
 -- ---------------------------------------------------------------
-
-do $$
-declare
-  m record;
-begin
-  for m in
-    select * from (values
-      ('EMP-048', 'muhammed.farhan.ext@adbsafegate.com'),  -- Farhan
-      ('EMP-009', 'anurag.aikkal@adbsafegate.com'),        -- Anurag
-      ('EMP-001', 'amarnath.munderi@adbsafegate.com'),     -- Amarnath
-      ('EMP-005', 'gopakumar.gopinadhan@adbsafegate.com'), -- Gopa
-      ('EMP-019', 'nisar.ahmed@adbsafegate.com'),          -- Nisar
-      ('EMP-050', 'nithin.kumar@adbsafegate.com'),         -- Nithin
-      ('EMP-089', 'jesudaskt22@gmail.com'),                -- Jesudas
-      ('EMP-049', 'prajeshprabhakar002@gmail.com'),        -- Prajesh
-      ('EMP-051', 'Bv4haris@gmail.com'),                   -- Haris
-      ('MGR-001', 'ragesh.menon@adbsafegate.com'),         -- Ragesh
-      ('EMP-018', 'sanoop.louis@adbsafegate.com'),         -- Sanoop
-      ('TL-002',  'mohammed.faheem@adbsafegate.com')       -- Mohammed Faheem
-    ) as t(emp_id, team_mail)
-  loop
-    if not exists (select 1 from public.employees where id = m.emp_id) then
-      raise notice 'Team mail mapping skipped, no such employee: %', m.emp_id;
-      continue;
-    end if;
-    if exists (
-      select 1 from public.employees
-      where lower(email) = lower(m.team_mail) and id <> m.emp_id
-    ) then
-      raise notice 'Team mail % already held by another employee, skipping %',
-        m.team_mail, m.emp_id;
-      continue;
-    end if;
-    update public.employees
-       set email = m.team_mail
-     where id = m.emp_id
-       and (email is distinct from m.team_mail);
-  end loop;
-end $$;
 
 comment on function public.guard_employee_profile_lock() is
   'Team onboarding: enforces the employee-editable field allowlist, one-way '
@@ -273,62 +222,26 @@ comment on table public.approved_team_logins is
   'Authoritative list of Team Mail IDs permitted to onboard. Not readable '
   'by anon or authenticated roles — query via is_approved_team_login().';
 
--- The 31 approved Team Mail IDs, stored verbatim.
+-- f1 seed — moved out of the repository
 --
--- Addresses labelled "employee mapping unresolved" are approved to SIGN IN but
--- match no employees row. That is deliberate, not an oversight: they reach the
--- portal and are then stopped by loadPortalData with the "no employee record"
--- message. Guessing which roster entry each belongs to would hand one person
--- another person's leave, appraisal and attendance history, so each stays
--- unmapped until an administrator confirms the identity.
-insert into public.approved_team_logins (email, label) values
-  ('muhammed.farhan.ext@adbsafegate.com',  'Farhan — ADB-048'),
-  ('anurag.aikkal@adbsafegate.com',        'Anurag — ADB-009'),
-  ('amarnath.munderi@adbsafegate.com',     'Amarnath — ADB-001'),
-  ('gopakumar.gopinadhan@adbsafegate.com', 'Gopa — ADB-005'),
-  ('nisar.ahmed@adbsafegate.com',          'Nisar — ADB-019'),
-  ('jjijosebastian311@gmail.com',          'Jiji — employee mapping unresolved'),
-  ('nithin.kumar@adbsafegate.com',         'Nithin — ADB-050'),
-  ('praveen6273@gmail.com',                'Praveen — employee mapping unresolved'),
-  ('jesudaskt22@gmail.com',                'Jesudas'),
-  ('prajeshprabhakar002@gmail.com',        'Prajesh — ADB-049'),
-  ('Bv4haris@gmail.com',                   'Haris — ADB-051'),
-  ('ragesh.menon@adbsafegate.com',         'Ragesh — ADB-3001, manager'),
-  ('sanoop.louis@adbsafegate.com',         'Sanoop — ADB-018'),
-  ('mohammed.faheem@adbsafegate.com',      'Mohammed Faheem — team lead'),
-  -- second batch
-  ('tahseenkhan2332@gmail.com',            'Tahseen Khan — ADB-027'),
-  ('vikrampal642@gmail.com',               'Vikram Pal — ADB-014'),
-  ('midhunbabu1902@gmail.com',             'Midhun Babu — ADB-035'),
-  ('vineethpatteri@gmail.com',             'Vineeth Patteri — ADB-032'),
-  ('dhivakarangunasekaran@gmail.com',      'Divakar Gunasekaran — ADB-056'),
-  ('yadunath.kaitheri@adbsafegate.com',    'Yadhunath Kaitheri — ADB-046'),
-  ('srigajeg84@gmail.com',                 'employee mapping unresolved — no confident roster match'),
-  ('rajumottammal276@gmail.com',           'employee mapping unresolved — Raju Kolavayal ADB-040? surname differs'),
-  ('ganesh2842014@gmail.com',              'employee mapping unresolved — Ganesan Subramanian ADB-025?'),
-  ('thomas2937@gmail.com',                 'employee mapping unresolved — Thomas Padipurakkal ADB-016?'),
-  ('abubaker.ab151@gmail.com',             'employee mapping unresolved — Abubaker Irshad ADB-004 or Abu Bakar?'),
-  ('Mepeese@gmail.com',                    'employee mapping unresolved — no roster match'),
-  ('muhammed.talhalateef@adbsafegate.com', 'employee mapping unresolved — no roster row for Talha Lateef'),
-  -- third batch: arrived unusable, corrected by an administrator, then approved
-  ('sandeepselvan1999@gmail.com',          'Sandeep Selvan — ADB-036'),
-  ('abhishekabhi0280@gmail.com',           'Abhishek Aramban — ADB-055'),
-  ('syedmuzaffar7869@gmail.com',           'Syed Mussafir Shah — ADB-054'),
-  ('danish.khan7556@gmail.com',            'Danish Khan — ADB-037')
-on conflict (email) do nothing;
-
--- MUST NEVER BE SEEDED. The four above were originally supplied in a form that
--- could not be approved. The broken spellings are recorded here so they are not
--- reintroduced by a later copy-paste from the original list:
---   as supplied                   corrected to
---   abhishe kabhi0280@gmail.com   abhishekabhi0280@gmail.com  (space; also
---                                 ambiguous between Abhishek Aramban ADB-055
---                                 and Abhishekh Pujari ADB-028 — ADB-055 chosen)
---   sandeepse lvan1999@gmail.com  sandeepselvan1999@gmail.com (space)
---   syedmuzaffar7869@gmsil.com    syedmuzaffar7869@gmail.com  (gmsil -> gmail)
---   danisn.khan7556@gmail.com     danish.khan7556@gmail.com   (danisn -> danish)
--- A space makes an address invalid outright; a mistyped domain is worse than
--- useless, because whoever actually owns it could create a Team Portal account.
+-- The approved Team Mail IDs used to be inserted here, verbatim. They are
+-- personal email addresses, so the seed now lives in
+-- supabase_team_onboarding_data.local.sql (gitignored) alongside the
+-- section (e) mapping. After the first manager can sign in, new joiners
+-- are approved in the portal through approve_team_login
+-- (supabase_onboarding_selfservice.sql), so the seed is a one-off
+-- bootstrap for a new or empty project only.
+--
+-- Addresses labelled "employee mapping unresolved" in that seed are
+-- approved to SIGN IN but match no employees row. That is deliberate: they
+-- reach the portal and are then stopped by loadPortalData with the "no
+-- employee record" message. Guessing which roster entry each belongs to
+-- would hand one person another person's leave, appraisal and attendance
+-- history, so each stays unmapped until an administrator confirms it.
+--
+-- Never approve an address with whitespace in it or on a misspelt domain:
+-- a space makes it invalid outright, and whoever really owns a mistyped
+-- address could create a Team Portal account with it.
 
 -- Locked down: no anon or authenticated access at all. Managers read it
 -- through the RPC below, or via the SQL editor / service_role.
@@ -382,7 +295,8 @@ begin
   if new.email is null or trim(new.email) = '' then
     return new;                       -- placeholder rows stay permitted
   end if;
-  -- Trusted backend roles (migrations, SQL editor) bypass, so section (e)
+  -- Trusted backend roles (migrations, SQL editor) bypass, so the team data file
+  -- (supabase_team_onboarding_data.local.sql)
   -- and any admin data fix can run regardless of ordering.
   if coalesce(auth.role(), 'service_role') <> 'authenticated' then
     return new;

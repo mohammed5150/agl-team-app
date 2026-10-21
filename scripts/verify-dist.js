@@ -7,11 +7,11 @@
 //   1. The seeded demo roster — names, mobile numbers, passport and Emirates ID
 //      numbers for the whole team (compiled out by __SHOW_DEMO__).
 //   2. The approved Team Mail ID list — 35 addresses, most of them team
-//      members' personal Gmail accounts (compiled out by
-//      __EMBED_TEAM_DIRECTORY__).
+//      members' personal Gmail accounts. It is no longer in the source at
+//      all; it lives only in the database (see src/teamDirectory.js).
 //
-// Both are stripped by an esbuild define, and a define is exactly the kind of
-// thing that gets flipped for a debugging session and forgotten. So this
+// The roster is stripped by an esbuild define, and a define is exactly the
+// kind of thing that gets flipped for a debugging session and forgotten. So this
 // script does not trust the flag: it reads the built file and fails on the
 // DATA. A refactor that reintroduces the leak by another route fails here too.
 //
@@ -70,7 +70,7 @@ if (emails.length) {
     `dist/app.js embeds ${emails.length} email address(es) — a production bundle is public.\n`
     + `         ${emails.slice(0, 10).join("\n         ")}`
     + (emails.length > 10 ? `\n         …and ${emails.length - 10} more` : "")
-    + "\n         Expected __EMBED_TEAM_DIRECTORY__=false (see build.js)."
+    + "\n         Addresses belong in the database, never in the source (see src/teamDirectory.js)."
   );
 }
 
@@ -117,8 +117,7 @@ for (const asset of ["index.html", "manifest.json", "sw.js", "vendor", "_headers
 
 if (failures.length) {
   const demoOnly = failures.every(f =>
-    f.includes("__EMBED_TEAM_DIRECTORY__")
-    || f.includes("__SHOW_DEMO__")
+    f.includes("__SHOW_DEMO__")
     || f.includes("demo login panel"));
 
   for (const f of failures) console.error("[verify-dist] FAIL: " + f);

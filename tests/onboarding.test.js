@@ -45,7 +45,7 @@ describe("team mail ID is the login ID", () => {
   });
 
   it("accepts non-corporate team mail IDs unchanged", () => {
-    for (const mail of ["jjijosebastian311@gmail.com", "Bv4haris@gmail.com"]) {
+    for (const mail of ["jjsample@example.com", "Bv4sample@example.com"]) {
       expect(empToDb(emp({ email: mail })).email).toBe(mail);
     }
   });
@@ -256,7 +256,7 @@ describe("field lists stay disjoint", () => {
 describe("duplicate login IDs are rejected", () => {
   const roster = [
     emp({ id: "EMP-001", email: "amarnath.munderi@adbsafegate.com" }),
-    emp({ id: "EMP-051", email: "Bv4haris@gmail.com" }),
+    emp({ id: "EMP-051", email: "Bv4sample@example.com" }),
   ];
 
   it("rejects an exact duplicate", () => {
@@ -265,7 +265,7 @@ describe("duplicate login IDs are rejected", () => {
 
   it("rejects a case-different duplicate", () => {
     expect(isEmailTaken(roster, "AMARNATH.MUNDERI@ADBSAFEGATE.COM")).toBe(true);
-    expect(isEmailTaken(roster, "bv4haris@gmail.com")).toBe(true);
+    expect(isEmailTaken(roster, "bv4sample@example.com")).toBe(true);
   });
 
   it("rejects a duplicate with surrounding whitespace", () => {
@@ -277,7 +277,7 @@ describe("duplicate login IDs are rejected", () => {
   });
 
   it("does not flag a row against itself, so a manager can re-save it", () => {
-    expect(isEmailTaken(roster, "Bv4haris@gmail.com", "EMP-051")).toBe(false);
+    expect(isEmailTaken(roster, "Bv4sample@example.com", "EMP-051")).toBe(false);
   });
 
   it("treats a blank email as not taken", () => {
@@ -286,9 +286,9 @@ describe("duplicate login IDs are rejected", () => {
   });
 
   it("preserves the stored casing of a team mail ID", () => {
-    // Bv4haris@gmail.com is compared case-insensitively but stored verbatim.
-    expect(normalizeLoginId("Bv4haris@gmail.com")).toBe("bv4haris@gmail.com");
-    expect(empToDb(emp({ email: "Bv4haris@gmail.com" })).email).toBe("Bv4haris@gmail.com");
+    // Bv4sample@example.com is compared case-insensitively but stored verbatim.
+    expect(normalizeLoginId("Bv4sample@example.com")).toBe("bv4sample@example.com");
+    expect(empToDb(emp({ email: "Bv4sample@example.com" })).email).toBe("Bv4sample@example.com");
   });
 });
 

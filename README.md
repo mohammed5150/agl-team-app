@@ -60,7 +60,12 @@ supabase_*.sql        database migrations (apply in numerical / dependency order
     table with its team-lead-terminal workflow. Its header requires this to
     land after `supabase_rls_hardening.sql`
 11. `supabase_team_onboarding.sql` — profile self-service + lock, unique login
-    IDs, and the approved-Team-Mail-ID gate on `auth.users`
+    IDs, and the approved-Team-Mail-ID gate on `auth.users`. It carries no
+    addresses. **New or empty project only:** then run
+    `supabase_team_onboarding_data.local.sql` (gitignored, kept off the public
+    repo; copy `supabase_team_onboarding_data.example.sql` to make it) to seed
+    the approved list and map the confirmed employees. Without it nobody,
+    including the first manager, can create an account
 12. `supabase_grant_hardening.sql` — revokes the default PUBLIC EXECUTE grant
     left on the guard functions, and moves the roster backup out of the
     PostgREST-exposed schema
@@ -155,9 +160,10 @@ retry. No SQL access needed.
    - Note that a company-domain sign-up restriction is additional defence, not
      a replacement for the `auth.users` trigger — several approved Team Mail
      IDs are personal addresses and a domain rule alone would lock them out.
-3. **Build** — `npm run build` produces a production bundle. Both the demo
-   roster and the approved Team Mail ID list are compiled out by default;
-   `SHOW_DEMO_LOGIN=1` re-enables them for local development. Never deploy
+3. **Build** — `npm run build` produces a production bundle. The demo roster
+   is compiled out by default; `SHOW_DEMO_LOGIN=1` re-enables it for local
+   development. The approved Team Mail ID list is never in the bundle or the
+   source: it lives only in the database. Never deploy
    such a build — it embeds real staff contact details and document numbers.
 4. **Deploy** — publish `dist/` (Netlify; see
    `docs/DEPLOYMENT.md`). No CDN dependencies: React, ReactDOM and
