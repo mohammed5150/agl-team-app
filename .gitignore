@@ -26,3 +26,6 @@ scratchpad_out/
 # Local agent tooling — machine-specific, not part of the app.
 .grok/
 .superpowers/
+
+# Team data with personal email addresses (see supabase_team_onboarding_data.example.sql).
+*.local.sql

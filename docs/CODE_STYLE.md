@@ -15,10 +15,10 @@ reasons behind the ones that exist because something broke.
   `index.html`. Never write `import React from "react"` — the bundle has no
   copy of React, and this is what allows the CSP to stay `script-src 'self'`.
   ESLint declares them `readonly` globals.
-- **Three compile-time defines** — `__SHOW_DEMO__`, `__EMBED_TEAM_DIRECTORY__`
-  and `__APP_VERSION__` — are injected by `build.js` and must stay declared in
-  `eslint.config.js`. The two data flags default to off; see `CLAUDE.md` for
-  why a demo build must never deploy.
+- **Two compile-time defines** — `__SHOW_DEMO__` and `__APP_VERSION__` — are
+  injected by `build.js` and must stay declared in `eslint.config.js`.
+  `__SHOW_DEMO__` defaults to off; see `CLAUDE.md` for why a demo build must
+  never deploy.
 - `sw.js` uses service-worker globals; `scripts/*.mjs` are Node ES modules;
   `build.js` and `scripts/*.js` are CommonJS. Each has its own ESLint block.
 

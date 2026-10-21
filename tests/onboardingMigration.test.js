@@ -76,47 +76,29 @@ describe("migration: employee-editable fields are covered by the lock check", ()
   });
 });
 
-describe("migration: team mail mapping is safe and incomplete by design", () => {
-  it("maps the twelve confirmed Team Mail IDs", () => {
-    for (const mail of [
-      "muhammed.farhan.ext@adbsafegate.com",
-      "anurag.aikkal@adbsafegate.com",
-      "amarnath.munderi@adbsafegate.com",
-      "gopakumar.gopinadhan@adbsafegate.com",
-      "nisar.ahmed@adbsafegate.com",
-      "nithin.kumar@adbsafegate.com",
-      "jesudaskt22@gmail.com",
-      "prajeshprabhakar002@gmail.com",
-      "bv4haris@gmail.com",
-      "ragesh.menon@adbsafegate.com",
-      "sanoop.louis@adbsafegate.com",
-      "mohammed.faheem@adbsafegate.com",
-    ]) {
-      expect(lower).toContain(mail);
-    }
+describe("migration: team mail mapping is safe and kept out of the repository", () => {
+  // The mapping names personal addresses, so it lives in the gitignored
+  // supabase_team_onboarding_data.local.sql. The committed template pins the
+  // logic that file must follow.
+  const tmpl = readFileSync(join(ROOT, "supabase_team_onboarding_data.example.sql"), "utf8").toLowerCase();
+
+  it("points at the local data file instead of listing addresses", () => {
+    expect(lower).toContain("supabase_team_onboarding_data.local.sql");
+    expect(lower).not.toMatch(/for m in\s+select \* from \(values/);
   });
 
-  it("does NOT map the two unresolved addresses", () => {
-    // Present only as documentation of why they are excluded, never inside
-    // the VALUES list that drives the UPDATE.
-    const updateBlock = lower.split("for m in")[1] || "";
-    const values = updateBlock.split("loop")[0] || "";
-    expect(values).not.toContain("praveen6273@gmail.com");
-    expect(values).not.toContain("jjijosebastian311@gmail.com");
-  });
-
-  it("explains the ambiguity so the gap is not mistaken for an omission", () => {
+  it("explains why unresolved addresses stay unmapped", () => {
     expect(lower).toContain("unresolved");
-    expect(lower).toContain("praveen6273@gmail.com");
-    expect(lower).toContain("jjijosebastian311@gmail.com");
   });
 
   it("never adds Dhanesh", () => {
     expect(lower).not.toContain("dhanesh");
+    expect(tmpl).not.toContain("dhanesh");
   });
 
-  it("skips a mapping that would collide with another employee", () => {
-    expect(lower).toMatch(/already held by another employee/);
+  it("the template skips a mapping that would collide with another employee", () => {
+    expect(tmpl).toMatch(/already held by another employee/);
+    expect(tmpl).toMatch(/and id <> m\.emp_id/);
   });
 });
 
@@ -131,43 +113,13 @@ describe("migration: no credential handling", () => {
 describe("migration: onboarding authorization is enforced server-side", () => {
   it("stores the approved list in the database", () => {
     expect(lower).toMatch(/create table if not exists public\.approved_team_logins/);
-    expect(lower).toMatch(/insert into public\.approved_team_logins/);
   });
 
-  it("holds all thirty-one approved Team Mail IDs", () => {
-    const seed = lower.split("insert into public.approved_team_logins")[1].split(";")[0];
-    for (const mail of [
-      "muhammed.farhan.ext@adbsafegate.com", "anurag.aikkal@adbsafegate.com",
-      "amarnath.munderi@adbsafegate.com", "gopakumar.gopinadhan@adbsafegate.com",
-      "nisar.ahmed@adbsafegate.com", "jjijosebastian311@gmail.com",
-      "nithin.kumar@adbsafegate.com", "praveen6273@gmail.com",
-      "jesudaskt22@gmail.com", "prajeshprabhakar002@gmail.com",
-      "bv4haris@gmail.com", "ragesh.menon@adbsafegate.com",
-      "sanoop.louis@adbsafegate.com", "mohammed.faheem@adbsafegate.com",
-      "tahseenkhan2332@gmail.com", "vikrampal642@gmail.com",
-      "midhunbabu1902@gmail.com", "vineethpatteri@gmail.com",
-      "dhivakarangunasekaran@gmail.com", "yadunath.kaitheri@adbsafegate.com",
-      "srigajeg84@gmail.com", "rajumottammal276@gmail.com",
-      "ganesh2842014@gmail.com", "thomas2937@gmail.com",
-      "abubaker.ab151@gmail.com", "mepeese@gmail.com",
-      "muhammed.talhalateef@adbsafegate.com",
-      "sandeepselvan1999@gmail.com", "abhishekabhi0280@gmail.com",
-      "syedmuzaffar7869@gmail.com", "danish.khan7556@gmail.com",
-    ]) {
-      expect(seed).toContain(mail);
-    }
-  });
-
-  it("seeds the corrected spellings, never the as-supplied ones", () => {
-    // A space or a misspelt domain makes an address unusable; seeding one
-    // would either be dead weight or let its real owner create an account.
-    const seed = lower.split("insert into public.approved_team_logins")[1].split(";")[0];
-    for (const mail of [
-      "abhishe kabhi0280@gmail.com", "sandeepse lvan1999@gmail.com",
-      "syedmuzaffar7869@gmsil.com", "danisn.khan7556@gmail.com",
-    ]) {
-      expect(seed).not.toContain(mail);
-    }
+  it("seeds no addresses itself — the seed is the gitignored local file", () => {
+    expect(lower).not.toMatch(/insert into public\.approved_team_logins/);
+    const tmpl = readFileSync(join(ROOT, "supabase_team_onboarding_data.example.sql"), "utf8").toLowerCase();
+    expect(tmpl).toMatch(/insert into public\.approved_team_logins \(email, label\) values/);
+    expect(tmpl).toMatch(/on conflict \(email\) do nothing/);
   });
 
   it("does not expose the list to anon or authenticated", () => {

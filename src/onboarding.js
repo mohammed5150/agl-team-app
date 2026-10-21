@@ -162,8 +162,8 @@ export const FINALIZE_CONFIRM_MESSAGE =
 
 /**
  * Normalised login ID. Team Mail IDs are compared case-insensitively (the
- * database uses a unique index on lower(email)) but stored verbatim — one of
- * the real IDs is "Bv4haris@gmail.com".
+ * database uses a unique index on lower(email)) but stored verbatim — some of
+ * the real IDs use mixed case (as in "Bv4sample@example.com").
  */
 export function normalizeLoginId(email) {
   return (email || "").trim().toLowerCase();

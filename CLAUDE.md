@@ -35,13 +35,12 @@ A PWA for the Abu Dhabi Airports AGL maintenance team. React 18 + Supabase, bund
 
 **`app.jsx` is the shell, `src/` is everything else.** `app.jsx` (~1500 lines) owns app state, routing and Supabase sync, and imports every page from `src/components/*.jsx` and every piece of logic from `src/*.js`. The split matters for testing: `src/` modules are pure and unit-tested; `app.jsx` is not directly tested by any suite.
 
-**Three compile-time defines** are injected by `build.js` and must stay declared in `eslint.config.js`:
+**Two compile-time defines** are injected by `build.js` and must stay declared in `eslint.config.js`:
 
 - `__SHOW_DEMO__` — demo login accounts **and** the seeded roster (real names, mobiles, passport / Emirates ID numbers)
-- `__EMBED_TEAM_DIRECTORY__` — the approved Team Mail ID list (mostly personal Gmail addresses)
 - `__APP_VERSION__` — build id stamped into error reports
 
-Both data flags default to **off** and are opted into together via `SHOW_DEMO_LOGIN=1`. A bundle is a public document — anyone can fetch `/app.js` unauthenticated. Never deploy a demo build.
+`__SHOW_DEMO__` defaults to **off** and is opted into via `SHOW_DEMO_LOGIN=1`. A bundle is a public document — anyone can fetch `/app.js` unauthenticated. Never deploy a demo build.
 
 ## The security model has two layers, and only one of them is the boundary
 
@@ -81,6 +80,10 @@ Linux CI stayed green throughout. CI now runs on `ubuntu-latest` **and**
 Do not reintroduce a `#!` line in `scripts/*.mjs`. Nothing execs them (they
 are mode 100644 and every call site goes through `node`), and combined with a
 CRLF checkout a shebang makes the file unparseable to vitest.
+
+## The approved Team Mail ID list is not in this repository
+
+The repository is public and the list is mostly personal Gmail addresses, so it lives only in the database (`approved_team_logins`). `src/teamDirectory.js` asks the `is_approved_team_login` RPC and holds no addresses. The seed for a new or empty project is `supabase_team_onboarding_data.local.sql`, gitignored by `*.local.sql`; `supabase_team_onboarding_data.example.sql` shows its shape. Never commit a real address, in source, a migration or a test — use an `example.com` placeholder.
 
 ## Gotchas
 

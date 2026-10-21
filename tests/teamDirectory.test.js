@@ -1,228 +1,24 @@
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import {
-  APPROVED_TEAM_LOGINS, UNRESOLVED_TEAM_LOGINS, HAS_EMBEDDED_DIRECTORY,
-  isApprovedTeamLogin, isUnresolvedTeamLogin, NOT_REGISTERED_MESSAGE,
-  checkApprovedTeamLogin, approveTeamLogin,
+  NOT_REGISTERED_MESSAGE, checkApprovedTeamLogin, approveTeamLogin,
 } from "../src/teamDirectory.js";
-import { isEmailTaken } from "../src/onboarding.js";
 
-// The 31 Team Mail IDs, verbatim.
-const TEAM = [
-  "muhammed.farhan.ext@adbsafegate.com",
-  "anurag.aikkal@adbsafegate.com",
-  "amarnath.munderi@adbsafegate.com",
-  "gopakumar.gopinadhan@adbsafegate.com",
-  "nisar.ahmed@adbsafegate.com",
-  "jjijosebastian311@gmail.com",
-  "nithin.kumar@adbsafegate.com",
-  "praveen6273@gmail.com",
-  "jesudaskt22@gmail.com",
-  "prajeshprabhakar002@gmail.com",
-  "Bv4haris@gmail.com",
-  "ragesh.menon@adbsafegate.com",
-  "sanoop.louis@adbsafegate.com",
-  "mohammed.faheem@adbsafegate.com",
-  "tahseenkhan2332@gmail.com",
-  "vikrampal642@gmail.com",
-  "midhunbabu1902@gmail.com",
-  "vineethpatteri@gmail.com",
-  "dhivakarangunasekaran@gmail.com",
-  "yadunath.kaitheri@adbsafegate.com",
-  "srigajeg84@gmail.com",
-  "rajumottammal276@gmail.com",
-  "ganesh2842014@gmail.com",
-  "thomas2937@gmail.com",
-  "abubaker.ab151@gmail.com",
-  "Mepeese@gmail.com",
-  "muhammed.talhalateef@adbsafegate.com",
-  "sandeepselvan1999@gmail.com",
-  "abhishekabhi0280@gmail.com",
-  "syedmuzaffar7869@gmail.com",
-  "danish.khan7556@gmail.com",
-];
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 
-// The AS-SUPPLIED forms of the last four, which were corrected before being
-// approved. Two contained a space, one was on "gmsil.com", one misspelt a
-// roster name. These broken spellings must never reappear: a space makes an
-// address invalid outright, and approving a mistyped one would let whoever
-// really owns it create an account.
-const WITHHELD = [
-  "abhishe kabhi0280@gmail.com",
-  "sandeepse lvan1999@gmail.com",
-  "syedmuzaffar7869@gmsil.com",
-  "danisn.khan7556@gmail.com",
-];
+// Placeholders only. The real Team Mail IDs are personal addresses and this
+// repository is public; they live in the database and nowhere else.
+const APPROVED = "first.last@example.com";
+const UNKNOWN  = "stranger@example.com";
 
-describe("the approved list is exactly the thirty-one Team Mail IDs", () => {
-  it("holds all thirty-one, verbatim", () => {
-    expect([...APPROVED_TEAM_LOGINS].sort()).toEqual([...TEAM].sort());
-  });
-
-  it("holds the corrected form of each address, never the broken one", () => {
-    const approved = APPROVED_TEAM_LOGINS.map(e => e.toLowerCase());
-    for (const [broken, corrected] of [
-      ["abhishe kabhi0280@gmail.com",  "abhishekabhi0280@gmail.com"],
-      ["sandeepse lvan1999@gmail.com", "sandeepselvan1999@gmail.com"],
-      ["syedmuzaffar7869@gmsil.com",   "syedmuzaffar7869@gmail.com"],
-      ["danisn.khan7556@gmail.com",    "danish.khan7556@gmail.com"],
-    ]) {
-      expect(approved).toContain(corrected);
-      expect(approved).not.toContain(broken);
-    }
-  });
-
-  it("holds none of the four withheld addresses", () => {
-    const approved = APPROVED_TEAM_LOGINS.map(e => e.toLowerCase());
-    for (const e of WITHHELD) {
-      expect(approved).not.toContain(e.toLowerCase());
-      expect(isApprovedTeamLogin(e)).toBe(false);
-    }
-  });
-
-  it("contains no address with whitespace in it", () => {
-    for (const e of APPROVED_TEAM_LOGINS) expect(e).not.toMatch(/\s/);
-  });
-
-  it("contains no address on a misspelt Gmail domain", () => {
-    for (const e of APPROVED_TEAM_LOGINS) {
-      expect(e.toLowerCase()).not.toMatch(/@gmsil\.|@gmial\.|@gmai\./);
-    }
-  });
-
-  it("preserves the original casing", () => {
-    expect(APPROVED_TEAM_LOGINS).toContain("Bv4haris@gmail.com");
-  });
-
-  it("contains no duplicates", () => {
-    const lower = APPROVED_TEAM_LOGINS.map(e => e.toLowerCase());
-    expect(new Set(lower).size).toBe(lower.length);
-  });
-
-  it("does not include Dhanesh", () => {
-    expect(APPROVED_TEAM_LOGINS.join(" ").toLowerCase()).not.toContain("dhanesh");
-  });
-});
-
-describe("an unknown email cannot create an account", () => {
-  const unknown = [
-    "attacker@example.com",
-    "someone@adbsafegate.com",          // right domain, not on the list
-    "amarnath.munderi@adbsafegate.ae",  // old derived address, superseded
-    "dhanesh@adbsafegate.com",          // explicitly out of scope
-    "",
-    "   ",
-  ];
-
-  it.each(unknown)("rejects %j", email => {
-    expect(isApprovedTeamLogin(email)).toBe(false);
-  });
-
-  it("rejects non-string input rather than throwing", () => {
-    for (const v of [null, undefined, 0, {}, []]) {
-      expect(isApprovedTeamLogin(v)).toBe(false);
-    }
-  });
-
+describe("the refusal message", () => {
   it("gives the exact message the user should see", () => {
     expect(NOT_REGISTERED_MESSAGE).toBe(
       "This email address is not registered for the Team Portal. " +
       "Please contact your administrator."
     );
-  });
-
-  it("a near-miss on an approved address is still rejected", () => {
-    expect(isApprovedTeamLogin("anurag.aikkal@adbsafegate.co")).toBe(false);
-    expect(isApprovedTeamLogin("anurag.aikkall@adbsafegate.com")).toBe(false);
-    expect(isApprovedTeamLogin("nurag.aikkal@adbsafegate.com")).toBe(false);
-  });
-});
-
-describe("an unknown email cannot create an employee record", () => {
-  // Mirrors the guard in addInviteEmployee / addInviteEmployeesBulk: an address
-  // that cannot pass the login gate must not produce a roster row, or the
-  // result is an employee who is permanently locked out.
-  const wouldCreateRecord = (roster, email) =>
-    !isEmailTaken(roster, email) && isApprovedTeamLogin(email);
-
-  it("refuses a roster row for an unapproved address", () => {
-    expect(wouldCreateRecord([], "attacker@example.com")).toBe(false);
-  });
-
-  it("refuses a roster row for a plausible but unlisted colleague", () => {
-    expect(wouldCreateRecord([], "new.joiner@adbsafegate.com")).toBe(false);
-  });
-
-  it("allows a roster row for an approved address", () => {
-    expect(wouldCreateRecord([], "nisar.ahmed@adbsafegate.com")).toBe(true);
-  });
-
-  it("still refuses an approved address that is already taken", () => {
-    const roster = [{ id: "EMP-019", email: "nisar.ahmed@adbsafegate.com" }];
-    expect(wouldCreateRecord(roster, "nisar.ahmed@adbsafegate.com")).toBe(false);
-  });
-});
-
-describe("approved Team Mail IDs proceed to onboarding", () => {
-  it.each(TEAM)("admits %s", email => {
-    expect(isApprovedTeamLogin(email)).toBe(true);
-  });
-
-  it("matches case-insensitively so typing is forgiving", () => {
-    expect(isApprovedTeamLogin("BV4HARIS@GMAIL.COM")).toBe(true);
-    expect(isApprovedTeamLogin("Amarnath.Munderi@AdbSafegate.com")).toBe(true);
-  });
-
-  it("tolerates surrounding whitespace", () => {
-    expect(isApprovedTeamLogin("  sanoop.louis@adbsafegate.com  ")).toBe(true);
-  });
-
-  it("admits a member who has no auth account yet", () => {
-    // The gate is independent of auth.users — an approved address reaches the
-    // sign-up branch and establishes its own password there.
-    expect(isApprovedTeamLogin("jesudaskt22@gmail.com")).toBe(true);
-  });
-
-  it("admits an existing auth user the same way", () => {
-    // mohammed.faheem@adbsafegate.com already has an auth account; the gate
-    // does not treat it differently, so normal sign-in is unaffected.
-    expect(isApprovedTeamLogin("mohammed.faheem@adbsafegate.com")).toBe(true);
-  });
-});
-
-describe("the unresolved mappings are approved but flagged", () => {
-  it("names exactly the nine addresses with no employee row", () => {
-    expect([...UNRESOLVED_TEAM_LOGINS].sort()).toEqual([
-      "Mepeese@gmail.com",
-      "abubaker.ab151@gmail.com",
-      "ganesh2842014@gmail.com",
-      "jjijosebastian311@gmail.com",
-      "muhammed.talhalateef@adbsafegate.com",
-      "praveen6273@gmail.com",
-      "rajumottammal276@gmail.com",
-      "srigajeg84@gmail.com",
-      "thomas2937@gmail.com",
-    ].sort());
-  });
-
-  it("still lets them sign in — they are approved team members", () => {
-    for (const e of UNRESOLVED_TEAM_LOGINS) {
-      expect(isApprovedTeamLogin(e)).toBe(true);
-      expect(isUnresolvedTeamLogin(e)).toBe(true);
-    }
-  });
-
-  it("does not flag a resolved address as unresolved", () => {
-    expect(isUnresolvedTeamLogin("nisar.ahmed@adbsafegate.com")).toBe(false);
-  });
-
-  it("every unresolved address is also on the approved list", () => {
-    const approved = APPROVED_TEAM_LOGINS.map(e => e.toLowerCase());
-    for (const e of UNRESOLVED_TEAM_LOGINS) {
-      expect(approved).toContain(e.toLowerCase());
-    }
   });
 });
 
@@ -233,107 +29,109 @@ describe("the authoritative check asks the database", () => {
 
   it("calls is_approved_team_login with the trimmed address", async () => {
     const calls = [];
-    await checkApprovedTeamLogin(rpcReturning(true, calls), "  nisar.ahmed@adbsafegate.com ");
+    await checkApprovedTeamLogin(rpcReturning(true, calls), "  " + APPROVED + " ");
     expect(calls).toEqual([
-      { fn: "is_approved_team_login", args: { p_email: "nisar.ahmed@adbsafegate.com" } },
+      { fn: "is_approved_team_login", args: { p_email: APPROVED } },
     ]);
   });
 
   it("reports the database as the source when it answers", async () => {
-    const r = await checkApprovedTeamLogin(rpcReturning(true), "nisar.ahmed@adbsafegate.com");
-    expect(r).toEqual({ approved: true, source: "database" });
+    expect(await checkApprovedTeamLogin(rpcReturning(true), APPROVED))
+      .toEqual({ approved: true, source: "database" });
   });
 
-  it("refuses when the database says no, even for a locally-listed address", async () => {
-    // The database is authoritative: if the row has been revoked there, the
-    // stale client list must not grant access.
-    const r = await checkApprovedTeamLogin(rpcReturning(false), "nisar.ahmed@adbsafegate.com");
-    expect(r.approved).toBe(false);
-    expect(r.source).toBe("database");
+  it("refuses when the database says no", async () => {
+    expect(await checkApprovedTeamLogin(rpcReturning(false), UNKNOWN))
+      .toEqual({ approved: false, source: "database" });
   });
 
   it("treats a non-true payload as a refusal", async () => {
     for (const v of [null, undefined, 0, "", "true"]) {
-      const r = await checkApprovedTeamLogin(rpcReturning(v), "nisar.ahmed@adbsafegate.com");
+      const r = await checkApprovedTeamLogin(rpcReturning(v), APPROVED);
       expect(r.approved).toBe(false);
     }
   });
 
-  it("falls back to the local list when the RPC errors", async () => {
+  it("answers null, not false, when the RPC errors", async () => {
+    // A refusal here would lock the whole team out whenever the RPC hiccups.
+    // Letting it through is safe: trg_guard_auth_user_approved still refuses
+    // an unapproved account server-side.
     const broken = { rpc: async () => ({ data: null, error: { message: "not found" } }) };
-    const ok = await checkApprovedTeamLogin(broken, "nisar.ahmed@adbsafegate.com");
-    expect(ok).toEqual({ approved: true, source: "local-fallback" });
-    const bad = await checkApprovedTeamLogin(broken, "attacker@example.com");
-    expect(bad).toEqual({ approved: false, source: "local-fallback" });
+    expect(await checkApprovedTeamLogin(broken, UNKNOWN))
+      .toEqual({ approved: null, source: "unavailable" });
   });
 
-  it("falls back when the RPC throws outright", async () => {
+  it("answers null when the RPC throws outright", async () => {
     const throwing = { rpc: async () => { throw new Error("offline"); } };
-    const r = await checkApprovedTeamLogin(throwing, "attacker@example.com");
-    expect(r.approved).toBe(false);
+    expect(await checkApprovedTeamLogin(throwing, UNKNOWN))
+      .toEqual({ approved: null, source: "unavailable" });
   });
 
-  it("never grants an unknown address through any path", async () => {
-    const cases = [rpcReturning(true), rpcReturning(false), null,
-                   { rpc: async () => { throw new Error("x"); } }];
-    for (const client of cases) {
-      const r = await checkApprovedTeamLogin(client, "attacker@example.com");
-      // rpcReturning(true) is a hostile server; the database is authoritative
-      // by design, so that one case is expected to pass — every offline or
-      // failing path must still refuse.
-      if (client === cases[0]) continue;
-      expect(r.approved).toBe(false);
+  it("answers null without a client at all", async () => {
+    expect(await checkApprovedTeamLogin(null, APPROVED))
+      .toEqual({ approved: null, source: "unavailable" });
+  });
+
+  it("never grants an address unless the database says so", async () => {
+    for (const client of [rpcReturning(false), null,
+                          { rpc: async () => { throw new Error("x"); } }]) {
+      const { approved } = await checkApprovedTeamLogin(client, UNKNOWN);
+      expect(approved).not.toBe(true);
     }
-  });
-
-  it("works without a client at all", async () => {
-    expect(await checkApprovedTeamLogin(null, "nisar.ahmed@adbsafegate.com"))
-      .toEqual({ approved: true, source: "local" });
   });
 
   it("answers true, false or null — never a bare falsy for 'don't know'", async () => {
-    // Callers must branch on `=== false`. A production bundle carries no local
-    // directory, so an unreachable RPC yields null; treating that as a refusal
-    // would lock out the whole team whenever the RPC hiccups, and treating it
-    // as approval is safe because trg_guard_auth_user_approved still refuses
-    // the account server-side.
     for (const client of [rpcReturning(true), rpcReturning(false), null]) {
-      const { approved } = await checkApprovedTeamLogin(client, "nisar.ahmed@adbsafegate.com");
+      const { approved } = await checkApprovedTeamLogin(client, APPROVED);
       expect([true, false, null]).toContain(approved);
     }
   });
 });
 
-describe("the directory is never shipped to production", () => {
-  // The list is personal data — most of it private Gmail accounts — and a
-  // bundle is public. build.js compiles it out unless SHOW_DEMO_LOGIN is set,
-  // and scripts/verify-dist.js fails the build if an address survives. These
-  // assertions pin the mechanism the same way securityHeaders.test.js pins the
-  // response headers: the check is worthless if it can be quietly removed.
-  const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
+describe("the Team Mail ID list is not in this repository", () => {
+  // The list is personal data, most of it private Gmail accounts, and this
+  // repository is public. It lives in approved_team_logins; a new project is
+  // seeded from the gitignored supabase_team_onboarding_data.local.sql.
+  const PERSONAL = /[A-Za-z0-9._%+-]+@(gmail|googlemail|yahoo|hotmail|outlook|live|icloud)\.[a-z.]+/gi;
+  const read = f => readFileSync(join(ROOT, f), "utf8");
 
-  it("gates both arrays on the __EMBED_TEAM_DIRECTORY__ define", () => {
-    const src = readFileSync(join(ROOT, "src/teamDirectory.js"), "utf8");
-    expect(src).toMatch(/__EMBED_TEAM_DIRECTORY__/);
-    expect(src).toMatch(/APPROVED_TEAM_LOGINS\s*=\s*EMBED\s*\?/);
-    expect(src).toMatch(/UNRESOLVED_TEAM_LOGINS\s*=\s*EMBED\s*\?/);
+  it("src/teamDirectory.js holds no address and no local list", () => {
+    const src = read("src/teamDirectory.js");
+    expect(src.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+\.[a-z]{2,}/g)).toBeNull();
+    expect(src).not.toMatch(/TEAM_LOGINS_SOURCE|APPROVED_TEAM_LOGINS|__EMBED_TEAM_DIRECTORY__\s*\?/);
   });
 
-  it("ties the define to demo mode in build.js, so production never sets it", () => {
-    const build = readFileSync(join(ROOT, "build.js"), "utf8");
-    expect(build).toMatch(/const\s+embedTeamDirectory\s*=\s*showDemoLogin/);
-    expect(build).toMatch(/__EMBED_TEAM_DIRECTORY__:\s*JSON\.stringify\(!!embedTeamDirectory\)/);
+  it("no migration carries a personal address", () => {
+    for (const f of readdirSync(ROOT).filter(f => /^supabase_.*\.sql$/.test(f))) {
+      expect(read(f).match(PERSONAL), f).toBeNull();
+    }
+  });
+
+  it("the onboarding migration seeds and maps no address at all", () => {
+    const sql = read("supabase_team_onboarding.sql");
+    expect(sql.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+\.[a-z]{2,}/g)).toBeNull();
+  });
+
+  it("keeps the local seed file out of git", () => {
+    expect(read(".gitignore")).toMatch(/^\*\.local\.sql$/m);
+  });
+
+  it("ships a template that uses placeholders only", () => {
+    const sql = read("supabase_team_onboarding_data.example.sql");
+    expect(sql).toMatch(/insert into public\.approved_team_logins/i);
+    const addrs = sql.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[a-z]{2,}/g) || [];
+    expect(addrs.length).toBeGreaterThan(0);
+    for (const a of addrs) expect(a).toMatch(/@example\.com$/);
+  });
+
+  it("no longer defines __EMBED_TEAM_DIRECTORY__ in build.js", () => {
+    expect(read("build.js")).not.toMatch(/__EMBED_TEAM_DIRECTORY__/);
   });
 
   it("keeps a build-time check that refuses a bundle with any address in it", () => {
-    const verify = readFileSync(join(ROOT, "scripts/verify-dist.js"), "utf8");
+    const verify = read("scripts/verify-dist.js");
     expect(verify).toMatch(/EMAIL_RE/);
     expect(verify).toMatch(/process\.exit\(1\)/);
-  });
-
-  it("reports whether this build carries the directory", () => {
-    // True under vitest (no define), false in a production bundle.
-    expect(HAS_EMBEDDED_DIRECTORY).toBe(true);
   });
 });
 
@@ -350,14 +148,14 @@ describe("a manager can approve a new joiner without a developer", () => {
 
   it("calls approve_team_login with a normalised address", async () => {
     const calls = [];
-    await approveTeamLogin(rpc("approved", calls), "  New.Joiner@AdbSafegate.com ", "Aug intake");
+    await approveTeamLogin(rpc("approved", calls), "  New.Joiner@Example.com ", "Aug intake");
     expect(calls).toEqual([
-      { fn: "approve_team_login", args: { p_email: "new.joiner@adbsafegate.com", p_label: "Aug intake" } },
+      { fn: "approve_team_login", args: { p_email: "new.joiner@example.com", p_label: "Aug intake" } },
     ]);
   });
 
   it("reports success in words the manager can act on", async () => {
-    const r = await approveTeamLogin(rpc("approved"), "new.joiner@adbsafegate.com");
+    const r = await approveTeamLogin(rpc("approved"), "new.joiner2@example.com");
     expect(r.ok).toBe(true);
     expect(r.alreadyApproved).toBe(false);
     expect(r.message).toMatch(/can now be invited/);
@@ -366,7 +164,7 @@ describe("a manager can approve a new joiner without a developer", () => {
   it("treats an already-approved address as success, not an error", async () => {
     // Re-approving is harmless and the manager's intent is satisfied either
     // way; surfacing it as a failure would just make them wonder.
-    const r = await approveTeamLogin(rpc("already approved"), "nisar.ahmed@adbsafegate.com");
+    const r = await approveTeamLogin(rpc("already approved"), "new.joiner3@example.com");
     expect(r.ok).toBe(true);
     expect(r.alreadyApproved).toBe(true);
   });
@@ -375,7 +173,7 @@ describe("a manager can approve a new joiner without a developer", () => {
     const denied = {
       rpc: async () => ({ data: null, error: { message: "insufficient_privilege: Only a manager may approve a Team Mail ID" } }),
     };
-    const r = await approveTeamLogin(denied, "x@y.com");
+    const r = await approveTeamLogin(denied, "new.joiner4@example.com");
     expect(r.ok).toBe(false);
     expect(r.message).toBe("Only a manager can approve a Team Mail ID");
   });
@@ -391,9 +189,9 @@ describe("a manager can approve a new joiner without a developer", () => {
   });
 
   it("does not throw when the backend is missing or broken", async () => {
-    expect((await approveTeamLogin(null, "a@b.com")).ok).toBe(false);
+    expect((await approveTeamLogin(null, "new.joiner1@example.com")).ok).toBe(false);
     const throwing = { rpc: async () => { throw new Error("offline"); } };
-    expect((await approveTeamLogin(throwing, "a@b.com")).ok).toBe(false);
+    expect((await approveTeamLogin(throwing, "new.joiner1@example.com")).ok).toBe(false);
   });
 });
 

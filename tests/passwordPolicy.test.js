@@ -109,8 +109,8 @@ describe("a password must not contain the user's own identity", () => {
   });
 
   it("ignores fragments under three characters, which would match everything", () => {
-    // "bv" from Bv4haris@gmail.com must not veto every password with those letters.
-    const shortLocal = { email: "bv4haris@gmail.com", name: "Haris" };
+    // "bv" from Bv4sample@example.com must not veto every password with those letters.
+    const shortLocal = { email: "bv4sample@example.com", name: "Haris" };
     expect(checkPassword("Kx7#bvQmvz2Lp", shortLocal).failed).not.toContain("notIdentity");
   });
 

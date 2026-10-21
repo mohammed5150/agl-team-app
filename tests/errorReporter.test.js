@@ -104,7 +104,7 @@ describe("filing a report", () => {
     reportError({
       kind: "error",
       message: "failed for nisar.ahmed@adbsafegate.com",
-      stack: "at load (bv4haris@gmail.com)",
+      stack: "at load (bv4sample@example.com)",
     });
     expect(rows[0].row.message).toBe("failed for [email]");
     expect(rows[0].row.stack).toContain("[email]");

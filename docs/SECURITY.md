@@ -60,9 +60,12 @@ manager UPDATE policy on `overtime_requests` is what enforces it.
   cannot reach and is what makes the gate real rather than cosmetic.
 - **The client no longer carries the approved list.** A production bundle used
   to embed 35 addresses, most of them personal Gmail accounts, readable by
-  anyone who fetched `/app.js`. The list is now compiled out
-  (`__EMBED_TEAM_DIRECTORY__`) and `scripts/verify-dist.js` fails the build if
-  an address survives. `checkApprovedTeamLogin` is three-valued so "cannot
+  anyone who fetched `/app.js`. The list has since been removed from the
+  source, the migrations and the tests too, because this repository is
+  public: it lives only in `approved_team_logins`, and a new project is seeded
+  from the gitignored `supabase_team_onboarding_data.local.sql`.
+  `scripts/verify-dist.js` still fails the build if an address reaches the
+  bundle. `checkApprovedTeamLogin` is three-valued so "cannot
   reach the RPC" is distinct from "refused" — callers must branch on
   `=== false`.
 - **Passwords** — one policy, `src/passwordPolicy.js`, applied to first
