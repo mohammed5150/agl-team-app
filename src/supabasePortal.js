@@ -198,6 +198,18 @@ export const annFromDb = r => ({
   pinned: !!r.pinned, date: r.date || "", by: r.by_user || "", target: r.target || "all",
 });
 
+export const stuToDb = s => ({
+  id: s.id, title: s.title, blocks: s.blocks || [],
+  pinned: !!s.pinned, author_id: s.authorId || "", author_name: s.authorName || "",
+  created_at: s.createdAt || new Date().toISOString(),
+  updated_at: s.updatedAt || new Date().toISOString(),
+});
+export const stuFromDb = r => ({
+  id: r.id, title: r.title, blocks: r.blocks || [],
+  pinned: !!r.pinned, authorId: r.author_id || "", authorName: r.author_name || "",
+  createdAt: r.created_at || "", updatedAt: r.updated_at || "",
+});
+
 export const nfToDb = n => ({
   id: n.id, to_user: n.to, type: n.type, message: n.message,
   read: !!n.read, date: n.date || new Date().toISOString(),

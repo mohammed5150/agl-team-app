@@ -95,6 +95,9 @@ supabase_*.sql        database migrations (apply in numerical / dependency order
     back to the anon key, matched that policy, and then failed on
     `permission denied for function current_emp_id` instead of quietly
     returning nothing and showing the login screen
+22. `supabase_studio_pages.sql` — Team Studio: shared wiki-style pages
+    (SOP notes, shift handover notes). RLS mirrors `announcements`: every
+    authenticated user reads, team lead or manager writes, manager deletes
 
 ## Roles
 

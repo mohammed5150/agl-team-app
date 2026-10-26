@@ -52,6 +52,7 @@ export const TABLES = [
   "leave_requests",
   "overtime_requests",
   "announcements",
+  "studio_pages",
   "notifications",
   "push_subscriptions",
   "approved_team_logins",
@@ -68,6 +69,7 @@ const OPTIONAL = new Set([
   "profile_unlock_audit",
   "audit_log",
   "client_errors",
+  "studio_pages",
 ]);
 
 const PAGE_SIZE = 1000;

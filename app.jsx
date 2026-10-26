@@ -17,7 +17,8 @@ import { canSetRatingTier, canViewAuditLog, canOffboardEmployee } from "./src/au
 import { auditFromDb } from "./src/auditLog.js";
 import { classifyPortalLoad, degradedMessage, mergeRoster, LOAD_FAILED_MESSAGE } from "./src/portalLoad.js";
 import { installErrorReporting, setRoute, reportError } from "./src/errorReporter.js";
-import { supa, subscribePush, unsubscribePush, sendPush, sendSlack, diffFieldsById, empToDb, empFromDb, lrToDb, lrFromDb, otToDb, otFromDb, annToDb, annFromDb, nfToDb, nfFromDb, diffById, pushSupported } from "./src/supabasePortal.js";
+import { supa, subscribePush, unsubscribePush, sendPush, sendSlack, diffFieldsById, empToDb, empFromDb, lrToDb, lrFromDb, otToDb, otFromDb, annToDb, annFromDb, stuToDb, stuFromDb, nfToDb, nfFromDb, diffById, pushSupported } from "./src/supabasePortal.js";
+import { validateStudioPage } from "./src/studioPages.js";
 import { Logo, Bd, Bt } from "./src/uiPrimitives.jsx";
 import { LoginPage } from "./src/LoginPage.jsx";
 import { ErrorBoundary } from "./src/ErrorBoundary.jsx";
@@ -38,6 +39,7 @@ import { Onboarding } from "./src/components/Onboarding.jsx";
 import { Team } from "./src/components/TeamPage.jsx";
 import { AuditPage } from "./src/components/AuditPage.jsx";
 import { MyTr, TrMgmt } from "./src/components/TrainingPage.jsx";
+import { StudioPg } from "./src/components/StudioPage.jsx";
 import { Ic } from "./src/components/icons.jsx";
 
 const { useState, useCallback, useEffect, useRef } = React;
@@ -56,9 +58,11 @@ function App() {
   const [overtimeRequests, setOvertimeRequests] = useState([]);
   const [notifications, setNotifications] = useState(INITIAL_NOTIFICATIONS);
   const [announcements, setAnnouncements] = useState(INITIAL_ANNOUNCEMENTS);
+  const [studioPages, setStudioPages] = useState([]);
   const [nextLrId, setNextLrId] = useState(5);
   const [nextOtId, setNextOtId] = useState(1);
   const [nextAnnId, setNextAnnId] = useState(6);
+  const [nextStuId, setNextStuId] = useState(1);
   const [selectedMonth, setSelectedMonth] = useState(defaultAttMonth());
   const [showNotif, setShowNotif] = useState(false);
   const [syncError, setSyncError] = useState("");
@@ -102,6 +106,7 @@ function App() {
   const prevLeaveRequestsRef = useRef([]);
   const prevOvertimeRef      = useRef([]);
   const prevAnnouncementsRef = useRef([]);
+  const prevStudioPagesRef   = useRef([]);
   const prevNotificationsRef = useRef([]);
   const loadingRef = useRef(false);
   // Monotonic load counter. A load that was overtaken (the user signed out, or
@@ -169,15 +174,16 @@ function App() {
     loadingRef.current = true;
     const seq = ++loadSeqRef.current;
     try {
-      const [rosterR, lrsR, otsR, annsR, nfsR] = await Promise.all([
+      const [rosterR, lrsR, otsR, annsR, stuR, nfsR] = await Promise.all([
         fetchRoster(),
         supa.from("leave_requests").select("*").order("applied_on", { ascending: false }),
         supa.from("overtime_requests").select("*").order("applied_on", { ascending: false }),
         supa.from("announcements").select("*").order("date", { ascending: false }),
+        supa.from("studio_pages").select("*").order("updated_at", { ascending: false }),
         supa.from("notifications").select("*").order("date", { ascending: false }),
       ]);
       // A load that has been overtaken (sign-out, or a different user signing
-      // in, while these five selects were in flight) must not write its
+      // in, while these six selects were in flight) must not write its
       // results over the newer state.
       if (seq !== loadSeqRef.current) return;
 
@@ -185,6 +191,7 @@ function App() {
       if (lrsR.error)  console.error("[portal] leaves load:",    lrsR.error);
       if (otsR.error)  console.error("[portal] overtime load:",  otsR.error);
       if (annsR.error) console.error("[portal] anns load:",      annsR.error);
+      if (stuR.error)  console.error("[portal] studio load:",   stuR.error);
       if (nfsR.error)  console.error("[portal] notifs load:",    nfsR.error);
 
       const emps = rosterR.rows;
@@ -194,7 +201,7 @@ function App() {
       const verdict = classifyPortalLoad({
         employeesResult: { data: rosterR.error ? null : emps, error: rosterR.error },
         authEmail,
-        secondary: { leave: lrsR, overtime: otsR, announcements: annsR, notifications: nfsR },
+        secondary: { leave: lrsR, overtime: otsR, announcements: annsR, notifications: nfsR, studio: stuR },
       });
 
       if (verdict.status === "load-failed") {
@@ -226,14 +233,17 @@ function App() {
       const lrs  = (lrsR.data  || []).map(lrFromDb);
       const ots  = (otsR.data  || []).map(otFromDb);
       const anns = (annsR.data || []).map(annFromDb);
+      const stus = (stuR.data  || []).map(stuFromDb);
       setEmployees(emps);
       setLeaveRequests(lrs);
       setOvertimeRequests(ots);
       setAnnouncements(anns);
+      setStudioPages(stus);
       prevEmployeesRef.current     = emps;
       prevLeaveRequestsRef.current = lrs;
       prevOvertimeRef.current      = ots;
       prevAnnouncementsRef.current = anns;
+      prevStudioPagesRef.current   = stus;
       // Seed notifications if empty
       let nfs;
       if (!nfsR.data || nfsR.data.length === 0) {
@@ -290,6 +300,14 @@ function App() {
               const fresh = data.map(annFromDb);
               prevAnnouncementsRef.current = fresh;
               setAnnouncements(fresh);
+            }
+          })
+          .on("postgres_changes", { event: "*", schema: "public", table: "studio_pages" }, async () => {
+            const { data } = await supa.from("studio_pages").select("*").order("updated_at", { ascending: false });
+            if (data) {
+              const fresh = data.map(stuFromDb);
+              prevStudioPagesRef.current = fresh;
+              setStudioPages(fresh);
             }
           })
           .on("postgres_changes", { event: "INSERT", schema: "public", table: "notifications" }, async (payload) => {
@@ -378,6 +396,7 @@ function App() {
           setLeaveRequests([]);
           setOvertimeRequests([]);
           setAnnouncements([]);
+          setStudioPages([]);
           // No session is a perfectly good answer, not a failure — clear any
           // stale boot error so the user gets the sign-in form, not a retry
           // screen for a session that no longer exists.
@@ -506,6 +525,21 @@ function App() {
     }, 400);
     return () => clearTimeout(t);
   }, [announcements]);
+
+  useEffect(() => {
+    if (!hydrated.current || !supa) return;
+    const t = setTimeout(() => {
+      const baseline = prevStudioPagesRef.current;
+      const changed = diffById(baseline, studioPages);
+      if (!changed.length) return;
+      supa.from("studio_pages").upsert(changed.map(stuToDb))
+        .then(r => {
+          if (r.error) { console.error("studio_pages upsert:", r.error); setSyncError("Couldn't save Team Studio changes"); return; }
+          if (prevStudioPagesRef.current === baseline) prevStudioPagesRef.current = studioPages;
+        });
+    }, 400);
+    return () => clearTimeout(t);
+  }, [studioPages]);
 
   useEffect(() => {
     if (!hydrated.current || !supa) return;
@@ -1185,6 +1219,41 @@ function App() {
     setAnnouncements(p => p.filter(a => a.id !== id));
   }, []);
 
+  const addStudioPage = useCallback(form => {
+    const v = validateStudioPage(form);
+    if (!v.ok) return v;
+    const id = `STU-${String(nextStuId).padStart(3,"0")}`;
+    setNextStuId(p => p + 1);
+    const now = new Date().toISOString();
+    const page = {
+      id, title:v.title, blocks:v.blocks, pinned:form.pinned || false,
+      authorId: currentUser.id, authorName: currentUser.name,
+      createdAt: now, updatedAt: now,
+    };
+    setStudioPages(p => [page, ...p]);
+    return { ok: true };
+  }, [nextStuId, currentUser]);
+
+  const updateStudioPage = useCallback((id, form) => {
+    const v = validateStudioPage(form);
+    if (!v.ok) return v;
+    setStudioPages(p => p.map(pg => pg.id === id
+      ? { ...pg, title:v.title, blocks:v.blocks, pinned:form.pinned ?? pg.pinned, updatedAt:new Date().toISOString() }
+      : pg));
+    return { ok: true };
+  }, []);
+
+  // Deleted directly against Supabase, not via the diff-based upsert sync
+  // (which only ever inserts/updates rows present in local state) — a page
+  // removed from studioPages would otherwise never actually leave the table.
+  const delStudioPage = useCallback(id => {
+    setStudioPages(p => p.filter(pg => pg.id !== id));
+    prevStudioPagesRef.current = prevStudioPagesRef.current.filter(pg => pg.id !== id);
+    if (!supa) return;
+    supa.from("studio_pages").delete().eq("id", id)
+      .then(r => { if (r.error) { console.error("studio_pages delete:", r.error); setSyncError("Couldn't delete the page"); } });
+  }, []);
+
   const markNotifRead = useCallback(nid => {
     setNotifications(p => p.map(n => n.id === nid ? { ...n, read:true } : n));
   }, []);
@@ -1462,6 +1531,7 @@ function App() {
               {nav === "training" && (iM ? <TrMgmt employees={employees} /> : <MyTr emp={currentUser} />)}
               {nav === "documents" && (iM ? <DocsMgmt employees={employees} onSel={setViewEmployee} /> : <MyDocs emp={currentUser} onAdd={addDoc} onDel={delDoc} />)}
               {nav === "announcements" && <AnnPg user={currentUser} announcements={announcements} onAdd={addAnn} onDel={delAnn} />}
+              {nav === "studio" && <StudioPg user={currentUser} pages={studioPages} onAdd={addStudioPage} onUpdate={updateStudioPage} onDel={delStudioPage} />}
               {nav === "audit" && canViewAuditLog(currentUser) && (
                 <AuditPage
                   entries={auditEntries}

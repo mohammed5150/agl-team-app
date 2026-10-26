@@ -53,7 +53,7 @@ round.
 **Included**
 
 - `employees`, `leave_requests`, `overtime_requests`, `announcements`,
-  `notifications`
+  `studio_pages`, `notifications`
 - `push_subscriptions`, `approved_team_logins`
 - `audit_log`, `profile_unlock_audit`
 - `client_errors`

@@ -49,6 +49,7 @@ Tables and views the client reads/writes, all subject to RLS:
 | `leave_requests` | Insert own; TL/MGR update status per the pinned two-stage workflow. |
 | `overtime_requests` | Insert own; TL updates status (team-lead-terminal — no manager stage). |
 | `announcements` | Read all; staff write. |
+| `studio_pages` | Read all; staff (TL/MGR) insert/update; manager delete (`src/components/StudioPage.jsx`). |
 | `notifications` | Read own, mark `read`; creation is scoped by policy. |
 | `push_subscriptions` | Upsert/delete own subscription (`onConflict: "endpoint"`). |
 | `audit_log` | Manager read (capped at 500 rows in the UI). Never written by the client — only by `SECURITY DEFINER` triggers. |
