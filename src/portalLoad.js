@@ -49,7 +49,7 @@ export function findEmployeeByEmail(employees, authEmail) {
  * @param {object} r
  *   @param {object|null} r.employeesResult  the { data, error } of the employees select
  *   @param {string}      r.authEmail        the signed-in address
- *   @param {object}      [r.secondary]      { leave, overtime, announcements, notifications }
+ *   @param {object}      [r.secondary]      { leave, overtime, announcements, notifications, studio }
  *                                           of { data, error } — non-fatal tables
  * @returns {{status:"ok"|"load-failed"|"not-registered", me:object|null,
  *            message:string, degraded:string[]}}
@@ -97,6 +97,7 @@ export function degradedTables(secondary) {
     overtime: "overtime requests",
     announcements: "announcements",
     notifications: "notifications",
+    studio: "team studio pages",
   };
   return Object.keys(LABELS)
     .filter(k => secondary[k] && secondary[k].error)

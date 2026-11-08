@@ -22,6 +22,7 @@ what the UI offers. See `docs/SECURITY.md` for the full model.
 | `leave_requests` | Leave with a **two-stage workflow**: team lead first, then manager. Status transitions are pinned per role by trigger; overlap and range guards apply. |
 | `overtime_requests` | Overtime with a **team-lead-terminal workflow** — a manager never acts on one, so there are no `mgr_*` columns. Daily-total guard applies. |
 | `announcements` | Team announcements (priority, pinned, target audience). |
+| `studio_pages` | Team Studio: shared wiki-style pages (title + ordered `heading`/`text`/`checklist` blocks). RLS mirrors `announcements` — everyone on the roster reads, team lead/manager writes, manager deletes. |
 | `notifications` | Per-user in-app notifications. Who a notification may be addressed to is scoped by policy; rows are immutable once written except the `read` flag. |
 | `push_subscriptions` | Web-push endpoints per user (`endpoint` unique, `p256dh`/`auth` keys), written by `src/supabasePortal.js`. |
 | `approved_team_logins` | The approved Team Mail ID allowlist. `guard_auth_user_approved` on `auth.users` makes sign-up impossible for an unapproved address — not skippable from any client. |

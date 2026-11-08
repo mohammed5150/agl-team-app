@@ -1,5 +1,6 @@
 import { theme } from "./constants.js";
 import { Logo, ib } from "./uiPrimitives.jsx";
+import { BorderBeam, DotPattern, ShimmerButton } from "./components/magic.jsx";
 import { POLICY_SUMMARY } from "./passwordPolicy.js";
 import { Ic } from "./components/icons.jsx";
 
@@ -117,7 +118,9 @@ export function LoginPage({
       <div style={{
         position:"absolute", inset:0,
         background:"radial-gradient(ellipse at 20% 50%,rgba(21,66,95,0.3) 0%,transparent 60%),radial-gradient(ellipse at 80% 20%,rgba(232,112,42,0.1) 0%,transparent 50%)"
-      }}/>
+      }}>
+        <DotPattern spacing={22} radius={1.2} color="rgba(148,163,184,0.22)" />
+      </div>
       <div style={{ width:"100%", maxWidth:400, padding:20, position:"relative", zIndex:1 }}>
         <div style={{ textAlign:"center", marginBottom:32 }}>
           <div style={{ margin:"0 auto 16px", display:"flex", justifyContent:"center" }}>
@@ -128,8 +131,9 @@ export function LoginPage({
         <div style={{
           background:"rgba(17,31,48,0.8)", backdropFilter:"blur(20px)",
           borderRadius:18, padding:28, border:`1px solid ${theme.bl}`,
-          boxShadow:"0 24px 80px rgba(0,0,0,0.5)"
+          boxShadow:"0 24px 80px rgba(0,0,0,0.5)", position:"relative"
         }}>
+          <BorderBeam size={90} duration={9} colorFrom={theme.ol} colorTo={theme.bu} borderWidth={1.5} />
           {mode === "forgot" ? (
             <ForgotPassword
               initialEmail={loginId}
@@ -179,16 +183,17 @@ export function LoginPage({
                 style={ib}
               />
             </div>
-            <button
+            <ShimmerButton
               type="submit"
               disabled={loginSubmitting}
+              background={theme.ga}
+              shimmerColor="#fff3e6"
+              borderRadius="10px"
               style={{
-                width:"100%", padding:"12px", borderRadius:10, border:"none",
-                background:theme.ga, color:"#fff", fontSize:14, fontWeight:700, cursor: loginSubmitting ? "wait" : "pointer",
-                opacity: loginSubmitting ? 0.75 : 1,
+                width:"100%", padding:"12px", fontSize:14, fontWeight:700,
                 boxShadow:"0 4px 20px rgba(232,112,42,0.3)"
               }}
-            >{loginSubmitting ? "Signing in…" : "Sign In"}</button>
+            >{loginSubmitting ? "Signing in…" : "Sign In"}</ShimmerButton>
           </form>
           <div style={{ textAlign:"center", marginTop:12 }}>
             <button

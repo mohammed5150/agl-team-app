@@ -93,6 +93,53 @@ button:active{transform:scale(0.98)}
   color:#fecaca;line-height:1.6;opacity:0;animation:bootstuck 0s linear 10s forwards}
 @keyframes bootstuck{to{opacity:1}}
 .boot-stuck b{color:#fff}
+
+/* ------------------------------------------------------------------
+   MAGIC UI
+   Selector-level rules and keyframes for src/components/magic.jsx
+   (ports of Magic UI components, MIT). Per-use values arrive as --mu-*
+   custom properties; everything here is prefixed mu- so it cannot collide
+   with the portal's own classes.
+   ------------------------------------------------------------------ */
+/* BlurFade. fill-mode `backwards`, not `both`: it holds the hidden first
+   frame through the stagger delay, then lets go entirely when it ends. An
+   animation that fills forwards stays "in effect" on transform and filter,
+   which keeps the wrapper a stacking context and the containing block for
+   position:fixed descendants — a Modal inside would anchor to the card. */
+.mu-blur-fade{animation:mu-blur-fade .4s ease-out var(--mu-bf-delay,0s) backwards}
+@keyframes mu-blur-fade{from{opacity:0;transform:translateY(-6px);filter:blur(6px)}to{opacity:1;transform:none;filter:none}}
+/* BorderBeam: the frame masks everything but its own border ring, and the
+   beam rides an offset-path round that ring. */
+.mu-beam-frame{position:absolute;inset:0;pointer-events:none;border-radius:inherit;border:var(--mu-bw) solid transparent;
+  -webkit-mask:linear-gradient(#000 0 0) padding-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;
+  mask:linear-gradient(#000 0 0) padding-box,linear-gradient(#000 0 0);mask-composite:exclude}
+.mu-beam{position:absolute;aspect-ratio:1;width:var(--mu-size);
+  background:linear-gradient(to left,var(--mu-from),var(--mu-to),transparent);
+  offset-path:rect(0 auto auto 0 round var(--mu-size));
+  animation:mu-beam var(--mu-dur) linear infinite}
+@keyframes mu-beam{from{offset-distance:0%}to{offset-distance:100%}}
+/* MagicCard spotlight */
+.mu-magic-spot{position:absolute;inset:0;pointer-events:none;opacity:0;transition:opacity .3s;
+  background:radial-gradient(var(--mu-gs) circle at var(--mu-mx) var(--mu-my),var(--mu-gc),transparent 100%)}
+.mu-magic:hover .mu-magic-spot{opacity:1}
+/* ShimmerButton */
+.mu-shimmer{position:relative;z-index:0;display:flex;align-items:center;justify-content:center;overflow:hidden;
+  border-radius:var(--mu-radius);border:none;padding:12px 24px;white-space:nowrap;
+  color:#fff;background:var(--mu-bg);cursor:pointer;transform:translateZ(0)}
+/* The class outranks the global button:active rule, so restate its press. */
+.mu-shimmer:active:not(:disabled){transform:scale(0.98)}
+.mu-shimmer:disabled{cursor:wait;opacity:.75}
+.mu-shimmer-sparks{position:absolute;inset:0;z-index:-3;filter:blur(2px);overflow:visible;container-type:size}
+.mu-shimmer-slide{position:absolute;inset:0;aspect-ratio:1;height:100cqh;animation:mu-shimmer-slide 3s ease-in-out infinite alternate}
+.mu-shimmer-spin{position:absolute;inset:-100%;width:auto;
+  background:conic-gradient(from 225deg,transparent 0,var(--mu-shimmer-color) 90deg,transparent 90deg);
+  animation:mu-spin-around 6s infinite linear}
+.mu-shimmer-highlight{position:absolute;inset:0;border-radius:inherit;box-shadow:inset 0 -8px 10px #ffffff1f;transition:box-shadow .3s ease-in-out}
+.mu-shimmer:hover .mu-shimmer-highlight{box-shadow:inset 0 -6px 10px #ffffff3f}
+.mu-shimmer:active .mu-shimmer-highlight{box-shadow:inset 0 -10px 10px #ffffff3f}
+.mu-shimmer-backdrop{position:absolute;inset:0.05em;z-index:-2;border-radius:var(--mu-radius);background:var(--mu-bg)}
+@keyframes mu-shimmer-slide{to{transform:translate(calc(100cqw - 100%),0)}}
+@keyframes mu-spin-around{0%{transform:translateZ(0) rotate(0)}15%,35%{transform:translateZ(0) rotate(90deg)}65%,85%{transform:translateZ(0) rotate(270deg)}100%{transform:translateZ(0) rotate(360deg)}}
 /* Honour the OS "reduce motion" setting across the whole app, not just the
    boot pulse: the button hover/active transitions, .fade-in, .modal-bg and
    .modal-panel all animate too, as do the transitions set inline on the
@@ -111,6 +158,12 @@ button:active{transform:scale(0.98)}
     scroll-behavior:auto!important;
   }
   .boot-wait{animation:none!important}
+  /* Magic UI effects are pure decoration: switch them off outright rather
+     than letting the duration clamp above leave a parked beam or spark.
+     BlurFade must go to `none`, not just be shortened — its delay is not
+     clamped, so a shortened one would still hold content invisible. */
+  .mu-blur-fade{animation:none!important}
+  .mu-beam-frame,.mu-shimmer-sparks{display:none!important}
 }
 </style>
 </head>

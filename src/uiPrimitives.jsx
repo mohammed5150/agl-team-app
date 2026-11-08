@@ -1,5 +1,6 @@
 import { theme } from "./constants.js";
 import { Ic } from "./components/icons.jsx";
+import { MagicCard, NumberTicker } from "./components/magic.jsx";
 
 const { useId, useRef, useEffect } = React;
 
@@ -69,17 +70,23 @@ export const Bt = ({ children, onClick, bg=theme.pl, color="#fff", outline=false
   }}>{children}</button>
 );
 
+// Stat card, as a MagicCard whose border ring lights up in the stat's own
+// colour. theme.card is translucent; MagicCard lays it over theme.bg.
 export const SC2 = ({ label, value, color, icon, sub }) => (
-  <div style={{
-    background:theme.card, borderRadius:14, padding:"18px 16px",
-    flex:"1 1 150px", border:`1px solid ${theme.bd}`, minWidth:140,
-    position:"relative", overflow:"hidden"
-  }}>
+  <MagicCard
+    background={theme.card}
+    borderColor={theme.bd}
+    gradientSize={160}
+    gradientColor={`${color}2e`}
+    gradientFrom={color}
+    gradientTo={`${color}40`}
+    style={{ borderRadius:14, padding:"18px 16px", flex:"1 1 150px", minWidth:140 }}
+  >
     <div style={{ position:"absolute", top:-8, right:-8, fontSize:48, opacity:0.06 }}>{icon}</div>
     <div style={{ fontSize:13, color:theme.td, marginBottom:6, fontWeight:500 }}>{label}</div>
-    <div style={{ fontSize:28, fontWeight:800, color, fontVariantNumeric:"tabular-nums" }}>{value}</div>
+    <div style={{ fontSize:28, fontWeight:800, color, fontVariantNumeric:"tabular-nums" }}><NumberTicker value={value} /></div>
     {sub && <div style={{ fontSize:11, color:theme.td, marginTop:4 }}>{sub}</div>}
-  </div>
+  </MagicCard>
 );
 
 export const Sec = ({ title, icon, children, action }) => (

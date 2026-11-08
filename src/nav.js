@@ -7,6 +7,7 @@ const NE = [
   { key:"training", label:"Training", icon:"graduation" },
   { key:"documents", label:"My Documents", icon:"folder" },
   { key:"announcements", label:"Announcements", icon:"megaphone" },
+  { key:"studio", label:"Team Studio", icon:"book" },
   { key:"changepw", label:"Settings", icon:"gear" }
 ];
 
@@ -22,6 +23,7 @@ const NM = [
   { key:"training", label:"Training", icon:"graduation" },
   { key:"documents", label:"Documents", icon:"folder" },
   { key:"announcements", label:"Announcements", icon:"megaphone" },
+  { key:"studio", label:"Team Studio", icon:"book" },
   { key:"audit", label:"Audit Trail", icon:"file-text" },
   { key:"changepw", label:"Settings", icon:"gear" }
 ];
