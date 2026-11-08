@@ -7,6 +7,7 @@ import { Bd, Bt, Sec, Empty } from "../uiPrimitives.jsx";
 import { PASTEL, INK, Ring, Tile } from "./charts.jsx";
 import { WeatherCard } from "./WeatherCard.jsx";
 import { Ic } from "./icons.jsx";
+import { BlurFade, BorderBeam } from "./magic.jsx";
 
 export function MDash({ user, employees, leaveRequests, announcements, pc, onGoTo }) {
   const h = new Date().getHours();
@@ -69,8 +70,9 @@ export function MDash({ user, employees, leaveRequests, announcements, pc, onGoT
           <div key={a.id} onClick={() => onGoTo("announcements")} style={{
             background:`linear-gradient(135deg, ${pr.color}22, ${pr.color}08)`,
             border:`1px solid ${pr.color}40`, borderRadius:18,
-            padding:"14px 16px", marginBottom:16, cursor:"pointer"
+            padding:"14px 16px", marginBottom:16, cursor:"pointer", position:"relative"
           }}>
+            <BorderBeam size={70} duration={8} colorFrom={pr.color} colorTo={`${pr.color}00`} />
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:8, marginBottom:4 }}>
               <div style={{ fontSize:13, fontWeight:800, color:theme.tx }}><Ic name="pin" size={12} style={{ marginRight:5 }} />{a.title}</div>
               <Bd text={pr.label.toUpperCase()} color={pr.color} />
@@ -83,6 +85,7 @@ export function MDash({ user, employees, leaveRequests, announcements, pc, onGoT
       })}
 
       {/* Hero: Team on duty ring */}
+      <BlurFade delay={0.05}>
       <div style={{ background:PASTEL.coral, borderRadius:24, padding:20, marginBottom:14,
         display:"flex", alignItems:"center", gap:20, flexWrap:"wrap" }}>
         <div style={{ flex:1, minWidth:160 }}>
@@ -106,14 +109,18 @@ export function MDash({ user, employees, leaveRequests, announcements, pc, onGoT
         <Ring value={dutyPct} size={130} stroke={12} color={INK} track="rgba(255,255,255,0.5)"
           label={Math.round(dutyPct*100) + "%"} sub="ON DUTY" />
       </div>
+      </BlurFade>
 
       {/* Two small cards row */}
+      <BlurFade delay={0.1}>
       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14, marginBottom:14 }}>
         <Tile bg={PASTEL.lilac} label="Approvals" value={pc} sub="awaiting your review" onClick={() => onGoTo("approvals")} />
         <Tile bg={PASTEL.butter} label="Expiring" value={expiringCerts + expiringDocs} sub="certs + documents ≤90d" onClick={() => onGoTo("documents")} />
       </div>
+      </BlurFade>
 
       {/* Section breakdown as dark card with horizontal bars */}
+      <BlurFade delay={0.15}>
       <Tile bg={theme.cs} dark label="Section Breakdown">
         <div style={{ display:"flex", flexDirection:"column", gap:10, marginTop:8 }}>
           {sectionCounts.map((s, i) => (
@@ -129,10 +136,12 @@ export function MDash({ user, employees, leaveRequests, announcements, pc, onGoT
           ))}
         </div>
       </Tile>
+      </BlurFade>
 
       <div style={{ height:14 }} />
 
       {/* Recent activity + on leave today */}
+      <BlurFade delay={0.2}>
       <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))", gap:14 }}>
         <Sec title="Recent Leave" icon={<Ic name="clipboard" size={15} />} action={<Bt onClick={() => onGoTo("leave")} small={true} outline={true}>View all</Bt>}>
           {leaveRequests.slice(0, 4).map(r => (
@@ -166,6 +175,7 @@ export function MDash({ user, employees, leaveRequests, announcements, pc, onGoT
             ))}
         </Sec>
       </div>
+      </BlurFade>
     </div>
   );
 }

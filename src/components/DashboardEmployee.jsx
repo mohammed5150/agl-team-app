@@ -4,6 +4,7 @@ import { Bd, Bt, Sec } from "../uiPrimitives.jsx";
 import { PASTEL, INK, Ring, Spark, Tile } from "./charts.jsx";
 import { WeatherCard } from "./WeatherCard.jsx";
 import { Ic } from "./icons.jsx";
+import { BlurFade, BorderBeam } from "./magic.jsx";
 
 /* ============================================================
    EMPLOYEE DASHBOARD
@@ -86,8 +87,9 @@ export function EDash({ user, announcements, onGoTo }) {
           <div key={a.id} onClick={() => onGoTo("announcements")} style={{
             background:`linear-gradient(135deg, ${pr.color}22, ${pr.color}08)`,
             border:`1px solid ${pr.color}40`, borderRadius:18,
-            padding:"14px 16px", marginBottom:16, cursor:"pointer"
+            padding:"14px 16px", marginBottom:16, cursor:"pointer", position:"relative"
           }}>
+            <BorderBeam size={70} duration={8} colorFrom={pr.color} colorTo={`${pr.color}00`} />
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:8, marginBottom:4 }}>
               <div style={{ fontSize:13, fontWeight:800, color:theme.tx }}><Ic name="pin" size={12} style={{ marginRight:5 }} />{a.title}</div>
               <Bd text={pr.label.toUpperCase()} color={pr.color} />
@@ -100,6 +102,7 @@ export function EDash({ user, announcements, onGoTo }) {
       })}
 
       {/* Hero: Annual Leave ring */}
+      <BlurFade delay={0.05}>
       <div style={{ background:PASTEL.coral, borderRadius:24, padding:20, marginBottom:14,
         display:"flex", alignItems:"center", gap:20, flexWrap:"wrap" }}>
         <div style={{ flex:1, minWidth:160 }}>
@@ -123,8 +126,10 @@ export function EDash({ user, announcements, onGoTo }) {
         <Ring value={annualUsedPct} size={130} stroke={12} color={INK} track="rgba(255,255,255,0.5)"
           label={annualLeft} sub="DAYS LEFT" />
       </div>
+      </BlurFade>
 
       {/* Monthly leave trend + certs status */}
+      <BlurFade delay={0.1}>
       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14, marginBottom:14 }}>
         <Tile bg={PASTEL.lilac} label="Leave Usage">
           <div style={{ flex:1, display:"flex", flexDirection:"column", justifyContent:"flex-end" }}>
@@ -139,9 +144,11 @@ export function EDash({ user, announcements, onGoTo }) {
           sub={`${certsExpiring.length} expiring · ${user.training?.length || 0} total`}
           onClick={() => onGoTo("training")} />
       </div>
+      </BlurFade>
 
       {/* Action Required card (if anything expiring) */}
       {(certsExpiring.length > 0 || docsExpiring.length > 0) && (
+        <BlurFade delay={0.15}>
         <Tile bg={theme.cs} dark label="Action Required">
           <div style={{ marginTop:8 }}>
             {certsExpiring.slice(0,3).map(x => (
@@ -170,12 +177,14 @@ export function EDash({ user, announcements, onGoTo }) {
             ))}
           </div>
         </Tile>
+        </BlurFade>
       )}
 
       <div style={{ height:14 }} />
 
       {/* Latest announcements list */}
       {latestAnn.length > 0 && (
+        <BlurFade delay={0.2}>
         <Sec title="Announcements" icon={<Ic name="megaphone" size={15} />} action={<Bt onClick={() => onGoTo("announcements")} small={true} outline={true}>View all</Bt>}>
           {latestAnn.map(a => {
             const pr = ANN_PRIORITIES.find(p => p.key === a.priority) || ANN_PRIORITIES[0];
@@ -190,6 +199,7 @@ export function EDash({ user, announcements, onGoTo }) {
             );
           })}
         </Sec>
+        </BlurFade>
       )}
 
       {user.achievements?.length > 0 && (

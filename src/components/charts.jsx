@@ -1,3 +1,4 @@
+import { MagicCard, NumberTicker } from "./magic.jsx";
 
 // Pastel palette for the new dashboard cards
 export const PASTEL = { coral:"#f5a99a", mint:"#a8e5c5", lilac:"#b9a8f2", butter:"#f5e892", sky:"#a8d4f5" };
@@ -41,24 +42,33 @@ export const Spark = ({ values, color=INK, height=50, active=-1 }) => {
   );
 };
 
-// Small square tile in the new aesthetic
+// Small square tile in the new aesthetic. A MagicCard: a soft spotlight
+// follows the pointer, and a numeric `value` counts up on first view.
 export const Tile = ({ bg, label, value, sub, dark=false, children, onClick }) => {
   const fg = dark ? "#f0f4f8" : INK;
   return (
-    <div onClick={onClick} style={{
-      background: bg, borderRadius:22, padding:18,
-      minHeight:150, cursor: onClick ? "pointer" : "default",
-      display:"flex", flexDirection:"column", justifyContent:"space-between",
-      color: fg, boxShadow: dark ? "none" : "0 2px 20px rgba(0,0,0,0.12)"
-    }}>
+    <MagicCard
+      onClick={onClick}
+      background={bg}
+      borderColor={bg}
+      gradientColor={dark ? "rgba(255,255,255,0.07)" : "rgba(255,255,255,0.45)"}
+      gradientFrom={dark ? "#f5923e" : "#ffffff"}
+      gradientTo={dark ? "#38bdf8" : "rgba(255,255,255,0.4)"}
+      style={{
+        borderRadius:22, padding:18,
+        minHeight:150, cursor: onClick ? "pointer" : "default",
+        display:"flex", flexDirection:"column", justifyContent:"space-between",
+        color: fg, boxShadow: dark ? "none" : "0 2px 20px rgba(0,0,0,0.12)"
+      }}
+    >
       <div style={{ fontSize:11, fontWeight:700, letterSpacing:1, opacity:0.75, textTransform:"uppercase" }}>{label}</div>
       {children ? children : (
         <div>
-          <div style={{ fontSize:34, fontWeight:800, lineHeight:1 }}>{value}</div>
+          <div style={{ fontSize:34, fontWeight:800, lineHeight:1 }}><NumberTicker value={value} /></div>
           {sub && <div style={{ fontSize:11, opacity:0.7, marginTop:4 }}>{sub}</div>}
         </div>
       )}
-    </div>
+    </MagicCard>
   );
 };
 
